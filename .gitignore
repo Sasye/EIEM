@@ -1,0 +1,11 @@
+bin/
+*.obj
+*.exp
+*.lib
+*.res
+*.pdb
+*.ilk
+bigplan.md
+src/removed.md
+smc_reverse_engineering.md
+git-sync.py
