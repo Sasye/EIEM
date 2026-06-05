@@ -1540,6 +1540,34 @@ static void ApplyMmdPoseOnMainThread() {
         Log("[CAM] Character world pos: (%.3f, %.3f, %.3f) yaw=%.1fdeg",
             g_charWorldPos.x, g_charWorldPos.y, g_charWorldPos.z,
             g_charYaw * 57.2958f);
+
+        
+        
+        
+        
+        g_charHeight = 0.0f;
+        if (g_animator_GetBoneTransform && g_cachedAnimator) {
+          void *headT = SafeGetBoneTransform(10); 
+          Vec3 headPos;
+          if (headT && ReadWorldPosition(headT, headPos)) {
+            float h = headPos.y - g_charWorldPos.y; 
+            if (h > 0.1f && h < 5.0f) 
+              g_charHeight = h;
+          }
+        }
+        if (g_charHeight > 0.0f) {
+          
+          
+          
+          if (g_camRefHeight <= 0.0f)
+            g_camRefHeight = (CAM_REF_HEIGHT > 0.0f) ? CAM_REF_HEIGHT
+                                                     : g_charHeight;
+          g_camHeightScale = g_charHeight / g_camRefHeight;
+        } else {
+          g_camHeightScale = 1.0f; 
+        }
+        Log("[CAM] Char height=%.3f refHeight=%.3f heightScale=%.3f",
+            g_charHeight, g_camRefHeight, g_camHeightScale);
       }
     } __except (1) {
       Log("[CAM] Failed to capture character world pos");

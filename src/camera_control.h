@@ -258,10 +258,17 @@ static void ApplyCameraFrame(float timeSec) {
   
   float effYaw = CAM_YAW_SIGN * g_charYaw + CAM_YAW_BIAS * 0.0174533f;
   float cy = cosf(effYaw), sy = sinf(effYaw);
-  float rx = cs.position.x * cy + cs.position.z * sy;
-  float rz = -cs.position.x * sy + cs.position.z * cy;
+  
+  
+  
+  
+  
+  float hs = g_camHeightScale;
+  float px = cs.position.x * hs, py = cs.position.y * hs, pz = cs.position.z * hs;
+  float rx = px * cy + pz * sy;
+  float rz = -px * sy + pz * cy;
   float worldPos[3] = {rx + g_charWorldPos.x,
-                       cs.position.y + g_charWorldPos.y,
+                       py + g_charWorldPos.y,
                        rz + g_charWorldPos.z};
   
   float hy = effYaw * 0.5f;

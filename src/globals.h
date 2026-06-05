@@ -127,6 +127,10 @@ static Vec3 g_charWorldPos = {0, 0, 0};
 static float g_charYaw = 0.0f;              
 static bool g_camTestMode = false;          
 
+static float g_charHeight = 0.0f;           
+static float g_camRefHeight = 0.0f;         
+static float g_camHeightScale = 1.0f;       
+
 
 static void CaptureAndDisableCinemachine();
 static void RestoreCinemachine();

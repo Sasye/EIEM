@@ -29,6 +29,14 @@
 #define CAM_YAW_BIAS 180.0f   
 #define CAM_YAW_SIGN 1.0f     
 
+
+
+
+
+
+
+#define CAM_REF_HEIGHT 1.245f
+
 struct CameraState {
   Vec3 position;   
   Quat rotation;   
