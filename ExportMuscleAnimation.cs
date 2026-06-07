@@ -188,6 +188,13 @@ public class ExportMuscleAnimation : MonoBehaviour
         // Disable root motion for export sampling
         animator.applyRootMotion = false;
 
+        // Zero out root transform so HumanPose.bodyRotation is relative to
+        // identity (world Z+). Without this, the model's scene rotation gets
+        // baked into bodyRotation, causing unpredictable character yaw in-game
+        // every time the model is exported facing a different direction.
+        animator.transform.localPosition = Vector3.zero;
+        animator.transform.localRotation = Quaternion.identity;
+
         // Find the face SMR with most blend shapes
         SkinnedMeshRenderer faceSMR = null;
         int faceBsCount = 0;

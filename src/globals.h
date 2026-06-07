@@ -167,6 +167,23 @@ static void *g_object_get_name = nullptr;
 static HWND g_gameHwnd = nullptr;
 
 
+static char g_muscleAnimPath[512] = "plugin\\muscle_anim.bin";
+
+static char g_cameraVmdPath[512] = "plugin\\camera.vmd";
+
+static char g_morphVmdPath[512] = "";
+
+
+static volatile bool g_guiVisible = false;
+
+static HWND g_guiHwnd = nullptr;
+
+
+static void* g_cursorShowAction = nullptr;  
+static void* g_cursorHideAction = nullptr;  
+static void* g_actionInvokeMethod = nullptr; 
+
+
 static void *g_skinnedMeshRendererClass = nullptr;
 static void *g_smr_get_sharedMesh = nullptr;
 static void *g_mesh_get_blendShapeCount = nullptr;

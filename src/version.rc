@@ -13,11 +13,11 @@ BEGIN
     BEGIN
         BLOCK "040904b0"
         BEGIN
-            VALUE "FileDescription", "Endfield MMD Dance Plugin"
+            VALUE "FileDescription", "EIEM - Importing Endfield MMD"
             VALUE "FileVersion", "0.1.0.0"
-            VALUE "InternalName", "endfield_mmd"
-            VALUE "OriginalFilename", "endfield_mmd.dll"
-            VALUE "ProductName", "EndfieldMMD"
+            VALUE "InternalName", "eiem"
+            VALUE "OriginalFilename", "eiem.dll"
+            VALUE "ProductName", "EIEM"
             VALUE "ProductVersion", "0.1.0"
         END
     END

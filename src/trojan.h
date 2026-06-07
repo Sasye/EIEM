@@ -1036,6 +1036,8 @@ static void ApplyMmdPoseOnMainThread() {
       g_restBodyPos[2] + (g_mmdBodyPos[2] - s_mmdFirstBodyPos[2]);
 
   
+  
+  
   s_cachedPose.bodyRotX = g_mmdBodyRot[0];
   s_cachedPose.bodyRotY = g_mmdBodyRot[1];
   s_cachedPose.bodyRotZ = g_mmdBodyRot[2];
@@ -1340,14 +1342,26 @@ static void ApplyMmdPoseOnMainThread() {
           if (s_bbcCount > 0 && g_animator_set_enabled) {
             int falseVal = 0, trueVal = 1;
             float one = 1.0f;
+            int offProc = (OFF_bbc_process >= 0) ? OFF_bbc_process : 0xA8;
+            int rebuilt = 0, kept = 0;
+
             for (int bi = 0; bi < s_bbcCount; bi++) {
               if (!s_bbcInstances[bi]) continue;
               __try {
                 
-                void *offArgs[] = {&falseVal};
-                Invoke(g_animator_set_enabled, s_bbcInstances[bi], offArgs);
-                void *onArgs[] = {&trueVal};
-                Invoke(g_animator_set_enabled, s_bbcInstances[bi], onArgs);
+                
+                
+                
+                void *process = *(void **)((char *)s_bbcInstances[bi] + offProc);
+                bool needsRebuild = (!process || (uintptr_t)process < 0x10000);
+
+                if (needsRebuild) {
+                  
+                  void *offArgs[] = {&falseVal};
+                  Invoke(g_animator_set_enabled, s_bbcInstances[bi], offArgs);
+                  void *onArgs[] = {&trueVal};
+                  Invoke(g_animator_set_enabled, s_bbcInstances[bi], onArgs);
+                }
                 
                 if (s_bbc_SetSkipWriting) {
                   void *skipArgs[] = {&falseVal};
@@ -1355,33 +1369,45 @@ static void ApplyMmdPoseOnMainThread() {
                   il2cpp_runtime_invoke(s_bbc_SetSkipWriting,
                                        s_bbcInstances[bi], skipArgs, &exc);
                 }
-                
                 if (s_bbc_SetSimWeight) {
                   void *swArgs[] = {&one};
                   void *exc = nullptr;
                   il2cpp_runtime_invoke(s_bbc_SetSimWeight,
                                        s_bbcInstances[bi], swArgs, &exc);
                 }
-                
-                if (s_bbc_BuildAndRun) {
+                if (needsRebuild && s_bbc_BuildAndRun) {
                   void *exc = nullptr;
                   il2cpp_runtime_invoke(s_bbc_BuildAndRun,
                                        s_bbcInstances[bi], nullptr, &exc);
+                  rebuilt++;
+                } else {
+                  kept++;
                 }
               } __except (1) {}
             }
-            Log("[BBC] Full restart on %d instances (colliders scaled + rebuild)",
-                s_bbcCount);
 
             
             
             
             s_skirtScaleResolved = false;
-            s_skirtDirty = true; 
+            s_skirtDirty = true;
             ApplySkirtColliderScale();
+            s_skirtRetryFrames = 30;
+
+            Log("[BBC] Activated %d instances: %d rebuilt, %d kept running",
+                s_bbcCount, rebuilt, kept);
           }
         }
       }
+    }
+    
+    
+    
+    if (s_skirtRetryFrames > 0) {
+      s_skirtRetryFrames--;
+      s_skirtScaleResolved = false;  
+      s_skirtDirty = true;
+      ApplySkirtColliderScale();
     }
     
   
@@ -1434,6 +1460,13 @@ static void ApplyMmdPoseOnMainThread() {
         g_gameFingerRest[i * 4 + 3] = gr.w;
       }
       Log("[FINGER-ANIM] Captured game finger rest rotations");
+      
+      for (int d = 0; d < 6 && d < FINGER_BONE_COUNT; d++) {
+        float *gr = &g_gameFingerRest[d * 4];
+        float *mr = &g_muscleAnim->fingerRestRots[d * 4];
+        Log("[FINGER-DIAG] bone[%d] gameRest=(%.3f,%.3f,%.3f,%.3f) mmdRest=(%.3f,%.3f,%.3f,%.3f)",
+            d, gr[0], gr[1], gr[2], gr[3], mr[0], mr[1], mr[2], mr[3]);
+      }
     }
 
     
@@ -1605,6 +1638,18 @@ static void ReapplyBoneTransforms() {
 }
 
 
+static int SafeInvokeCursorAction(void* actionObj) {
+  if (!actionObj || !g_actionInvokeMethod) return -1;
+  __try {
+    void *exc = nullptr;
+    il2cpp_runtime_invoke(g_actionInvokeMethod, actionObj, nullptr, &exc);
+    return exc ? -2 : 0;
+  } __except (1) {
+    return -3;
+  }
+}
+
+
 static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
                                    LPARAM lParam) {
   if (msg == WM_MMD_APPLY_POSE) {
@@ -1623,7 +1668,138 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
     g_mmdPendingApply = false;
     return 0;
   }
-  return CallWindowProcW(g_origWndProc, hwnd, msg, wParam, lParam);
+  
+  if (msg >= (WM_USER + 100) && msg <= (WM_USER + 106)) {
+    
+    
+    switch (msg) {
+    case (WM_USER + 100): 
+      Log("[GUI-CMD] Play");
+      
+      if (!g_muscleAnim) g_muscleAnim = new MuscleAnim();
+      if (!g_muscleAnim->loaded)
+        g_muscleAnim->Load("plugin\\muscle_anim.bin");
+      if (g_muscleAnim->loaded) {
+        if (!g_musclePlayer) g_musclePlayer = new MmdPlayer();
+        if (g_musclePlayer->playing) {
+          
+        } else if (g_musclePlayer->currentTime > 0) {
+          g_musclePlayer->TogglePause(); 
+        } else {
+          
+          RefreshEntityAnimator();
+          if (InitMusclePoseHandler()) {
+            if (g_trojanHookTarget) MH_EnableHook(g_trojanHookTarget);
+            g_trojanActive = true;
+            g_musclePlayer->Start(g_muscleAnim->Duration());
+            
+            if (!g_cameraVmd) g_cameraVmd = LoadVmd(g_cameraVmdPath);
+            if (g_cameraVmd && g_cameraVmd->loaded &&
+                !g_cameraVmd->cameraKeys.empty()) {
+              g_cameraPlayer.SetVmd(g_cameraVmd);
+              g_cameraNeedsCapture = true;
+            }
+          }
+        }
+      }
+      return 0;
+    case (WM_USER + 101): 
+      Log("[GUI-CMD] Pause");
+      if (g_musclePlayer && g_musclePlayer->playing)
+        g_musclePlayer->TogglePause();
+      return 0;
+    case (WM_USER + 102): 
+      Log("[GUI-CMD] Stop");
+      if (g_musclePlayer &&
+          (g_musclePlayer->playing || g_musclePlayer->currentTime > 0)) {
+        if (g_musclePlayer->playing) g_musclePlayer->TogglePause();
+        g_musclePlayer->Stop();
+        g_trojanActive = false;
+        g_mouthWeightsFromMuscle = false;
+        memset(g_mouthWeights, 0, sizeof(g_mouthWeights));
+        CleanupPoseHandler();
+        RestoreBigList();
+        RestoreDisabledComponents();
+        RestoreSkirtColliders();
+        SafeSetAnimatorEnabled(true);
+        
+        if (g_cameraActive) {
+          RestoreCinemachine();
+          g_cameraActive = false;
+          g_cameraNeedsCapture = false;
+        }
+      }
+      return 0;
+    case (WM_USER + 103): 
+      Log("[GUI-CMD] Load: %s", g_muscleAnimPath);
+      if (!g_muscleAnim) g_muscleAnim = new MuscleAnim();
+      g_muscleAnim->loaded = false;
+      if (g_muscleAnim->Load(g_muscleAnimPath)) {
+        Log("[GUI-CMD] Loaded: %d frames, %.1f sec",
+            g_muscleAnim->frameCount, g_muscleAnim->Duration());
+      } else {
+        Log("[GUI-CMD] Load FAILED: %s", g_muscleAnimPath);
+      }
+      return 0;
+    case (WM_USER + 104): 
+      SafeInvokeCursorAction(g_cursorShowAction);
+      return 0;
+    case (WM_USER + 105): 
+      SafeInvokeCursorAction(g_cursorHideAction);
+      return 0;
+    case (WM_USER + 106): 
+      Log("[GUI-CMD] Re-capture character");
+      
+      if (g_musclePlayer &&
+          (g_musclePlayer->playing || g_musclePlayer->currentTime > 0)) {
+        g_musclePlayer->Stop();
+        g_trojanActive = false;
+        RestoreSkirtColliders();
+        RestoreDisabledComponents();
+        if (g_cameraActive) {
+          RestoreCinemachine();
+          g_cameraActive = false;
+          g_cameraNeedsCapture = false;
+        }
+        SafeSetAnimatorEnabled(true);
+        Log("[GUI-CMD] Stopped for character switch");
+      }
+      
+      g_cachedAnimator = nullptr;
+      s_poseReady = false;
+      g_mmdHasMuscles = false;
+      g_mmdHasArmBones = false;
+      g_mmdHasFingerBones = false;
+      g_fingerTransformsResolved = false;
+      g_fingerRestCaptured = false;
+      memset(g_fingerTransforms, 0, sizeof(g_fingerTransforms));
+      g_mouthWeightsFromMuscle = false;
+      g_bsIndicesResolved = false;
+      memset(g_mouthWeights, 0, sizeof(g_mouthWeights));
+      
+      RefreshEntityAnimator();
+      if (g_cachedAnimator) {
+        Log("[GUI-CMD] New character captured: animator=%p", g_cachedAnimator);
+      } else {
+        Log("[GUI-CMD] No character found. Switch to a character first.");
+      }
+      return 0;
+    }
+  }
+  LRESULT r = CallWindowProcW(g_origWndProc, hwnd, msg, wParam, lParam);
+
+  
+  
+  
+  if (g_guiVisible && g_cursorShowAction && g_actionInvokeMethod) {
+    if (msg == WM_LBUTTONDOWN || msg == WM_RBUTTONDOWN ||
+        msg == WM_MBUTTONDOWN || msg == WM_ACTIVATE ||
+        msg == WM_SETFOCUS || msg == WM_KILLFOCUS) {
+      SafeInvokeCursorAction(g_cursorShowAction);
+    }
+  }
+
+  return r;
 }
 
 
@@ -1665,34 +1841,66 @@ static void MuscleAnimationTick() {
   
   if (!g_vmd && !g_bsIndicesResolved) {
     g_bsIndicesResolved = true; 
-    WIN32_FIND_DATAA fd;
-    HANDLE hFind = FindFirstFileA("plugin\\*.vmd", &fd);
-    if (hFind != INVALID_HANDLE_VALUE) {
+
+    if (g_morphVmdPath[0] != '\0') {
       
-      bool found = false;
-      do {
-        if (_stricmp(fd.cFileName, "camera.vmd") != 0) {
-          found = true;
-          break;
-        }
-      } while (FindNextFileA(hFind, &fd));
-      FindClose(hFind);
-      if (found) {
-      char vmdPath[MAX_PATH];
-      snprintf(vmdPath, sizeof(vmdPath), "plugin\\%s", fd.cFileName);
-      Log("[MOUTH] Auto-loading VMD for morph data: %s", vmdPath);
-      g_vmd = LoadVmd(vmdPath);
-      if (g_vmd && g_vmd->loaded) {
-        Log("[MOUTH] VMD loaded: %d morph timelines, %u frames",
-            (int)g_vmd->morphTimelines.size(), g_vmd->totalFrames);
+      VmdFile *v = LoadVmd(g_morphVmdPath);
+      if (v && v->loaded && !v->morphTimelines.empty()) {
+        g_vmd = v;
+        Log("[MOUTH] User morph VMD loaded: %s (%d morph timelines)",
+            g_morphVmdPath, (int)v->morphTimelines.size());
       } else {
-        Log("[MOUTH] VMD load failed");
-      }
-      } else {
-        Log("[MOUTH] Only camera.vmd found, no morph VMD");
+        Log("[MOUTH] User morph VMD load failed or no morphs: %s", g_morphVmdPath);
+        if (v) FreeVmd(v);
       }
     } else {
-      Log("[MOUTH] No .vmd file found in plugin/ dir for morph data");
+      
+      WIN32_FIND_DATAA fd;
+      HANDLE hFind = FindFirstFileA("plugin\\*.vmd", &fd);
+      if (hFind != INVALID_HANDLE_VALUE) {
+        VmdFile *bestVmd = nullptr;
+        char bestName[MAX_PATH] = {};
+        int bestMorphCount = -1;
+        do {
+          
+          if (_stricmp(fd.cFileName, "camera.vmd") == 0) continue;
+
+          char vmdPath[MAX_PATH];
+          snprintf(vmdPath, sizeof(vmdPath), "plugin\\%s", fd.cFileName);
+          VmdFile *candidate = LoadVmd(vmdPath);
+          if (!candidate || !candidate->loaded) {
+            Log("[MOUTH] VMD load failed: %s", fd.cFileName);
+            if (candidate) FreeVmd(candidate);
+            continue;
+          }
+          int mc = (int)candidate->morphTimelines.size();
+          Log("[MOUTH] Scanned %s: %d morph timelines, %u frames",
+              fd.cFileName, mc, candidate->totalFrames);
+          if (mc > bestMorphCount) {
+            
+            if (bestVmd) FreeVmd(bestVmd);
+            bestVmd = candidate;
+            bestMorphCount = mc;
+            strncpy(bestName, fd.cFileName, MAX_PATH - 1);
+          } else {
+            FreeVmd(candidate);
+          }
+        } while (FindNextFileA(hFind, &fd));
+        FindClose(hFind);
+
+        if (bestVmd && bestMorphCount > 0) {
+          g_vmd = bestVmd;
+          Log("[MOUTH] Selected %s as morph source: %d morph timelines",
+              bestName, bestMorphCount);
+        } else if (bestVmd) {
+          FreeVmd(bestVmd);
+          Log("[MOUTH] No VMD with morph timelines found in plugin/");
+        } else {
+          Log("[MOUTH] Only camera.vmd found, no morph VMD");
+        }
+      } else {
+        Log("[MOUTH] No .vmd file found in plugin/ dir for morph data");
+      }
     }
   }
 
@@ -1812,7 +2020,7 @@ static void AnimationTick() {
   FILE *dumpF = nullptr;
   if (!s_dumpedFrame0 && frame < 1.0f) {
     s_dumpedFrame0 = true;
-    dumpF = fopen("plugin\\endfield_mmd_frame0.txt", "w");
+    dumpF = fopen("plugin\\eiem_frame0.txt", "w");
     if (dumpF)
       fprintf(dumpF, "=== VMD Frame 0 Dump ===\n\n");
   }

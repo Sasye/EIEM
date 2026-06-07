@@ -21,7 +21,7 @@ static void LoadAndResolveVmd(HWND hwnd) {
   ofn.lpstrFile = filePath;
   ofn.nMaxFile = MAX_PATH;
   ofn.Flags = OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
-  ofn.lpstrTitle = "EndfieldMMD - Select VMD File";
+  ofn.lpstrTitle = "EIEM - Select VMD File";
 
   if (!GetOpenFileNameA(&ofn)) {
     Log("[VMD] File dialog cancelled");
@@ -51,7 +51,7 @@ static void LoadAndResolveVmd(HWND hwnd) {
       g_vmd->boneTimelines.size());
 
   
-  FILE *dumpFile = fopen("plugin/emmd_vmd_dump.txt", "w");
+  FILE *dumpFile = fopen("plugin/eiem_vmd_dump.txt", "w");
   if (dumpFile) {
     DumpVmd(g_vmd, dumpFile);
 
@@ -134,7 +134,7 @@ static void LoadAndResolveVmd(HWND hwnd) {
             unmapped, mapped + unmapped);
     fclose(dumpFile);
 
-    Log("[VMD] Bone mapping: %d mapped, %d unmapped. See emmd_vmd_dump.txt",
+    Log("[VMD] Bone mapping: %d mapped, %d unmapped. See eiem_vmd_dump.txt",
         mapped, unmapped);
   }
 }
@@ -184,329 +184,16 @@ static DWORD WINAPI HotkeyThread(LPVOID) {
     Log("[WARN] Failed to subclass game window (err=%lu)", GetLastError());
   }
 
-  bool np1Pressed = false;
-  bool np2Pressed = false;
-  bool np3Pressed = false;
   while (IsWindowAlive(hwnd)) {
     
-    static bool np0Pressed = false;
-    if (GetAsyncKeyState(VK_NUMPAD0) & 0x8000) {
-      if (!np0Pressed) {
-        np0Pressed = true;
-        Log("[HOTKEY] Numpad0 —Load animation");
-        RefreshEntityAnimator();
-
-        if (!g_muscleAnim)
-          g_muscleAnim = new MuscleAnim();
-        
-        g_muscleAnim->loaded = false;
-        if (g_muscleAnim->Load("plugin\\muscle_anim.bin")) {
-          Log("[MUSCLE] Loaded: %d frames, %.1f fps, %.1f sec",
-              g_muscleAnim->frameCount, g_muscleAnim->fps,
-              g_muscleAnim->Duration());
-        } else {
-          Log("[MUSCLE] Failed to load plugin\\muscle_anim.bin!");
-        }
+    static bool insPressed = false;
+    if (GetAsyncKeyState(VK_INSERT) & 0x8000) {
+      if (!insPressed) {
+        insPressed = true;
+        ToggleGui();
       }
     } else {
-      np0Pressed = false;
-    }
-
-    
-    if (GetAsyncKeyState(VK_NUMPAD1) & 0x8000) {
-      if (!np1Pressed) {
-        np1Pressed = true;
-
-        if (g_debugMode) {
-          g_debugMode = false;
-          Log("[DEBUG] Debug mode OFF, switching to playback");
-        }
-
-        
-        if (!g_muscleAnim)
-          g_muscleAnim = new MuscleAnim();
-        if (!g_muscleAnim->loaded) {
-          RefreshEntityAnimator();
-          if (g_muscleAnim->Load("plugin\\muscle_anim.bin")) {
-            Log("[MUSCLE] Auto-loaded: %d frames, %.1f fps, %.1f sec",
-                g_muscleAnim->frameCount, g_muscleAnim->fps,
-                g_muscleAnim->Duration());
-          } else {
-            Log("[MUSCLE] Failed to load plugin\\muscle_anim.bin! Press "
-                "Numpad0 to load.");
-          }
-        }
-
-        if (g_muscleAnim->loaded) {
-          if (!g_musclePlayer)
-            g_musclePlayer = new MmdPlayer();
-
-          if (g_musclePlayer->playing) {
-            
-            Log("[MUSCLE] Already playing. Numpad2=pause, Numpad3=stop.");
-          } else if (g_musclePlayer->currentTime > 0) {
-            
-            g_musclePlayer->TogglePause();
-            Log("[HOTKEY] Numpad1 —Resumed");
-          } else {
-            
-            RefreshEntityAnimator();
-            if (InitMusclePoseHandler()) {
-              
-              if (g_trojanHookTarget)
-                MH_EnableHook(g_trojanHookTarget);
-              g_trojanActive = true;
-              g_musclePlayer->Start(g_muscleAnim->Duration());
-              Log("[HOTKEY] Numpad1 —Playing %.1f sec",
-                  g_muscleAnim->Duration());
-
-              
-              if (!g_cameraVmd) {
-                g_cameraVmd = LoadVmd("plugin\\camera.vmd");
-              }
-              if (g_cameraVmd && g_cameraVmd->loaded &&
-                  !g_cameraVmd->cameraKeys.empty()) {
-                g_cameraPlayer.SetVmd(g_cameraVmd);
-                g_cameraNeedsCapture = true;  
-                Log("[CAM] camera.vmd loaded: %zu keyframes, %.1f sec",
-                    g_cameraVmd->cameraKeys.size(),
-                    g_cameraVmd->totalFrames / 30.0f);
-                
-                for (size_t ki = 0; ki < 3 && ki < g_cameraVmd->cameraKeys.size(); ki++) {
-                  const auto &k = g_cameraVmd->cameraKeys[ki];
-                  Log("[CAM-KEY] #%zu frame=%u pos=(%.2f,%.2f,%.2f) rotEuler=(%.3f,%.3f,%.3f) dist=%.2f fov=%u",
-                      ki, k.frame, k.position[0], k.position[1], k.position[2],
-                      k.rotation[0], k.rotation[1], k.rotation[2],
-                      k.distance, k.fov);
-                }
-              } else {
-                Log("[CAM] No camera.vmd (or no camera keys), skipping camera motion");
-              }
-            }
-          }
-        }
-      }
-    } else {
-      np1Pressed = false;
-    }
-
-    
-    if (GetAsyncKeyState(VK_NUMPAD2) & 0x8000) {
-      if (!np2Pressed) {
-        np2Pressed = true;
-        if (g_musclePlayer && g_musclePlayer->playing) {
-          g_musclePlayer->TogglePause();
-          Log("[HOTKEY] Numpad2 —Paused");
-        } else {
-          Log("[HOTKEY] Numpad2 —Nothing playing.");
-        }
-      }
-    } else {
-      np2Pressed = false;
-    }
-
-    
-    if (GetAsyncKeyState(VK_NUMPAD3) & 0x8000) {
-      if (!np3Pressed) {
-        np3Pressed = true;
-        Log("[HOTKEY] Numpad3 pressed");
-        if (g_musclePlayer &&
-            (g_musclePlayer->playing || g_musclePlayer->currentTime > 0)) {
-          if (g_musclePlayer->playing) {
-            
-            g_musclePlayer->TogglePause();
-            Log("[MUSCLE] Paused. Press Numpad3 again to stop.");
-          } else {
-            
-            g_musclePlayer->Stop();
-            g_trojanActive = false;
-            g_mouthWeightsFromMuscle = false;
-            memset(g_mouthWeights, 0, sizeof(g_mouthWeights));
-            
-            CleanupPoseHandler();
-            
-            RestoreBigList();
-            
-            if (g_confirmedSMC && OFF_allMorphBoneDirty > 0) {
-              char *smcBase = (char *)g_confirmedSMC;
-              *(bool *)(smcBase + OFF_allMorphBoneDirty) = true;
-              Log("[CLEANUP] Forced m_allMorphBoneDirty=true on SMC");
-            }
-            g_faceTestActive = false;
-            
-            
-            
-            
-            
-            
-            
-            g_expressionCaptured = false;
-            g_smcResetRequested = true;
-            
-            g_fingerTransformsResolved = false;
-            g_fingerRestCaptured = false;
-            g_mmdHasFingerBones = false;
-            memset(g_fingerTransforms, 0, sizeof(g_fingerTransforms));
-            
-            
-            
-            Log("[MUSCLE] Playback stopped, cleaned up");
-          }
-        }
-        if (g_debugMode) {
-          g_debugMode = false;
-          if (g_musclePlayer)
-            g_musclePlayer->Stop();
-          g_trojanActive = false;
-          Log("[DEBUG] Debug mode stopped");
-        }
-        
-        
-        
-        
-        RestoreSkirtColliders();
-        RestoreDisabledComponents();
-        
-        if (g_cameraActive) {
-          RestoreCinemachine();
-          g_cameraActive = false;
-          g_cameraNeedsCapture = false;
-          Log("[CAM] Camera restored");
-        }
-        SafeSetAnimatorEnabled(true);
-        Log("[RESTORE] Game animation restored");
-      }
-    } else {
-      np3Pressed = false;
-    }
-
-    
-    static bool np4Pressed = false;
-    if (GetAsyncKeyState(VK_NUMPAD4) & 0x8000) {
-      if (!np4Pressed) {
-        np4Pressed = true;
-        Log("[HOTKEY] Numpad4 —ActivityPhotoTaking dump");
-        void *domain = il2cpp_domain_get();
-        if (domain) {
-          size_t asmCount = 0;
-          void **asms2 = il2cpp_domain_get_assemblies(domain, &asmCount);
-          if (asms2) {
-            
-            const char *targets[] = {"ActivityPhotoTaking",
-                                     "GameplayCameraSetting",
-                                     "CameraSettingByInputType"};
-            for (int t = 0; t < 3; t++) {
-              void *k = FindClass("Beyond.Gameplay", targets[t], asms2, asmCount);
-              if (k) {
-                Log("[PHOTO-DUMP] === %s ===", targets[t]);
-                DumpClassMethods(k, targets[t]);
-                DumpClassFields(k, targets[t]);
-              } else {
-                Log("[PHOTO-DUMP] %s NOT found", targets[t]);
-              }
-            }
-          }
-        }
-      }
-    } else {
-      np4Pressed = false;
-    }
-
-    
-    static bool np6Pressed = false;
-    if (GetAsyncKeyState(VK_NUMPAD6) & 0x8000) {
-      if (!np6Pressed) {
-        np6Pressed = true;
-        g_camTestMode = !g_camTestMode;
-        if (g_camTestMode) {
-          
-          if (!g_cameraActive) {
-            
-            ResolveMainCamera();
-            
-            
-            if (g_mainCamTransform && g_camGetPos) {
-              float p[3] = {};
-              g_camGetPos(g_mainCamTransform, p);
-              g_charWorldPos = {p[0], p[1], p[2]};
-              Log("[CAM] Standalone charPos from MainCamera: (%.2f,%.2f,%.2f)",
-                  p[0], p[1], p[2]);
-            }
-            
-            CaptureAndDisableCinemachine();
-            g_cameraActive = true;
-          }
-          Log("[HOTKEY] Numpad6 —Camera test mode ON (standalone)");
-        } else {
-          Log("[HOTKEY] Numpad6 —Camera test mode OFF");
-        }
-      }
-    } else {
-      np6Pressed = false;
-    }
-
-    
-    static bool np5Pressed = false;
-    if (GetAsyncKeyState(VK_NUMPAD5) & 0x8000) {
-      if (!np5Pressed) {
-        np5Pressed = true;
-        g_faceTestActive = !g_faceTestActive;
-        g_faceTestFrame = 0;
-        Log("[HOTKEY] Numpad5 —Face test %s",
-            g_faceTestActive ? "ON" : "OFF");
-      }
-    } else {
-      np5Pressed = false;
-    }
-
-    
-    static bool np9Pressed = false;
-    if (GetAsyncKeyState(VK_NUMPAD9) & 0x8000) {
-      if (!np9Pressed) {
-        np9Pressed = true;
-        Log("[HOTKEY] Numpad9 —Re-capture character");
-
-        
-        if (g_musclePlayer &&
-            (g_musclePlayer->playing || g_musclePlayer->currentTime > 0)) {
-          g_musclePlayer->Stop();
-          g_trojanActive = false;
-          RestoreSkirtColliders();
-          RestoreDisabledComponents();
-          
-          if (g_cameraActive) {
-            RestoreCinemachine();
-            g_cameraActive = false;
-            g_cameraNeedsCapture = false;
-          }
-          SafeSetAnimatorEnabled(true);
-          Log("[MUSCLE] Stopped for character switch");
-        }
-
-        
-        g_cachedAnimator = nullptr;
-        s_poseReady = false;
-        g_mmdHasMuscles = false;
-        g_mmdHasArmBones = false;
-        g_mmdHasFingerBones = false;
-        g_fingerTransformsResolved = false;
-        g_fingerRestCaptured = false;
-        memset(g_fingerTransforms, 0, sizeof(g_fingerTransforms));
-        g_mouthWeightsFromMuscle = false;
-        g_bsIndicesResolved = false;
-        memset(g_mouthWeights, 0, sizeof(g_mouthWeights));
-
-        
-        RefreshEntityAnimator();
-        if (g_cachedAnimator) {
-          Log("[CAPTURE] New character captured: animator=%p",
-              g_cachedAnimator);
-        } else {
-          Log("[CAPTURE] No character found. Switch to a character first.");
-        }
-      }
-    } else {
-      np9Pressed = false;
+      insPressed = false;
     }
 
     
@@ -515,83 +202,12 @@ static DWORD WINAPI HotkeyThread(LPVOID) {
     MuscleAnimationTick();
 
     
-
-    
-    if (g_debugMode) {
-      static bool npAddPressed = false, npSubPressed = false;
-      static bool npDivPressed = false, npDecPressed = false;
-      static bool np0DebugPressed = false;
-
-      
-      if (GetAsyncKeyState(VK_ADD) & 0x8000) {
-        if (!npAddPressed) {
-          npAddPressed = true;
-          g_debugMuscleIdx = (g_debugMuscleIdx + 1) % g_debugMaxIdx;
-          g_debugMuscleVal = 0.0f;
-          g_debugDirty = true;
-        }
-      } else {
-        npAddPressed = false;
-      }
-
-      
-      if (GetAsyncKeyState(VK_SUBTRACT) & 0x8000) {
-        if (!npSubPressed) {
-          npSubPressed = true;
-          g_debugMuscleIdx =
-              (g_debugMuscleIdx - 1 + g_debugMaxIdx) % g_debugMaxIdx;
-          g_debugMuscleVal = 0.0f;
-          g_debugDirty = true;
-        }
-      } else {
-        npSubPressed = false;
-      }
-
-      
-      if (GetAsyncKeyState(VK_DIVIDE) & 0x8000) {
-        if (!npDivPressed) {
-          npDivPressed = true;
-          g_debugMuscleVal += 5.0f;
-          g_debugDirty = true;
-        }
-      } else {
-        npDivPressed = false;
-      }
-
-      
-      if (GetAsyncKeyState(VK_DECIMAL) & 0x8000) {
-        if (!npDecPressed) {
-          npDecPressed = true;
-          g_debugMuscleVal -= 5.0f;
-          g_debugDirty = true;
-        }
-      } else {
-        npDecPressed = false;
-      }
-
-      
-      if (GetAsyncKeyState(VK_NUMPAD0) & 0x8000) {
-        if (!np0DebugPressed) {
-          np0DebugPressed = true;
-          g_debugMuscleVal = 0.0f;
-          g_debugDirty = true;
-        }
-      } else {
-        np0DebugPressed = false;
-      }
-    }
-
-    
     
     if (g_camTestMode && g_cameraActive) {
       ApplyCameraFrame(0.0f);
     }
 
-    Sleep((g_player && g_player->playing) ||
-                  (g_musclePlayer && g_musclePlayer->playing) || g_calibMode ||
-                  g_debugMode || g_camTestMode
-              ? 0
-              : 50);
+    Sleep((g_musclePlayer && g_musclePlayer->playing) || g_camTestMode ? 0 : 50);
   }
 
   
@@ -657,14 +273,14 @@ static void DumpTransformHierarchy(void *transform, int depth, FILE *dumpFile) {
 
 
 static void DiscoverSkeleton() {
-  Log("=== EndfieldMMD Phase 2: Bone Discovery ===");
+  Log("=== EIEM Phase 2: Bone Discovery ===");
 
-  FILE *df = fopen("plugin\\emmd_skeleton_dump.txt", "w");
+  FILE *df = fopen("plugin\\eiem_skeleton_dump.txt", "w");
   if (!df) {
     Log("[ERROR] Cannot create dump file");
     return;
   }
-  fprintf(df, "=== EndfieldMMD Phase 2: Bone Discovery ===\n\n");
+  fprintf(df, "=== EIEM Phase 2: Bone Discovery ===\n\n");
 
   void *domain = il2cpp_domain_get();
   il2cpp_thread_attach(domain);
@@ -921,23 +537,9 @@ static void DiscoverSkeleton() {
 
   fflush(df);
   fclose(df);
-  Log("[OK] Phase 2 bone discovery written to emmd_skeleton_dump.txt");
+  Log("[OK] Phase 2 bone discovery written to eiem_skeleton_dump.txt");
 }
 
-
-
-
-static void PollHotkeys() {
-  static bool np1Pressed = false;
-  if (GetAsyncKeyState(VK_NUMPAD1) & 0x8000) {
-    if (!np1Pressed) {
-      np1Pressed = true;
-      DiscoverSkeleton();
-    }
-  } else {
-    np1Pressed = false;
-  }
-}
 
 
 
@@ -950,9 +552,9 @@ static DWORD WINAPI InitThread(LPVOID) {
 
   InitializeCriticalSection(&g_logLock);
   g_logHandle =
-      CreateFileA("plugin\\emmd_log.txt", GENERIC_WRITE, FILE_SHARE_READ, NULL,
+      CreateFileA("plugin\\eiem_log.txt", GENERIC_WRITE, FILE_SHARE_READ, NULL,
                   CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-  Log("=== EndfieldMMD Phase 1: Skeleton Discovery ===");
+  Log("=== EIEM Phase 1: Skeleton Discovery ===");
 
   if (!Resolve()) {
     Log("[FATAL] Failed to resolve IL2CPP API");
@@ -1596,7 +1198,15 @@ static DWORD WINAPI InitThread(LPVOID) {
   Log("Hooks installed. Press Numpad1 in-game to dump bone discovery.");
 
   
+  DumpCursorMethods();
+
+  
   CreateThread(NULL, 0, HotkeyThread, NULL, 0, NULL);
+
+  
+  g_guiRunning = true;
+  CreateThread(NULL, 0, GuiThread, NULL, 0, NULL);
+
   return 0;
 }
 

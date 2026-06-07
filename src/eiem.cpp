@@ -40,6 +40,7 @@ static bool UnboxBool(void *boxed) {
 
 #include "animation.h"
 #include "trojan.h"
+#include "gui.h"
 #include "init.h"
 
 

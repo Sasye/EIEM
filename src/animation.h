@@ -818,6 +818,22 @@ static bool InitMusclePoseHandler() {
             testPose.bodyPosX, testPose.bodyPosY, testPose.bodyPosZ,
             testPose.bodyRotX, testPose.bodyRotY, testPose.bodyRotZ,
             testPose.bodyRotW);
+
+        
+        
+        if (g_animator_GetBoneTransform && g_cachedAnimator) {
+          void *rootT = SafeGetComponentTransform(g_cachedAnimator);
+          void *headT = SafeGetBoneTransform(10); 
+          Vec3 rootPos, headPos;
+          if (rootT && headT && ReadWorldPosition(rootT, rootPos) &&
+              ReadWorldPosition(headT, headPos)) {
+            float h = headPos.y - rootPos.y;
+            if (h > 0.1f && h < 5.0f) {
+              g_charHeight = h;
+              Log("[HEIGHT] Character height measured: %.3f m", g_charHeight);
+            }
+          }
+        }
       }
     } __except (1) {
       Log("[MUSCLE] GetHumanPose crashed");

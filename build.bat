@@ -3,7 +3,7 @@
 setlocal enabledelayedexpansion
 
 echo ==========================================
-echo   EndfieldMMD Build Script
+echo   EIEM Build Script
 echo ==========================================
 echo.
 
@@ -49,29 +49,39 @@ echo.
 
 if not exist bin mkdir bin
 
-:: Build endfield_mmd.dll
+:: Build eiem.dll
 echo [1/4] Compiling version resource ...
 rc /nologo /fo bin\version.res src\version.rc
 
-echo [2/4] Building endfield_mmd.dll ...
+echo [2/4] Building eiem.dll ...
 cl /nologo /utf-8 /O2 /MD /LD /EHsc /std:c++17 ^
     /Ideps\minhook_lib\include ^
-    src\endfield_mmd.cpp ^
+    /Ideps\imgui ^
+    src\eiem.cpp ^
+    deps\imgui\imgui.cpp ^
+    deps\imgui\imgui_draw.cpp ^
+    deps\imgui\imgui_tables.cpp ^
+    deps\imgui\imgui_widgets.cpp ^
+    deps\imgui\imgui_impl_win32.cpp ^
+    deps\imgui\imgui_impl_dx11.cpp ^
     bin\version.res ^
     deps\minhook_lib\lib\libMinHook.x64.lib ^
     user32.lib ^
     gdi32.lib ^
     winmm.lib ^
     comdlg32.lib ^
-    /Fe"bin\endfield_mmd.dll" ^
+    d3d11.lib ^
+    dxgi.lib ^
+    dwmapi.lib ^
+    /Fe"bin\eiem.dll" ^
     /link /DLL
 
 if %errorlevel% neq 0 (
-    echo [ERROR] endfield_mmd.dll build failed!
+    echo [ERROR] eiem.dll build failed!
 
     exit /b 1
 )
-echo [OK] endfield_mmd.dll built successfully
+echo [OK] eiem.dll built successfully
 echo.
 
 :: Build d3dcompiler_47.dll (proxy loader)
@@ -103,23 +113,29 @@ if %errorlevel% neq 0 (
 echo [OK] vulkan-1.dll built successfully
 echo.
 
-:: Clean up intermediate files
-del /q endfield_mmd.obj 2>nul
-del /q endfield_mmd.exp 2>nul
-del /q endfield_mmd.lib 2>nul
+:: Clean up intermediate files (CWD .obj + bin\ .exp/.lib)
+del /q eiem.obj 2>nul
+del /q imgui.obj 2>nul
+del /q imgui_draw.obj 2>nul
+del /q imgui_tables.obj 2>nul
+del /q imgui_widgets.obj 2>nul
+del /q imgui_impl_win32.obj 2>nul
+del /q imgui_impl_dx11.obj 2>nul
 del /q proxy_d3dcompiler.obj 2>nul
-del /q proxy_d3dcompiler.exp 2>nul
-del /q proxy_d3dcompiler.lib 2>nul
 del /q proxy_vulkan_full.obj 2>nul
-del /q proxy_vulkan_full.exp 2>nul
-del /q proxy_vulkan_full.lib 2>nul
+del /q bin\eiem.exp 2>nul
+del /q bin\eiem.lib 2>nul
+del /q bin\d3dcompiler_47.exp 2>nul
+del /q bin\d3dcompiler_47.lib 2>nul
+del /q bin\vulkan-1.exp 2>nul
+del /q bin\vulkan-1.lib 2>nul
 
 echo ==========================================
 echo   Build Complete!
 echo ==========================================
 echo.
 echo Output files in bin\:
-echo   - endfield_mmd.dll       (MMD dance plugin)
+echo   - eiem.dll               (MMD dance plugin)
 echo   - d3dcompiler_47.dll     (DX proxy loader)
 echo   - vulkan-1.dll           (Vulkan proxy loader)
 echo.

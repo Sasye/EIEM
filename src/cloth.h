@@ -38,6 +38,7 @@ static float s_skirtOrigCenter[8][3] = {};
 static int s_skirtColliderCount = 0;
 static bool s_skirtScaleResolved = false;
 static bool s_skirtDirty = true;             
+static int s_skirtRetryFrames = 0;           
 static int s_skirtCenterAxis = 0;            
 static void *s_coll_SetSize = nullptr;       
 static void *s_coll_UpdateParams = nullptr;  
@@ -177,10 +178,15 @@ static void ApplySkirtColliderScale() {
       float baseR = s_skirtOrigSize[i][0];
       
       
+      
       float hipR;
       if (s_skirtHipRadiusDelta >= 0.0f) {
-        hipR = baseR + s_skirtHipRadiusDelta;
-        float maxR = baseR * 2.5f;  
+        
+        
+        float hs = (g_charHeight > 0.1f) ? (g_charHeight / 1.245f) : 1.0f;
+        float scaledDelta = s_skirtHipRadiusDelta * hs;
+        hipR = baseR + scaledDelta;
+        float maxR = baseR * 3.0f;  
         if (hipR > maxR) hipR = maxR;
       } else {
         hipR = baseR * s_skirtRadiusB;  
