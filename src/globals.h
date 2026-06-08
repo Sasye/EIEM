@@ -121,6 +121,10 @@ static void *s_cinemachineBrain = nullptr;
 static VmdFile *g_cameraVmd = nullptr;      
 static CameraPlayer g_cameraPlayer;         
 static bool g_cameraActive = false;         
+static bool g_cameraEnabled = true;         
+
+static float g_playbackSpeed = 1.0f;
+static bool g_playbackLoop = false;
 static bool g_cameraNeedsCapture = false;   
 static float g_origFov = 0.0f;              
 static Vec3 g_charWorldPos = {0, 0, 0};     
@@ -172,6 +176,28 @@ static char g_muscleAnimPath[512] = "plugin\\muscle_anim.bin";
 static char g_cameraVmdPath[512] = "plugin\\camera.vmd";
 
 static char g_morphVmdPath[512] = "";
+
+
+
+
+struct AudioPlayer;
+static AudioPlayer *g_audioPlayer = nullptr;
+
+static char g_audioPath[512] = "";
+
+static const char *g_audioDefaultPath = "plugin\\bgm.wav";
+
+static bool g_audioEnabled = true;
+
+static bool g_audioIsClock = false;
+
+
+static float g_audioOffset = 0.0f;
+
+static int g_audioVolume = 1000;
+
+
+static bool g_audioPendingStart = false;
 
 
 static volatile bool g_guiVisible = false;

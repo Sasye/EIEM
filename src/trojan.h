@@ -1650,6 +1650,50 @@ static int SafeInvokeCursorAction(void* actionObj) {
 }
 
 
+
+
+
+static bool EnsureAudioLoaded() {
+  if (!g_audioEnabled) return false;
+  if (!g_audioPlayer) g_audioPlayer = new AudioPlayer();
+  if (g_audioPlayer->loaded) return true;
+
+  const char *path = (g_audioPath[0] != '\0') ? g_audioPath : g_audioDefaultPath;
+  
+  if (g_audioPath[0] == '\0') {
+    DWORD attr = GetFileAttributesA(path);
+    if (attr == INVALID_FILE_ATTRIBUTES) return false;
+  }
+  return g_audioPlayer->Open(path);
+}
+
+
+
+static void AudioStartFresh() {
+  if (!EnsureAudioLoaded()) { g_audioIsClock = false; return; }
+  bool normalSpeed = !g_musclePlayer || fabsf(g_musclePlayer->speed - 1.0f) < 0.001f;
+  if (!normalSpeed) { g_audioIsClock = false; return; }
+
+  if (g_audioOffset < 0.0f) {
+    
+    
+    g_audioPendingStart = true;
+    g_audioIsClock = false;
+    Log("[AUDIO] Start deferred %.2f s (negative offset)", -g_audioOffset);
+    return;
+  }
+
+  int startMs = (int)(g_audioOffset * 1000.0f);
+  g_audioPlayer->PlayFrom(startMs);
+  g_audioPlayer->SetVolume(g_audioVolume);
+  g_audioIsClock = true;
+  g_audioPendingStart = false;
+  Log("[AUDIO] Start fresh from %d ms (offset=%.2f), isClock=%d",
+      startMs, g_audioOffset, g_audioIsClock ? 1 : 0);
+}
+
+
+
 static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
                                    LPARAM lParam) {
   if (msg == WM_MMD_APPLY_POSE) {
@@ -1669,7 +1713,7 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
     return 0;
   }
   
-  if (msg >= (WM_USER + 100) && msg <= (WM_USER + 106)) {
+  if (msg >= (WM_USER + 100) && msg <= (WM_USER + 109)) {
     
     
     switch (msg) {
@@ -1680,11 +1724,17 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
       if (!g_muscleAnim->loaded)
         g_muscleAnim->Load("plugin\\muscle_anim.bin");
       if (g_muscleAnim->loaded) {
-        if (!g_musclePlayer) g_musclePlayer = new MmdPlayer();
+        if (!g_musclePlayer) {
+          g_musclePlayer = new MmdPlayer();
+          g_musclePlayer->speed = g_playbackSpeed;
+          g_musclePlayer->loop  = g_playbackLoop;
+        }
         if (g_musclePlayer->playing) {
           
         } else if (g_musclePlayer->currentTime > 0) {
           g_musclePlayer->TogglePause(); 
+          
+          if (g_audioIsClock && g_audioPlayer) g_audioPlayer->Resume();
         } else {
           
           RefreshEntityAnimator();
@@ -1693,20 +1743,26 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
             g_trojanActive = true;
             g_musclePlayer->Start(g_muscleAnim->Duration());
             
-            if (!g_cameraVmd) g_cameraVmd = LoadVmd(g_cameraVmdPath);
-            if (g_cameraVmd && g_cameraVmd->loaded &&
-                !g_cameraVmd->cameraKeys.empty()) {
-              g_cameraPlayer.SetVmd(g_cameraVmd);
-              g_cameraNeedsCapture = true;
+            if (g_cameraEnabled) {
+              if (!g_cameraVmd) g_cameraVmd = LoadVmd(g_cameraVmdPath);
+              if (g_cameraVmd && g_cameraVmd->loaded &&
+                  !g_cameraVmd->cameraKeys.empty()) {
+                g_cameraPlayer.SetVmd(g_cameraVmd);
+                g_cameraNeedsCapture = true;
+              }
             }
+            
+            AudioStartFresh();
           }
         }
       }
       return 0;
     case (WM_USER + 101): 
       Log("[GUI-CMD] Pause");
-      if (g_musclePlayer && g_musclePlayer->playing)
+      if (g_musclePlayer && g_musclePlayer->playing) {
         g_musclePlayer->TogglePause();
+        if (g_audioIsClock && g_audioPlayer) g_audioPlayer->Pause();
+      }
       return 0;
     case (WM_USER + 102): 
       Log("[GUI-CMD] Stop");
@@ -1728,6 +1784,10 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
           g_cameraActive = false;
           g_cameraNeedsCapture = false;
         }
+        
+        if (g_audioPlayer) g_audioPlayer->Stop();
+        g_audioIsClock = false;
+        g_audioPendingStart = false;
       }
       return 0;
     case (WM_USER + 103): 
@@ -1740,6 +1800,39 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
       } else {
         Log("[GUI-CMD] Load FAILED: %s", g_muscleAnimPath);
       }
+      return 0;
+    case (WM_USER + 107): 
+      Log("[GUI-CMD] Load audio: %s", g_audioPath);
+      if (!g_audioPlayer) g_audioPlayer = new AudioPlayer();
+      g_audioPlayer->Close();
+      if (g_audioPath[0] != '\0') {
+        if (g_audioPlayer->Open(g_audioPath)) {
+          g_audioPlayer->SetVolume(g_audioVolume);
+          Log("[GUI-CMD] Audio loaded: %d ms", g_audioPlayer->GetLengthMs());
+        } else
+          Log("[GUI-CMD] Audio load FAILED: %s", g_audioPath);
+      }
+      return 0;
+    case (WM_USER + 108): { 
+      int motionMs = (int)wParam;
+      int audioMs = motionMs + (int)(g_audioOffset * 1000.0f);
+      if (audioMs < 0) audioMs = 0;
+      Log("[GUI-CMD] Seek audio: motion=%d ms, audio=%d ms (offset=%.2f)",
+          motionMs, audioMs, g_audioOffset);
+      if (g_audioPlayer && g_audioPlayer->loaded && g_audioEnabled) {
+        bool motionPlaying = g_musclePlayer && g_musclePlayer->playing;
+        g_audioPlayer->Stop();
+        if (motionPlaying) {
+          g_audioPlayer->PlayFrom(audioMs);
+          g_audioPlayer->SetVolume(g_audioVolume);
+          g_audioIsClock = true;
+        }
+      }
+      return 0;
+    }
+    case (WM_USER + 109): 
+      if (g_audioPlayer && g_audioPlayer->loaded)
+        g_audioPlayer->SetVolume((int)wParam);
       return 0;
     case (WM_USER + 104): 
       SafeInvokeCursorAction(g_cursorShowAction);
@@ -1762,6 +1855,10 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
           g_cameraNeedsCapture = false;
         }
         SafeSetAnimatorEnabled(true);
+        
+        if (g_audioPlayer) g_audioPlayer->Stop();
+        g_audioIsClock = false;
+        g_audioPendingStart = false;
         Log("[GUI-CMD] Stopped for character switch");
       }
       
@@ -1815,8 +1912,71 @@ static void MuscleAnimationTick() {
   if (g_mmdPendingApply)
     return;
 
+  float prevTime = g_musclePlayer->currentTime;
   float frameNum =
       g_musclePlayer->Tick(); 
+
+  
+  
+  if (g_audioPendingStart && g_audioPlayer && g_audioPlayer->loaded) {
+    float expectedAudio = g_musclePlayer->currentTime + g_audioOffset;
+    if (expectedAudio >= 0.0f) {
+      
+      
+      
+      g_audioPendingStart = false;
+      if (g_gameHwnd) {
+        int motionMs = (int)(g_musclePlayer->currentTime * 1000.0f);
+        PostMessageW(g_gameHwnd, WM_USER + 108, (WPARAM)motionMs, 0);
+        Log("[AUDIO] Deferred start: posting seek motion=%d ms", motionMs);
+      }
+    }
+  }
+
+  
+  
+  if (g_audioIsClock && g_audioPlayer && g_audioPlayer->loaded) {
+    
+    if (fabsf(g_musclePlayer->speed - 1.0f) > 0.001f) {
+      g_audioPlayer->Pause();
+      g_audioIsClock = false;
+      Log("[AUDIO] Speed != 1.0, audio sync disabled");
+    } else {
+      int posMs = g_audioPlayer->GetPositionMs();
+      if (posMs > 0) { 
+        
+        float audioSec = posMs / 1000.0f - g_audioOffset;
+        float drift = audioSec - g_musclePlayer->currentTime;
+
+        if (fabsf(drift) > 0.15f) {
+          
+          g_musclePlayer->currentTime = audioSec;
+        } else if (fabsf(drift) > 0.005f) {
+          
+          g_musclePlayer->currentTime += drift * 0.1f;
+        }
+        
+        if (g_musclePlayer->currentTime < 0) g_musclePlayer->currentTime = 0;
+        frameNum = g_musclePlayer->currentTime * 30.0f;
+      }
+
+      
+      if (g_musclePlayer->loop && prevTime > 0.5f &&
+          g_musclePlayer->currentTime < 0.1f) {
+        if (g_audioOffset < 0.0f) {
+          
+          g_audioPendingStart = true;
+          g_audioIsClock = false;
+          Log("[AUDIO] Loop restart deferred (negative offset)");
+        } else if (g_gameHwnd) {
+          
+          PostMessageW(g_gameHwnd, WM_USER + 108, (WPARAM)0, 0);
+          Log("[AUDIO] Loop restart posted");
+        }
+      }
+    }
+  }
+
   float timeSec =
       frameNum / g_muscleAnim->fps; 
   MuscleFrame mf = g_muscleAnim->GetFrame(timeSec);

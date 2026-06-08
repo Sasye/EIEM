@@ -135,7 +135,7 @@ echo   Build Complete!
 echo ==========================================
 echo.
 echo Output files in bin\:
-echo   - eiem.dll               (MMD dance plugin)
+echo   - eiem.dll               (EIEM plugin)
 echo   - d3dcompiler_47.dll     (DX proxy loader)
 echo   - vulkan-1.dll           (Vulkan proxy loader)
 echo.

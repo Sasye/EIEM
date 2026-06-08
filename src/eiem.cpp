@@ -19,6 +19,8 @@
 
 #include "globals.h"
 
+#include "audio.h"
+
 #include "smc_face.h"
 
 

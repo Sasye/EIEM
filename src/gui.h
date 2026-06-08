@@ -31,6 +31,9 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(
 #define WM_MMD_GUI_LOAD   (WM_USER + 103)
 
 #define WM_MMD_GUI_RECAPTURE (WM_USER + 106)
+#define WM_MMD_GUI_LOAD_AUDIO (WM_USER + 107)
+#define WM_MMD_GUI_SEEK_AUDIO (WM_USER + 108) 
+#define WM_MMD_GUI_SET_VOLUME (WM_USER + 109) 
 
 
 
@@ -477,11 +480,25 @@ static void DrawMainPanel() {
   if (totalTime > 0.0f && g_musclePlayer) {
     float seekTime = curTime;
     ImGui::SetNextItemWidth(-1);
+    static bool s_wasDragging = false;
+    static float s_dragTarget = 0.0f;
     if (ImGui::SliderFloat("##seek", &seekTime, 0.0f, totalTime, u8"%.1f \u79d2")) {
       
       g_musclePlayer->currentTime = seekTime;
-      
       QueryPerformanceCounter(&g_musclePlayer->lastTick);
+      s_wasDragging = true;
+      s_dragTarget = seekTime;
+    }
+    
+    if (s_wasDragging && !ImGui::IsItemActive()) {
+      s_wasDragging = false;
+      
+      
+      if (g_audioPlayer && g_audioPlayer->loaded && g_audioEnabled) {
+        int ms = (int)(s_dragTarget * 1000.0f);
+        Log("[AUDIO] Seek bar released -> posting seek %d ms", ms);
+        PostMessageW(g_gameHwnd, WM_MMD_GUI_SEEK_AUDIO, (WPARAM)ms, 0);
+      }
     }
   } else {
     float zero = 0.0f;
@@ -537,11 +554,34 @@ static void DrawMainPanel() {
   ImGui::Spacing();
 
   
+  
+  
   if (g_musclePlayer) {
-    ImGui::SetNextItemWidth(140);
-    ImGui::SliderFloat(u8"\u64ad\u653e\u901f\u5ea6", &g_musclePlayer->speed, 0.1f, 3.0f, u8"%.1fx");
-    ImGui::SameLine();
-    ImGui::Checkbox(u8"\u5faa\u73af", &g_musclePlayer->loop);
+    g_playbackSpeed = g_musclePlayer->speed;
+    g_playbackLoop  = g_musclePlayer->loop;
+  }
+  ImGui::SetNextItemWidth(140);
+  ImGui::SliderFloat(u8"\u64ad\u653e\u901f\u5ea6", &g_playbackSpeed, 0.1f, 3.0f, u8"%.1fx");
+  ImGui::SameLine();
+  ImGui::Checkbox(u8"\u5faa\u73af", &g_playbackLoop);
+  ImGui::SameLine();
+  ImGui::Checkbox(u8"\u955c\u5934", &g_cameraEnabled);
+  if (g_musclePlayer) {
+    g_musclePlayer->speed = g_playbackSpeed;
+    g_musclePlayer->loop  = g_playbackLoop;
+  }
+
+  
+  ImGui::SetNextItemWidth(-1);
+  ImGui::SliderFloat(u8"\u97f3\u9891\u504f\u79fb##offset", &g_audioOffset, -30.0f, 30.0f, u8"%.1f \u79d2");
+  ImGui::TextDisabled(u8"\u6b63 = \u8df3\u8fc7\u97f3\u9891\u524d\u594f\uff0c\u8d1f = \u5ef6\u8fdf\u97f3\u9891");
+  {
+    int volPercent = g_audioVolume / 10;
+    ImGui::SetNextItemWidth(-1);
+    if (ImGui::SliderInt(u8"\u97f3\u91cf##vol", &volPercent, 0, 100, u8"%d%%")) {
+      g_audioVolume = volPercent * 10;
+      PostMessageW(g_gameHwnd, WM_MMD_GUI_SET_VOLUME, (WPARAM)g_audioVolume, 0);
+    }
   }
 
   ImGui::Spacing();
@@ -749,6 +789,65 @@ static void DrawMainPanel() {
       ImGui::TextDisabled(u8"\u672a\u52a0\u8f7d");
     }
 
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    
+    ImGui::TextColored(ImVec4(0.20f, 0.20f, 0.24f, 1.0f), u8"\u97f3\u9891 (.wav/.mp3)");
+    ImGui::SetNextItemWidth(-1);
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
+    ImGui::InputText("##audiopath", g_audioPath, sizeof(g_audioPath));
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
+    if (ImGui::Button(u8"\u6d4f\u89c8##audio", ImVec2(80, 0))) {
+      ImGui::PopStyleColor();
+      OPENFILENAMEA ofn = {};
+      char filePath[512] = "";
+      ofn.lStructSize = sizeof(ofn);
+      ofn.hwndOwner = g_guiHwnd;
+      ofn.lpstrFilter = "Audio (*.wav;*.mp3)\0*.wav;*.mp3\0All Files\0*.*\0";
+      ofn.lpstrFile = filePath;
+      ofn.nMaxFile = sizeof(filePath);
+      ofn.Flags = OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+      if (GetOpenFileNameA(&ofn)) {
+        strncpy(g_audioPath, filePath, sizeof(g_audioPath) - 1);
+        g_audioPath[sizeof(g_audioPath) - 1] = '\0';
+        Log("[GUI] Audio selected: %s", g_audioPath);
+        
+        PostMessageW(g_gameHwnd, WM_MMD_GUI_LOAD_AUDIO, 0, 0);
+      }
+    } else { ImGui::PopStyleColor(); }
+    ImGui::SameLine();
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
+    if (ImGui::Button(u8"\u52a0\u8f7d##audio", ImVec2(-1, 0))) {
+      PostMessageW(g_gameHwnd, WM_MMD_GUI_LOAD_AUDIO, 0, 0);
+    }
+    ImGui::PopStyleColor();
+
+    
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
+    ImGui::Checkbox(u8"\u97f3\u9891\u540c\u6b65", &g_audioEnabled);
+    ImGui::PopStyleColor();
+    ImGui::SameLine();
+    if (g_audioPath[0] == '\0') {
+      ImGui::TextDisabled(u8"\u7a7a = \u9ed8\u8ba4 bgm.wav");
+    } else {
+      ImGui::TextDisabled(u8"\u53d8\u901f\u65f6\u81ea\u52a8\u5173\u95ed");
+    }
+
+
+    
+    if (g_audioPlayer && g_audioPlayer->loaded) {
+      ImGui::TextColored(ImVec4(0.10f, 0.55f, 0.25f, 1.0f),
+                         u8"\u5df2\u52a0\u8f7d: %.1f \u79d2",
+                         g_audioPlayer->GetLengthMs() / 1000.0f);
+    } else {
+      ImGui::TextDisabled(u8"\u672a\u52a0\u8f7d");
+    }
+
     ImGui::PopStyleVar(); 
     ImGui::EndTabItem();
   }
@@ -791,8 +890,8 @@ static DWORD WINAPI GuiThread(LPVOID) {
   
   RECT gr;
   GetWindowRect(g_gameHwnd, &gr);
-  int panelW = 340;
-  int panelH = 520;
+  int panelW = 380;
+  int panelH = 580;
   int posX = gr.right - panelW - 20;
   int posY = gr.top + 40;
 
