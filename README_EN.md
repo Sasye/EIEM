@@ -4,13 +4,12 @@ English | [中文](README.md)
 
 Brings MMD animation playback to *Arknights: Endfield*. Supports muscle-driven body motion, facial expressions, finger animation, camera motion, and synced background music, all controlled through an in-game GUI panel.
 
-## Notice
+## Usage Guidelines
 
-- You **should not** use this plugin to play any inappropriate actions/animations (including but not limited to pornographic, violent, or other content that violates laws and regulations or causes community discomfort).
-- You **should not** charge any form of fee when redistributing this plugin (including but not limited to charging for download links, charging to join a group, charging for high-speed download links, etc.).
-- You **can** freely use, modify, and redistribute this plugin for free under the terms of the AGPL-3.0 license.
-- Selling this plugin on any platform by anyone is considered **fraud and reselling**. If you purchased it, **you have been scammed; please immediately file a complaint with the platform and apply for a refund**.
-- Using this plugin means you have agreed to all terms on this page.
+- You **should not** use this plugin or the game's built-in official animation assets to create or play any inappropriate motions/animations (including but not limited to content that is pornographic, violent, violates laws and regulations, or causes community discomfort).
+- You **should not** openly sell this plugin itself on online retail platforms without providing the GitHub repository address and after-sales service.
+- You **can** use, modify, and distribute the binary files and source code of this plugin under the terms of the AGPL-3.0 license.
+- By downloading, installing, or using this plugin, you acknowledge that you have read and agreed to the above terms.
 
 ## Features
 
@@ -22,8 +21,8 @@ Brings MMD animation playback to *Arknights: Endfield*. Supports muscle-driven b
 - **Audio sync**: MCI backend plays WAV/MP3 BGM
 
 ### Planned
-- VMD direct playback mode
-- Multi-character same-screen playback
+- Direct VMD playback mode
+- Multi-character screen playback
 - ...
 
 ## Installation
