@@ -6,7 +6,7 @@ Brings MMD animation playback to *Arknights: Endfield*. Supports muscle-driven b
 
 ## Usage Guidelines
 
-- You **should not** use this plugin or the game's built-in official animation assets to create or play any inappropriate motions/animations (including but not limited to content that is pornographic, violent, violates laws and regulations, or causes community discomfort).
+- You **should not** use this plugin or the game's built-in official assets (such as animations, scenes, models, etc.) to create or play any inappropriate motions/animations (including but not limited to content that is pornographic, violent, violates laws and regulations, or causes community discomfort).
 - You **should not** openly sell this plugin itself on online retail platforms without providing the GitHub repository address and after-sales service.
 - You **can** use, modify, and distribute the binary files and source code of this plugin under the terms of the AGPL-3.0 license.
 - By downloading, installing, or using this plugin, you acknowledge that you have read and agreed to the above terms.
@@ -24,6 +24,10 @@ Brings MMD animation playback to *Arknights: Endfield*. Supports muscle-driven b
 - Direct VMD playback mode
 - Multi-character screen playback
 - ...
+
+## Download
+
+You can download the latest release from [Releases](https://github.com/Sasye/EIEM/releases) or compile it yourself from source.
 
 ## Installation
 
