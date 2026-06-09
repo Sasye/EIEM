@@ -1,0 +1,37 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build Release
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Build Project
+      run: |
+        cmd /c build.bat
+
+    - name: Package Release
+      run: |
+        mkdir release_pkg
+        copy bin\eiem.dll release_pkg\
+        copy bin\d3dcompiler_47.dll release_pkg\
+        copy bin\vulkan-1.dll release_pkg\
+        Compress-Archive -Path release_pkg\* -DestinationPath "EIEM_${{ github.ref_name }}.zip"
+
+    - name: Publish to GitHub Releases
+      uses: softprops/action-gh-release@v2
+      with:
+        files: EIEM_${{ github.ref_name }}.zip
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

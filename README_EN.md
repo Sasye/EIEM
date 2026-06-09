@@ -4,13 +4,27 @@ English | [中文](README.md)
 
 Brings MMD animation playback to *Arknights: Endfield*. Supports muscle-driven body motion, facial expressions, finger animation, camera motion, and synced background music, all controlled through an in-game GUI panel.
 
+## Notice
+
+- You **should not** use this plugin to play any inappropriate actions/animations (including but not limited to pornographic, violent, or other content that violates laws and regulations or causes community discomfort).
+- You **should not** charge any form of fee when redistributing this plugin (including but not limited to charging for download links, charging to join a group, charging for high-speed download links, etc.).
+- You **can** freely use, modify, and redistribute this plugin for free under the terms of the AGPL-3.0 license.
+- Selling this plugin on any platform by anyone is considered **fraud and reselling**. If you purchased it, **you have been scammed; please immediately file a complaint with the platform and apply for a refund**.
+- Using this plugin means you have agreed to all terms on this page.
+
 ## Features
 
+### Implemented
 - **Muscle-driven motion**: Drives full-body animation via 95 muscle values
 - **Finger animation**: Independent rotation control for 30 finger bones
 - **Facial expressions**: Basic expressions including AIUEO, blinks, and smiling eyes
 - **Camera motion**: VMD camera keyframes (with character-facing alignment)
 - **Audio sync**: MCI backend plays WAV/MP3 BGM
+
+### Planned
+- VMD direct playback mode
+- Multi-character same-screen playback
+- ...
 
 ## Installation
 
@@ -48,7 +62,7 @@ You must first convert VMD animations to MUS4 format (`muscle_anim.bin`) using t
 ### Prerequisites
 
 - Unity Editor
-- [MMD4Mecanim](https://stereoarts.jp/) — converts VMD to Unity AnimationClip
+- MMD4Mecanim — converts VMD to Unity AnimationClip
 - Any Humanoid MMD model
 
 ### Steps
@@ -66,5 +80,3 @@ You must first convert VMD animations to MUS4 format (`muscle_anim.bin`) using t
 
 This project is for educational and research purposes only. Using this tool may violate the game's terms of service and carries a risk of account ban.
 Use it on a test account at your own risk.
-
-To resellers: reselling free plugins — may your conscience haunt you for the rest of your life.
