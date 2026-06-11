@@ -155,6 +155,14 @@ static void *s_bbc_SetSkipWriting = nullptr;
 static void *s_bbc_SetTimeScale = nullptr;
 
 
+static void *g_bipedIKSolvers = nullptr;     
+static void *g_ikSolver_LFoot = nullptr;     
+static void *g_ikSolver_RFoot = nullptr;     
+static void *g_ikSolver_LHand = nullptr;     
+static void *g_ikSolver_RHand = nullptr;     
+static bool  g_bipedIKSolversResolved = false;
+
+
 static void **g_slotAddr =
     nullptr; 
 static void *g_slotOrigGet = nullptr; 
@@ -176,6 +184,14 @@ static char g_muscleAnimPath[512] = "plugin\\muscle_anim.bin";
 static char g_cameraVmdPath[512] = "plugin\\camera.vmd";
 
 static char g_morphVmdPath[512] = "";
+
+
+
+static bool g_useVmdDirect = false;
+
+static char g_pmxModelPath[512] = "";
+
+static char g_motionVmdPath[512] = "";
 
 
 

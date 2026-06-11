@@ -34,6 +34,7 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(
 #define WM_MMD_GUI_LOAD_AUDIO (WM_USER + 107)
 #define WM_MMD_GUI_SEEK_AUDIO (WM_USER + 108) 
 #define WM_MMD_GUI_SET_VOLUME (WM_USER + 109) 
+#define WM_MMD_GUI_VMD_DEBUG (WM_USER + 110) 
 
 
 
@@ -659,44 +660,124 @@ static void DrawMainPanel() {
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 14.0f);
 
     
-    ImGui::TextColored(ImVec4(0.20f, 0.20f, 0.24f, 1.0f), u8"\u52a8\u4f5c\u6587\u4ef6 (.bin)");
-    ImGui::SetNextItemWidth(-1);
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
-    ImGui::InputText("##animpath", g_muscleAnimPath, sizeof(g_muscleAnimPath));
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
-    if (ImGui::Button(u8"\u6d4f\u89c8##anim", ImVec2(80, 0))) {
-      ImGui::PopStyleColor();
-      OPENFILENAMEA ofn = {};
-      char filePath[512] = "";
-      ofn.lStructSize = sizeof(ofn);
-      ofn.hwndOwner = g_guiHwnd;
-      ofn.lpstrFilter = "Muscle Anim (*.bin)\0*.bin\0All Files\0*.*\0";
-      ofn.lpstrFile = filePath;
-      ofn.nMaxFile = sizeof(filePath);
-      ofn.Flags = OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
-      if (GetOpenFileNameA(&ofn)) {
-        strncpy(g_muscleAnimPath, filePath, sizeof(g_muscleAnimPath) - 1);
-        g_muscleAnimPath[sizeof(g_muscleAnimPath) - 1] = '\0';
-        Log("[GUI] Anim selected: %s", g_muscleAnimPath);
-      }
-    } else { ImGui::PopStyleColor(); }
+    ImGui::TextColored(ImVec4(0.20f, 0.20f, 0.24f, 1.0f), u8"\u52a8\u4f5c\u6a21\u5f0f");
+    bool isMuscle = !g_useVmdDirect;
+    bool isVmd    =  g_useVmdDirect;
+    if (ImGui::RadioButton(u8"\u808c\u8089 (.bin)", isMuscle)) { g_useVmdDirect = false; }
     ImGui::SameLine();
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
-    if (ImGui::Button(u8"\u52a0\u8f7d##anim", ImVec2(-1, 0))) {
-      PostMessageW(g_gameHwnd, WM_MMD_GUI_LOAD, 0, 0);
-    }
-    ImGui::PopStyleColor();
+    if (ImGui::RadioButton(u8"VMD \u76f4\u63a5", isVmd))      { g_useVmdDirect = true; }
 
-    
-    if (g_muscleAnim && g_muscleAnim->loaded) {
-      ImGui::TextColored(ImVec4(0.10f, 0.55f, 0.25f, 1.0f),
-                         u8"%d \u5e27 / %.1f \u79d2",
-                         g_muscleAnim->frameCount, g_muscleAnim->Duration());
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    if (!g_useVmdDirect) {
+      
+      ImGui::TextColored(ImVec4(0.20f, 0.20f, 0.24f, 1.0f), u8"\u52a8\u4f5c\u6587\u4ef6 (.bin)");
+      ImGui::SetNextItemWidth(-1);
+      ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);
+      ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
+      ImGui::InputText("##animpath", g_muscleAnimPath, sizeof(g_muscleAnimPath));
+      ImGui::PopStyleColor();
+      ImGui::PopStyleVar();
+      ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
+      if (ImGui::Button(u8"\u6d4f\u89c8##anim", ImVec2(80, 0))) {
+        ImGui::PopStyleColor();
+        OPENFILENAMEA ofn = {};
+        char filePath[512] = "";
+        ofn.lStructSize = sizeof(ofn);
+        ofn.hwndOwner = g_guiHwnd;
+        ofn.lpstrFilter = "Muscle Anim (*.bin)\0*.bin\0All Files\0*.*\0";
+        ofn.lpstrFile = filePath;
+        ofn.nMaxFile = sizeof(filePath);
+        ofn.Flags = OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+        if (GetOpenFileNameA(&ofn)) {
+          strncpy(g_muscleAnimPath, filePath, sizeof(g_muscleAnimPath) - 1);
+          g_muscleAnimPath[sizeof(g_muscleAnimPath) - 1] = '\0';
+          Log("[GUI] Anim selected: %s", g_muscleAnimPath);
+        }
+      } else { ImGui::PopStyleColor(); }
+      ImGui::SameLine();
+      ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
+      if (ImGui::Button(u8"\u52a0\u8f7d##anim", ImVec2(-1, 0))) {
+        PostMessageW(g_gameHwnd, WM_MMD_GUI_LOAD, 0, 0);
+      }
+      ImGui::PopStyleColor();
+
+      
+      if (g_muscleAnim && g_muscleAnim->loaded) {
+        ImGui::TextColored(ImVec4(0.10f, 0.55f, 0.25f, 1.0f),
+                           u8"%d \u5e27 / %.1f \u79d2",
+                           g_muscleAnim->frameCount, g_muscleAnim->Duration());
+      } else {
+        ImGui::TextDisabled(u8"\u672a\u52a0\u8f7d");
+      }
     } else {
-      ImGui::TextDisabled(u8"\u672a\u52a0\u8f7d");
+      
+
+      
+      ImGui::TextColored(ImVec4(0.20f, 0.20f, 0.24f, 1.0f), u8"\u6a21\u578b\u6587\u4ef6 (.pmx)");
+      ImGui::SetNextItemWidth(-1);
+      ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);
+      ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
+      ImGui::InputText("##pmxpath", g_pmxModelPath, sizeof(g_pmxModelPath));
+      ImGui::PopStyleColor();
+      ImGui::PopStyleVar();
+      ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
+      if (ImGui::Button(u8"\u6d4f\u89c8##pmx", ImVec2(80, 0))) {
+        ImGui::PopStyleColor();
+        OPENFILENAMEA ofn = {};
+        char filePath[512] = "";
+        ofn.lStructSize = sizeof(ofn);
+        ofn.hwndOwner = g_guiHwnd;
+        ofn.lpstrFilter = "PMX Model (*.pmx)\0*.pmx\0All Files\0*.*\0";
+        ofn.lpstrFile = filePath;
+        ofn.nMaxFile = sizeof(filePath);
+        ofn.Flags = OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+        if (GetOpenFileNameA(&ofn)) {
+          strncpy(g_pmxModelPath, filePath, sizeof(g_pmxModelPath) - 1);
+          g_pmxModelPath[sizeof(g_pmxModelPath) - 1] = '\0';
+          Log("[GUI] PMX selected: %s", g_pmxModelPath);
+        }
+      } else { ImGui::PopStyleColor(); }
+      ImGui::SameLine();
+      ImGui::TextDisabled(u8"\u63d0\u4f9b\u6e90\u6a21\u578b rest pose");
+
+      ImGui::Spacing();
+
+      
+      ImGui::TextColored(ImVec4(0.20f, 0.20f, 0.24f, 1.0f), u8"\u52a8\u4f5c\u6587\u4ef6 (.vmd)");
+      ImGui::SetNextItemWidth(-1);
+      ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);
+      ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
+      ImGui::InputText("##motionvmdpath", g_motionVmdPath, sizeof(g_motionVmdPath));
+      ImGui::PopStyleColor();
+      ImGui::PopStyleVar();
+      ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
+      if (ImGui::Button(u8"\u6d4f\u89c8##motionvmd", ImVec2(80, 0))) {
+        ImGui::PopStyleColor();
+        OPENFILENAMEA ofn = {};
+        char filePath[512] = "";
+        ofn.lStructSize = sizeof(ofn);
+        ofn.hwndOwner = g_guiHwnd;
+        ofn.lpstrFilter = "VMD Motion (*.vmd)\0*.vmd\0All Files\0*.*\0";
+        ofn.lpstrFile = filePath;
+        ofn.nMaxFile = sizeof(filePath);
+        ofn.Flags = OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+        if (GetOpenFileNameA(&ofn)) {
+          strncpy(g_motionVmdPath, filePath, sizeof(g_motionVmdPath) - 1);
+          g_motionVmdPath[sizeof(g_motionVmdPath) - 1] = '\0';
+          Log("[GUI] Motion VMD selected: %s", g_motionVmdPath);
+        }
+      } else { ImGui::PopStyleColor(); }
+      ImGui::SameLine();
+      ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
+      if (ImGui::Button(u8"\u52a0\u8f7d##motionvmd", ImVec2(-1, 0))) {
+        PostMessageW(g_gameHwnd, WM_MMD_GUI_LOAD, 0, 0);
+      }
+      ImGui::PopStyleColor();
+
+      ImGui::TextDisabled(u8"\u5f85\u5b9e\u73b0 (Phase N)");
     }
 
     ImGui::Spacing();
@@ -849,6 +930,90 @@ static void DrawMainPanel() {
     }
 
     ImGui::PopStyleVar(); 
+    ImGui::EndTabItem();
+  }
+
+  
+  ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
+  bool tabDebug = ImGui::BeginTabItem(u8"\u8c03\u8bd5");
+  ImGui::PopStyleColor();
+  if (tabDebug) {
+    ImGui::Spacing();
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 14.0f);
+
+    ImGui::TextColored(ImVec4(0.20f, 0.20f, 0.24f, 1.0f), u8"VMD \u76f4\u63a5\u6a21\u5f0f\u8c03\u8bd5");
+    ImGui::Spacing();
+
+    
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
+    if (ImGui::Button(u8"\u6d4b\u8bd5 PMX \u89e3\u6790##dbg", ImVec2(-1, 0))) {
+      PostMessageW(g_gameHwnd, WM_MMD_GUI_VMD_DEBUG, 0, 0);
+    }
+    ImGui::PopStyleColor();
+    ImGui::TextDisabled(u8"\u89e3\u6790\u5e76 dump \u9aa8\u9abc\u5217\u8868\u5230 log");
+
+    ImGui::Spacing();
+
+    
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
+    if (ImGui::Button(u8"\u6355\u83b7\u8eab\u4f53 Rest Pose##dbg", ImVec2(-1, 0))) {
+      PostMessageW(g_gameHwnd, WM_MMD_GUI_VMD_DEBUG, 1, 0);
+    }
+    ImGui::PopStyleColor();
+    ImGui::TextDisabled(u8"\u8bfb\u53d6\u6e38\u620f\u89d2\u8272\u9aa8\u9abc rest rotation");
+
+    ImGui::Spacing();
+
+    
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
+    if (ImGui::Button(u8"\u6d4b\u8bd5\u9aa8\u9abc\u91c7\u6837##dbg", ImVec2(-1, 0))) {
+      PostMessageW(g_gameHwnd, WM_MMD_GUI_VMD_DEBUG, 2, 0);
+    }
+    ImGui::PopStyleColor();
+    ImGui::TextDisabled(u8"\u91c7\u6837\u7b2c0\u5e27\u9aa8\u9abc\u65cb\u8f6c\u5230 log");
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
+    if (ImGui::Button(u8"\u6d4b\u8bd5 Delta Retarget##dbg", ImVec2(-1, 0))) {
+      PostMessageW(g_gameHwnd, WM_MMD_GUI_VMD_DEBUG, 3, 0);
+    }
+    ImGui::PopStyleColor();
+    ImGui::TextDisabled(u8"\u5e94\u7528\u7b2c0\u5e27\u5230\u4e0a\u534a\u8eab\u9aa8\u9abc");
+
+    ImGui::Spacing();
+
+    
+    ImGui::TextColored(ImVec4(0.20f, 0.20f, 0.24f, 1.0f), u8"\u72b6\u6001");
+    if (g_pmxModelPath[0] != '\0') {
+      ImGui::TextColored(ImVec4(0.6f, 0.7f, 0.8f, 1.0f), u8"PMX: %s", g_pmxModelPath);
+    } else {
+      ImGui::TextDisabled(u8"PMX: \u672a\u6307\u5b9a");
+    }
+    if (g_motionVmdPath[0] != '\0') {
+      ImGui::TextColored(ImVec4(0.6f, 0.7f, 0.8f, 1.0f), u8"VMD: %s", g_motionVmdPath);
+    } else {
+      ImGui::TextDisabled(u8"VMD: \u672a\u6307\u5b9a");
+    }
+    ImGui::TextColored(ImVec4(0.6f, 0.7f, 0.8f, 1.0f), u8"\u6a21\u5f0f: %s",
+                       g_useVmdDirect ? u8"VMD \u76f4\u63a5" : u8"\u808c\u8089");
+
+    
+    if (g_vmdDirectMode) {
+      ImGui::Spacing();
+      ImGui::Separator();
+      ImGui::Spacing();
+      ImGui::TextColored(ImVec4(0.30f, 0.80f, 0.30f, 1.0f), u8"BoneGhost \u91cd\u5b9a\u5411\u6a21\u5f0f");
+      ImGui::TextColored(ImVec4(0.20f, 0.20f, 0.24f, 1.0f),
+        u8"\u9aa8\u9abc\u6570: %d  ghostOrig=(%.2f,%.2f,%.2f,%.2f)",
+        (int)g_vmdDirectBones.size(),
+        g_ghostOrigWorld.x, g_ghostOrigWorld.y, g_ghostOrigWorld.z, g_ghostOrigWorld.w);
+    }
+
+    ImGui::PopStyleVar();
     ImGui::EndTabItem();
   }
 

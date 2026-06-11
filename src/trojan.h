@@ -933,6 +933,17 @@ static void ApplyMmdPoseOnMainThread() {
 
   
   
+  
+
+  
+  
+  if (g_vmdDirectMode) {
+    SafeSetAnimatorEnabled(false);
+    goto vmd_skip_muscles;
+  }
+
+  
+  
   int mc = s_actualMuscleCount;
   for (int i = 0; i < mc; i++) {
     s_musclePtr[i] = 0.0f;
@@ -1061,12 +1072,13 @@ static void ApplyMmdPoseOnMainThread() {
                         &setExc);
   *g_slotAddr = g_slotOrigGet;
 
+vmd_skip_muscles:
   
   
-  
-  
-  if (g_mmdHasArmBones && g_muscleAnim && g_muscleAnim->hasArmBones &&
-      g_cachedAnimator) {
+  bool muscleReady = (g_mmdHasArmBones && g_muscleAnim && g_muscleAnim->hasArmBones);
+  bool vmdReady = (g_useVmdDirect && g_vmd && g_vmd->loaded && !g_vmdDirectBones.empty());
+
+  if ((muscleReady || vmdReady) && g_cachedAnimator) {
 
     
     if (!s_ikDisabled) {
@@ -1086,7 +1098,7 @@ static void ApplyMmdPoseOnMainThread() {
             void *t;
             int d;
           };
-          WalkEntry stack[64];
+          WalkEntry stack[1024];
           int top = 0;
           stack[top++] = {rootTransform, 0};
 
@@ -1229,6 +1241,7 @@ static void ApplyMmdPoseOnMainThread() {
                           Log("[BBC] #%d name resolve exception", idx + 1);
                         }
                       }
+
                     }
                   }
                 }
@@ -1236,11 +1249,11 @@ static void ApplyMmdPoseOnMainThread() {
             }
 
             
-            if (e.d < 2) {
+            if (e.d < 8) {
               __try {
                 void *ccResult = Invoke(g_transform_get_childCount, e.t);
                 int cc = ccResult ? *(int *)((char *)ccResult + 16) : 0;
-                for (int c = 0; c < cc && top < 64; c++) {
+                for (int c = 0; c < cc && top < 1024; c++) {
                   void *cp[] = {&c};
                   void *child = Invoke(g_transform_GetChild, e.t, cp);
                   if (child)
@@ -1252,56 +1265,72 @@ static void ApplyMmdPoseOnMainThread() {
           }
 
           
-          
-          for (int bi = 0; bi < s_bipedIKCount; bi++) {
-            if (s_bipedIK[bi] && g_animator_set_enabled) {
-              __try {
-                int falseVal = 0;
-                void *params[] = {&falseVal};
-                Invoke(g_animator_set_enabled, s_bipedIK[bi], params);
-                Log("[IK-DISABLE] BipedIK #%d DISABLED!", bi + 1);
-              } __except (EXCEPTION_EXECUTE_HANDLER) {
-                Log("[IK-DISABLE] Failed to disable BipedIK #%d: 0x%08X",
-                    bi + 1, GetExceptionCode());
-              }
-            }
-          }
-
-          for (int gi = 0; gi < s_grounderIKCount; gi++) {
-            if (s_grounderIK[gi] && g_animator_set_enabled) {
-              __try {
-                int falseVal = 0;
-                void *params[] = {&falseVal};
-                Invoke(g_animator_set_enabled, s_grounderIK[gi], params);
-                Log("[IK-DISABLE] GrounderBipedIK #%d DISABLED!", gi + 1);
-              } __except (EXCEPTION_EXECUTE_HANDLER) {
-                Log("[IK-DISABLE] Failed to disable GrounderBipedIK #%d", gi + 1);
-              }
-            }
-          }
-
-          
-          
-          
-          
-          
-          for (int fd = 0; fd < s_followDamperCount; fd++) {
-            Log("[IK-DISABLE] TransformFollowDamper #%d KEPT ENABLED (decoration)", fd + 1);
-          }
-
-          
-          if (s_animatorMono && g_animator_set_enabled) {
+          if (s_bipedIKCount > 0 && !g_bipedIKSolversResolved) {
+            g_bipedIKSolversResolved = true;
             __try {
-              int falseVal = 0;
-              void *params[] = {&falseVal};
-              Invoke(g_animator_set_enabled, s_animatorMono, params);
-              Log("[IK-DISABLE] AnimatorMono DISABLED!");
+              void *bipedIK = s_bipedIK[0];
+              
+              g_bipedIKSolvers = *(void**)((char*)bipedIK + 0x40);
+              if (g_bipedIKSolvers) {
+                g_ikSolver_LFoot = *(void**)((char*)g_bipedIKSolvers + 0x10);
+                g_ikSolver_RFoot = *(void**)((char*)g_bipedIKSolvers + 0x18);
+                g_ikSolver_LHand = *(void**)((char*)g_bipedIKSolvers + 0x20);
+                g_ikSolver_RHand = *(void**)((char*)g_bipedIKSolvers + 0x28);
+                Log("[IK] BipedIKSolvers=%p LFoot=%p RFoot=%p LHand=%p RHand=%p",
+                    g_bipedIKSolvers, g_ikSolver_LFoot, g_ikSolver_RFoot,
+                    g_ikSolver_LHand, g_ikSolver_RHand);
+              } else {
+                Log("[IK] WARNING: BipedIK solvers field is null!");
+              }
             } __except (EXCEPTION_EXECUTE_HANDLER) {
+              Log("[IK] Exception extracting BipedIK solvers");
             }
           }
 
-          if (s_bipedIKCount == 0)
-            Log("[IK-DISABLE] WARNING: BipedIK not found!");
+          
+          
+          
+          {
+            for (int bi = 0; bi < s_bipedIKCount; bi++) {
+              if (s_bipedIK[bi] && g_animator_set_enabled) {
+                __try {
+                  int falseVal = 0;
+                  void *params[] = {&falseVal};
+                  Invoke(g_animator_set_enabled, s_bipedIK[bi], params);
+                  Log("[IK-DISABLE] BipedIK #%d DISABLED! (Muscle Mode)", bi + 1);
+                } __except (EXCEPTION_EXECUTE_HANDLER) {
+                }
+              }
+            }
+
+            for (int gi = 0; gi < s_grounderIKCount; gi++) {
+              if (s_grounderIK[gi] && g_animator_set_enabled) {
+                __try {
+                  int falseVal = 0;
+                  void *params[] = {&falseVal};
+                  Invoke(g_animator_set_enabled, s_grounderIK[gi], params);
+                  Log("[IK-DISABLE] GrounderBipedIK #%d DISABLED! (Muscle Mode)", gi + 1);
+                } __except (EXCEPTION_EXECUTE_HANDLER) {
+                }
+              }
+            }
+          }
+
+          
+          
+          if (!g_useVmdDirect) {
+            if (s_animatorMono && g_animator_set_enabled) {
+              __try {
+                int falseVal = 0;
+                void *params[] = {&falseVal};
+                Invoke(g_animator_set_enabled, s_animatorMono, params);
+                Log("[IK-DISABLE] AnimatorMono DISABLED! (Muscle Mode)");
+              } __except (EXCEPTION_EXECUTE_HANDLER) {
+              }
+            }
+          } else {
+            Log("[IK-DISABLE] VMD Direct Mode: AnimatorMono left ENABLED");
+          }
 
           
           
@@ -1553,6 +1582,65 @@ static void ApplyMmdPoseOnMainThread() {
   
   
   
+  if (g_useVmdDirect && s_bipedIKCount > 0 && !g_bipedIKSolversResolved) {
+    g_bipedIKSolversResolved = true;
+    __try {
+      void *bipedIK = s_bipedIK[0];
+      g_bipedIKSolvers = *(void**)((char*)bipedIK + 0x40);
+      if (g_bipedIKSolvers) {
+        g_ikSolver_LFoot = *(void**)((char*)g_bipedIKSolvers + 0x10);
+        g_ikSolver_RFoot = *(void**)((char*)g_bipedIKSolvers + 0x18);
+        g_ikSolver_LHand = *(void**)((char*)g_bipedIKSolvers + 0x20);
+        g_ikSolver_RHand = *(void**)((char*)g_bipedIKSolvers + 0x28);
+        Log("[IK] BipedIKSolvers=%p LFoot=%p RFoot=%p LHand=%p RHand=%p",
+            g_bipedIKSolvers, g_ikSolver_LFoot, g_ikSolver_RFoot,
+            g_ikSolver_LHand, g_ikSolver_RHand);
+      } else {
+        Log("[IK] WARNING: BipedIK solvers field is null!");
+      }
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+      Log("[IK] Exception extracting BipedIK solvers");
+    }
+  }
+
+  
+  
+  if (g_useVmdDirect) {
+    
+    
+    if (g_ikSolver_LHand) {
+      __try {
+        *(float*)((char*)g_ikSolver_LHand + 0x20) = 0.0f;  
+        *(float*)((char*)g_ikSolver_LHand + 0x60) = 0.0f;  
+      } __except (EXCEPTION_EXECUTE_HANDLER) {}
+    }
+    if (g_ikSolver_RHand) {
+      __try {
+        *(float*)((char*)g_ikSolver_RHand + 0x20) = 0.0f;  
+        *(float*)((char*)g_ikSolver_RHand + 0x60) = 0.0f;  
+      } __except (EXCEPTION_EXECUTE_HANDLER) {}
+    }
+  }
+
+vmd_direct_override:
+  
+  if (g_vmdDirectMode && g_vmd && g_vmd->loaded && !g_vmdDirectBones.empty() && g_musclePlayer) {
+    
+    
+    static int s_diagCount = 0;
+    s_diagCount++;
+    if (s_diagCount <= 300 && s_diagCount % 30 == 0) {
+      Log("[VMD-DIAG] #%d ct=%.4f playing=%d pending=%d dur=%.2f",
+        s_diagCount, g_musclePlayer->currentTime,
+        (int)g_musclePlayer->playing, (int)g_mmdPendingApply,
+        g_musclePlayer->totalDuration);
+    }
+    VmdDirectApplyFrame(g_musclePlayer->currentTime * 30.0f);
+  }
+
+  
+  
+  
   if (g_cameraNeedsCapture && g_cameraPlayer.HasData()) {
     g_cameraNeedsCapture = false;
     
@@ -1713,17 +1801,159 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
     return 0;
   }
   
-  if (msg >= (WM_USER + 100) && msg <= (WM_USER + 109)) {
+  if (msg >= (WM_USER + 100) && msg <= (WM_USER + 110)) {
     
     
     switch (msg) {
-    case (WM_USER + 100): 
-      Log("[GUI-CMD] Play");
-      
-      if (!g_muscleAnim) g_muscleAnim = new MuscleAnim();
-      if (!g_muscleAnim->loaded)
-        g_muscleAnim->Load("plugin\\muscle_anim.bin");
-      if (g_muscleAnim->loaded) {
+    case (WM_USER + 100): { 
+      Log("[GUI-CMD] Play (mode=%s)", g_useVmdDirect ? "VMD-Direct" : "Muscle");
+
+      if (g_useVmdDirect) {
+        
+        
+        if (g_motionVmdPath[0] == '\0') {
+          Log("[VMD-DIRECT] No motion VMD path set");
+          return 0;
+        }
+
+        
+        VmdFile *motionVmd = LoadVmd(g_motionVmdPath);
+        if (!motionVmd || !motionVmd->loaded) {
+          Log("[VMD-DIRECT] Failed to load VMD: %s", g_motionVmdPath);
+          if (motionVmd) FreeVmd(motionVmd);
+          return 0;
+        }
+
+        
+        float vmdDuration = motionVmd->totalFrames / 30.0f;
+        if (!g_muscleAnim) g_muscleAnim = new MuscleAnim();
+        if (!g_muscleAnim->loaded) {
+          
+          g_muscleAnim->fps = 30.0f;
+          g_muscleAnim->frameCount = (int)(vmdDuration * 30.0f) + 1;
+          g_muscleAnim->muscleCount = 95;
+          g_muscleAnim->hasArmBones = false;
+          g_muscleAnim->hasFingerBones = false;
+          g_muscleAnim->frames.resize(g_muscleAnim->frameCount);
+          for (auto &f : g_muscleAnim->frames) {
+            memset(&f, 0, sizeof(f));
+            f.bodyRot[3] = 1.0f; 
+          }
+          g_muscleAnim->loaded = true;
+          Log("[VMD-DIRECT] Dummy MuscleAnim created: %d frames, %.1fs",
+            g_muscleAnim->frameCount, vmdDuration);
+        }
+
+        
+        RefreshEntityAnimator();
+        if (g_cachedAnimator && g_animator_set_enabled) {
+          SafeSetAnimatorEnabled(true);
+          Sleep(50);
+          
+          InitMmdPoseOnMainThread();
+          if (g_cachedMPtr && g_icall_SetInternalHumanPose && g_musclesArray) {
+            memset((char*)g_musclesArray + 32, 0, 95 * sizeof(float));
+            Vec3 pos = {0,0,0};
+            Quat rot = {0,0,0,1};
+            void *rootT = SafeGetComponentTransform(g_cachedAnimator);
+            if (rootT && g_camGetPos && g_camGetRot) {
+                float pb[3]; g_camGetPos(rootT, pb);
+                pos = {pb[0], pb[1], pb[2]};
+                float rb[4]; g_camGetRot(rootT, rb);
+                rot = {rb[0], rb[1], rb[2], rb[3]};
+            }
+            g_icall_SetInternalHumanPose(g_cachedMPtr, &pos, &rot, g_musclesArray);
+            SafeSetAnimatorEnabled(false);
+            Sleep(50); 
+          } else if (g_animator_Rebind) {
+            Invoke(g_animator_Rebind, g_cachedAnimator);
+            Sleep(50);
+          }
+
+          
+          auto getWorldRot = [](void *t) -> Quat {
+            Quat q = {0,0,0,1};
+            if (t && g_camGetRot) {
+              float buf[4]; g_camGetRot(t, buf);
+              q = {buf[0], buf[1], buf[2], buf[3]};
+            }
+            return q;
+          };
+
+          g_ghostOrigWorld = {0,0,0,1};
+          void *charTransform = SafeGetComponentTransform(g_cachedAnimator);
+          if (charTransform) {
+            g_ghostOrigWorld = getWorldRot(charTransform);
+          }
+          Log("[VMD-GHOST] ghostOrigWorld=(%.4f,%.4f,%.4f,%.4f)",
+            g_ghostOrigWorld.x, g_ghostOrigWorld.y, g_ghostOrigWorld.z, g_ghostOrigWorld.w);
+
+          
+          
+
+          g_vmdDirectBones.clear();
+          for (int bi = 0; bi < g_boneMapCount; bi++) {
+            int hb = g_boneMap[bi].humanBone;
+            if (hb == -1) continue; 
+            void *t = nullptr;
+            if (hb >= 0) {
+              t = SafeGetBoneTransform(hb);
+              if (!t) continue;
+            }
+            VmdDirectBone vb;
+            vb.hb = hb;
+            vb.mapIdx = bi;
+            vb.transform = t;
+            vb.restLocalRot = {0,0,0,1};
+            if (t) vb.restLocalRot = SafeGetLocalRotation(t);
+            vb.boneOrigWorld = g_ghostOrigWorld;
+            if (t) vb.boneOrigWorld = getWorldRot(t);
+            
+            vb.parentOrigWorld = g_ghostOrigWorld; 
+            if (t && g_transform_get_parent) {
+              void *parentT = Invoke(g_transform_get_parent, t);
+              if (parentT) {
+                vb.parentOrigWorld = getWorldRot(parentT);
+              }
+            }
+            
+            vb.restPos = {0,0,0};
+            vb.hasPos = g_boneMap[bi].isPositionBone;
+            vb.ghostParentIdx = -1;
+            vb.ghostWorld = g_ghostOrigWorld;
+            vb.boneWorld = vb.boneOrigWorld;
+            if (vb.hasPos && g_transform_get_localPosition) {
+              void *boxed = Invoke(g_transform_get_localPosition, t);
+              if (boxed) {
+                float *d = (float *)((char *)boxed + 16);
+                vb.restPos = {d[0], d[1], d[2]};
+              }
+            }
+            
+            
+            
+            const char *mmdNameForStance = g_boneMap[bi].mmdName;
+            vb.mmdStance = LookupMmdStance(mmdNameForStance);
+            vb.hasStance = (vb.mmdStance.x != 0 || vb.mmdStance.y != 0 || 
+                           vb.mmdStance.z != 0 || fabsf(vb.mmdStance.w - 1.0f) > 0.001f);
+            
+            
+            
+            vb.gameStance = QuatMul(QuatInv(g_ghostOrigWorld), vb.boneOrigWorld);
+            
+            g_vmdDirectBones.push_back(vb);
+          }
+          
+          BuildGhostHierarchy();
+          Log("[VMD-GHOST] Captured %d bones, hierarchy built", (int)g_vmdDirectBones.size());
+        }
+
+        
+        if (g_vmd) FreeVmd(g_vmd);
+        g_vmd = motionVmd;
+        g_vmdDirectMode = true;
+
+        
         if (!g_musclePlayer) {
           g_musclePlayer = new MmdPlayer();
           g_musclePlayer->speed = g_playbackSpeed;
@@ -1732,31 +1962,59 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
         if (g_musclePlayer->playing) {
           
         } else if (g_musclePlayer->currentTime > 0) {
-          g_musclePlayer->TogglePause(); 
-          
+          g_musclePlayer->TogglePause();
           if (g_audioIsClock && g_audioPlayer) g_audioPlayer->Resume();
         } else {
-          
-          RefreshEntityAnimator();
           if (InitMusclePoseHandler()) {
             if (g_trojanHookTarget) MH_EnableHook(g_trojanHookTarget);
             g_trojanActive = true;
             g_musclePlayer->Start(g_muscleAnim->Duration());
-            
             if (g_cameraEnabled) {
               if (!g_cameraVmd) g_cameraVmd = LoadVmd(g_cameraVmdPath);
-              if (g_cameraVmd && g_cameraVmd->loaded &&
-                  !g_cameraVmd->cameraKeys.empty()) {
+              if (g_cameraVmd && g_cameraVmd->loaded && !g_cameraVmd->cameraKeys.empty()) {
                 g_cameraPlayer.SetVmd(g_cameraVmd);
                 g_cameraNeedsCapture = true;
               }
             }
-            
             AudioStartFresh();
+          }
+        }
+      } else {
+        
+        if (!g_muscleAnim) g_muscleAnim = new MuscleAnim();
+        if (!g_muscleAnim->loaded)
+          g_muscleAnim->Load("plugin\\muscle_anim.bin");
+        if (g_muscleAnim->loaded) {
+          if (!g_musclePlayer) {
+            g_musclePlayer = new MmdPlayer();
+            g_musclePlayer->speed = g_playbackSpeed;
+            g_musclePlayer->loop  = g_playbackLoop;
+          }
+          if (g_musclePlayer->playing) {
+            
+          } else if (g_musclePlayer->currentTime > 0) {
+            g_musclePlayer->TogglePause();
+            if (g_audioIsClock && g_audioPlayer) g_audioPlayer->Resume();
+          } else {
+            RefreshEntityAnimator();
+            if (InitMusclePoseHandler()) {
+              if (g_trojanHookTarget) MH_EnableHook(g_trojanHookTarget);
+              g_trojanActive = true;
+              g_musclePlayer->Start(g_muscleAnim->Duration());
+              if (g_cameraEnabled) {
+                if (!g_cameraVmd) g_cameraVmd = LoadVmd(g_cameraVmdPath);
+                if (g_cameraVmd && g_cameraVmd->loaded && !g_cameraVmd->cameraKeys.empty()) {
+                  g_cameraPlayer.SetVmd(g_cameraVmd);
+                  g_cameraNeedsCapture = true;
+                }
+              }
+              AudioStartFresh();
+            }
           }
         }
       }
       return 0;
+    }
     case (WM_USER + 101): 
       Log("[GUI-CMD] Pause");
       if (g_musclePlayer && g_musclePlayer->playing) {
@@ -1881,6 +2139,194 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
         Log("[GUI-CMD] No character found. Switch to a character first.");
       }
       return 0;
+    case (WM_USER + 110): { 
+      int action = (int)wParam;
+      Log("[VMD-DBG] Debug action %d", action);
+
+      
+      if (!g_cachedAnimator) {
+        RefreshEntityAnimator();
+        if (g_cachedAnimator)
+          Log("[VMD-DBG] Auto-captured animator: %p", g_cachedAnimator);
+      }
+
+      if (action == 0) {
+        
+        if (g_pmxModelPath[0] == '\0') {
+          Log("[VMD-DBG] No PMX path set");
+        } else {
+          PmxFile *pmx = LoadPmxBones(g_pmxModelPath);
+          if (pmx && pmx->loaded) {
+            Log("[VMD-DBG] PMX loaded: %s, %zu bones", pmx->modelName.c_str(), pmx->bones.size());
+            for (size_t i = 0; i < pmx->bones.size() && i < 80; i++) {
+              const PmxBone &b = pmx->bones[i];
+              Log("  [%3zu] %-24s parent=%3d pos=(%.4f, %.4f, %.4f)",
+                i, b.name.c_str(), b.parentIndex,
+                b.position[0], b.position[1], b.position[2]);
+            }
+            FreePmx(pmx);
+          } else {
+            Log("[VMD-DBG] PMX parse FAILED: %s", pmx ? pmx->error.c_str() : "null");
+            if (pmx) FreePmx(pmx);
+          }
+        }
+      }
+      else if (action == 1) {
+        
+        if (!g_cachedAnimator) {
+          Log("[VMD-DBG] No animator (even");
+        } else {
+          static const struct { const char *mmdName; int humanBone; bool isPositionBone; } g_boneMap[] = {
+            {"センター", -2, true},     
+            {"グルーブ", -3, true},     
+            {"下半身", 0, false},       
+            {"上半身", 7, false},       
+            {"上半身2", 8, false},      
+            {"首", 9, false}, {"頭", 10, false}};
+          Log("[VMD-DBG] Capturing rest pose via GetBoneTransform...");
+          static const struct { int hb; const char *name; } bodyBones[] = {
+            {0,"Hips"}, {1,"LeftUpperLeg"}, {2,"RightUpperLeg"},
+            {3,"LeftLowerLeg"}, {4,"RightLowerLeg"},
+            {5,"LeftFoot"}, {6,"RightFoot"},
+            {7,"Spine"}, {8,"Chest"}, {9,"Neck"}, {10,"Head"},
+            {11,"LeftShoulder"}, {12,"RightShoulder"},
+            {13,"LeftUpperArm"}, {14,"RightUpperArm"},
+            {15,"LeftLowerArm"}, {16,"RightLowerArm"},
+            {17,"LeftHand"}, {18,"RightHand"},
+          };
+          for (auto &bb : bodyBones) {
+            void *t = SafeGetBoneTransform(bb.hb);
+            if (!t) { Log("  %-18s hb=%2d — NOT FOUND", bb.name, bb.hb); continue; }
+            Quat q = SafeGetLocalRotation(t);
+            Log("  %-18s hb=%2d rest=(%.4f,%.4f,%.4f,%.4f)",
+              bb.name, bb.hb, q.x, q.y, q.z, q.w);
+          }
+          Log("[VMD-DBG] Rest pose captured");
+        }
+      }
+      else if (action == 2) {
+        
+        if (g_motionVmdPath[0] == '\0') {
+          Log("[VMD-DBG] No motion VMD path set");
+        } else {
+          VmdFile *vmd = LoadVmd(g_motionVmdPath);
+          if (vmd && vmd->loaded) {
+            auto timelines = BuildBoneTimelinesEx(vmd);
+            Log("[VMD-DBG] VMD loaded: %zu bone timelines, %u total frames",
+              timelines.size(), vmd->totalFrames);
+            
+            for (auto &pair : timelines) {
+              VmdBoneSample s = pair.second.Sample(0.0f);
+              Log("  %-20s pos=(%.4f,%.4f,%.4f) rot=(%.4f,%.4f,%.4f,%.4f)",
+                pair.first.c_str(),
+                s.pos[0], s.pos[1], s.pos[2],
+                s.rot[0], s.rot[1], s.rot[2], s.rot[3]);
+            }
+            FreeVmd(vmd);
+          } else {
+            Log("[VMD-DBG] VMD parse FAILED: %s", vmd ? vmd->error.c_str() : "null");
+            if (vmd) FreeVmd(vmd);
+          }
+        }
+      }
+      else if (action == 3) {
+        
+        if (!g_cachedAnimator) {
+          Log("[VMD-DBG] No animator");
+        } else if (g_motionVmdPath[0] == '\0') {
+          Log("[VMD-DBG] No motion VMD path");
+        } else {
+          
+          VmdFile *vmd = LoadVmd(g_motionVmdPath);
+          if (!vmd || !vmd->loaded) {
+            Log("[VMD-DBG] VMD load failed");
+            if (vmd) FreeVmd(vmd);
+          } else {
+            auto timelines = BuildBoneTimelinesEx(vmd);
+            Log("[VMD-DBG] Delta retarget: %zu bone timelines", timelines.size());
+
+            
+            SafeSetAnimatorEnabled(false);
+            Sleep(50);
+            if (g_cachedMPtr && g_icall_SetInternalHumanPose && g_musclesArray) {
+              memset((char*)g_musclesArray + 32, 0, 95 * sizeof(float));
+              Vec3 pos = {0,0,0};
+              Quat rot = {0,0,0,1};
+              void *rootT = SafeGetComponentTransform(g_cachedAnimator);
+              if (rootT && g_camGetPos && g_camGetRot) {
+                  float pb[3]; g_camGetPos(rootT, pb);
+                  pos = {pb[0], pb[1], pb[2]};
+                  float rb[4]; g_camGetRot(rootT, rb);
+                  rot = {rb[0], rb[1], rb[2], rb[3]};
+              }
+              g_icall_SetInternalHumanPose(g_cachedMPtr, &pos, &rot, g_musclesArray);
+              Sleep(50);
+            }
+
+            
+            auto getWorldRot = [](void *t) -> Quat {
+              Quat q = {0,0,0,1};
+              if (t && g_camGetRot) {
+                float buf[4]; g_camGetRot(t, buf);
+                q = {buf[0], buf[1], buf[2], buf[3]};
+              }
+              return q;
+            };
+
+            
+
+            g_vmdDirectBones.clear();
+            g_ghostOrigWorld = {0,0,0,1};
+            void *rootT = SafeGetComponentTransform(g_cachedAnimator);
+            if (rootT) g_ghostOrigWorld = getWorldRot(rootT);
+
+            for (int bi = 0; bi < g_boneMapCount; bi++) {
+              int hb = g_boneMap[bi].humanBone;
+              if (hb == -1) continue;
+              void *t = (hb >= 0) ? SafeGetBoneTransform(hb) : nullptr;
+              if (hb >= 0 && !t) continue;
+              
+              VmdDirectBone vb;
+              vb.hb = hb;
+              vb.mapIdx = bi;
+              vb.transform = t;
+              vb.restLocalRot = (t) ? SafeGetLocalRotation(t) : Quat{0,0,0,1};
+              vb.boneOrigWorld = (t) ? getWorldRot(t) : g_ghostOrigWorld;
+              vb.parentOrigWorld = g_ghostOrigWorld;
+              if (t && g_transform_get_parent) {
+                void *p = Invoke(g_transform_get_parent, t);
+                if (p) vb.parentOrigWorld = getWorldRot(p);
+              }
+
+              vb.restPos = {0,0,0};
+              vb.hasPos = g_boneMap[bi].isPositionBone;
+              vb.ghostParentIdx = -1;
+              vb.ghostWorld = g_ghostOrigWorld;
+              vb.boneWorld = vb.boneOrigWorld;
+              if (vb.hasPos && g_transform_get_localPosition) {
+                void *boxed = Invoke(g_transform_get_localPosition, t);
+                if (boxed) {
+                  float *d = (float *)((char *)boxed + 16);
+                  vb.restPos = {d[0], d[1], d[2]};
+                }
+              }
+              g_vmdDirectBones.push_back(vb);
+              Log("  REST %-14s hb=%2d local=(%.4f,%.4f,%.4f,%.4f) world=(%.4f,%.4f,%.4f,%.4f)",
+                g_boneMap[bi].mmdName, hb,
+                vb.restLocalRot.x, vb.restLocalRot.y, vb.restLocalRot.z, vb.restLocalRot.w,
+                vb.boneOrigWorld.x, vb.boneOrigWorld.y, vb.boneOrigWorld.z, vb.boneOrigWorld.w);
+            }
+            BuildGhostHierarchy();
+            Log("[VMD-DBG] Captured %d bones, ghost hierarchy built", (int)g_vmdDirectBones.size());
+
+            g_vmdDirectMode = true;
+            Log("[VMD-DBG] VMD Direct Mode ACTIVE (%d bones, frame 30)", (int)g_vmdDirectBones.size());
+            FreeVmd(vmd);
+          }
+        }
+      }
+      return 0;
+    }
     }
   }
   LRESULT r = CallWindowProcW(g_origWndProc, hwnd, msg, wParam, lParam);
@@ -2159,6 +2605,15 @@ static void MuscleAnimationTick() {
 }
 
 static void AnimationTick() {
+  
+  
+  
+  if (g_vmdDirectMode && g_musclePlayer && g_musclePlayer->playing &&
+      g_vmd && g_vmd->loaded && !g_vmdDirectBones.empty()) {
+    SafeSetAnimatorEnabled(false);
+    VmdDirectApplyFrame(g_musclePlayer->currentTime * 30.0f);
+    return;
+  }
   if (g_calibMode) {
     SafeSetAnimatorEnabled(false); 
     CalibrationTick();

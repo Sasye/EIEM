@@ -623,6 +623,364 @@ static bool s_dumpedFrame0 = false;
 
 
 
+static bool g_vmdDirectMode = false;  
+
+struct VmdDirectBone {
+  int hb;
+  int mapIdx;
+  void *transform;
+  Quat restLocalRot;    
+  Quat boneOrigWorld;   
+  Quat parentOrigWorld; 
+  Vec3 restPos;
+  bool hasPos;
+  int ghostParentIdx;   
+  
+  Quat mmdStance;       
+  Quat gameStance;      
+  bool hasStance;       
+  
+  Quat ghostWorld;      
+  Quat boneWorld;       
+};
+static std::vector<VmdDirectBone> g_vmdDirectBones;
+static Quat g_ghostOrigWorld = {0,0,0,1}; 
+
+
+static int GhostParentHB(int hb) {
+  switch (hb) {
+    case -2: return -1;  
+    case -3: return -2;  
+    case 0:  return -3;  
+    case 7:  return -3;  
+    case 8:  return 7;   
+    case 54: return 8;   
+    case 9:  return (54 >= 0) ? 8 : 7;  
+    case 10: return 9;   
+    case 11: return 8;   
+    case 13: return 11;  
+    case 15: return 13;  
+    case 17: return 15;  
+    case 12: return 8;   
+    case 14: return 12;  
+    case 16: return 14;  
+    case 18: return 16;  
+    case 1:  return 0;   
+    case 3:  return 1;   
+    case 5:  return 3;   
+    case 19: return 5;   
+    case 2:  return 0;   
+    case 4:  return 2;   
+    case 6:  return 4;   
+    case 20: return 6;   
+    default: return -1;
+  }
+}
+
+
+static int FindBoneIdxByHB(int hb) {
+  for (int i = 0; i < (int)g_vmdDirectBones.size(); i++) {
+    if (g_vmdDirectBones[i].hb == hb) return i;
+  }
+  return -1;
+}
+
+
+static void BuildGhostHierarchy() {
+  
+  for (auto &vb : g_vmdDirectBones) {
+    int parentHB = GhostParentHB(vb.hb);
+    vb.ghostParentIdx = (parentHB != -1) ? FindBoneIdxByHB(parentHB) : -1;
+  }
+  
+  bool changed = true;
+  while (changed) {
+    changed = false;
+    for (int i = 0; i < (int)g_vmdDirectBones.size(); i++) {
+      int parentHB = GhostParentHB(g_vmdDirectBones[i].hb);
+      if (parentHB == -1) continue; 
+      int parentPos = -1;
+      for (int j = 0; j < (int)g_vmdDirectBones.size(); j++) {
+        if (g_vmdDirectBones[j].hb == parentHB) { parentPos = j; break; }
+      }
+      if (parentPos > i) {
+        std::swap(g_vmdDirectBones[i], g_vmdDirectBones[parentPos]);
+        changed = true;
+      }
+    }
+  }
+  
+  for (auto &vb : g_vmdDirectBones) {
+    int parentHB = GhostParentHB(vb.hb);
+    vb.ghostParentIdx = (parentHB != -1) ? FindBoneIdxByHB(parentHB) : -1;
+  }
+  
+  for (auto &vb : g_vmdDirectBones) {
+    Log("[VMD-GHOST] hb=%d parent=%d origWorld=(%.3f,%.3f,%.3f,%.3f)",
+      vb.hb, vb.ghostParentIdx,
+      vb.boneOrigWorld.x, vb.boneOrigWorld.y, vb.boneOrigWorld.z, vb.boneOrigWorld.w);
+  }
+}
+
+
+
+static void VmdDirectDisableComponents() {
+  if (s_ikDisabled) return;
+  if (!g_cachedAnimator || !g_animator_set_enabled || !g_component_get_gameObject) return;
+  s_ikDisabled = true;
+
+  void *rootT = SafeGetComponentTransform(g_cachedAnimator);
+  if (!rootT) {
+    Log("[VMD-DIRECT] VmdDirectDisableComponents: rootT is null, skipping");
+    return;
+  }
+
+  Log("[VMD-DIRECT] VmdDirectDisableComponents: animator=%p rootT=%p", g_cachedAnimator, rootT);
+
+  struct WE { void *t; int d; };
+  WE stk[1024]; int top = 0;
+  stk[top++] = {rootT, 0};
+  int nodesVisited = 0;
+
+  while (top > 0) {
+    WE e = stk[--top];
+    nodesVisited++;
+    void *go = nullptr;
+    __try { go = Invoke(g_component_get_gameObject, e.t); } __except(1) {}
+    if (!go) continue;
+    
+    
+    if (nodesVisited <= 5 && g_object_get_name) {
+      char goName[128] = "?";
+      __try {
+        void *ns = Invoke(g_object_get_name, go);
+        if (ns) ReadStrUtf8(ns, goName, sizeof(goName));
+      } __except(1) {}
+      Log("[VMD-DIRECT] Walk node #%d d=%d GO='%s'", nodesVisited, e.d, goName);
+    }
+    
+    void *getCompMethod = FindMethod(il2cpp_object_get_class(go), "GetComponents", 1);
+    if (!getCompMethod) continue;
+    void *compType = nullptr;
+    __try {
+      void *cls = FindClass("UnityEngine", "Component", nullptr, 0);
+      if (cls) compType = il2cpp_type_get_object(il2cpp_class_get_type(cls));
+    } __except(1) {}
+    if (!compType) continue;
+    void *comps = nullptr;
+    __try {
+      void *args[] = {compType};
+      comps = Invoke(getCompMethod, go, args);
+    } __except(1) {}
+    if (comps) {
+      int cnt = *(int*)((char*)comps + IL2CPP_ARRAY_LEN);
+      void **data = (void**)((char*)comps + IL2CPP_ARRAY_DATA);
+      for (int i = 0; i < cnt && i < 50; i++) {
+        if (!data[i]) continue;
+        void *cls = il2cpp_object_get_class(data[i]);
+        if (!cls) continue;
+        const char *cn = il2cpp_class_get_name(cls);
+        if (!cn) continue;
+        if (strcmp(cn, "BipedIK") == 0 && s_bipedIKCount < MAX_IK) {
+          s_bipedIK[s_bipedIKCount++] = data[i];
+          Log("[VMD-DIRECT] Found BipedIK #%d: %p", s_bipedIKCount, data[i]);
+        } else if (strcmp(cn, "GrounderBipedIK") == 0 && s_grounderIKCount < MAX_IK) {
+          s_grounderIK[s_grounderIKCount++] = data[i];
+          Log("[VMD-DIRECT] Found GrounderBipedIK #%d: %p", s_grounderIKCount, data[i]);
+        } else if (strcmp(cn, "AnimatorMono") == 0) {
+          s_animatorMono = data[i];
+          Log("[VMD-DIRECT] Found AnimatorMono: %p", data[i]);
+        }
+      }
+    }
+    if (e.d < 8) {
+      __try {
+        int cc = 0;
+        void *boxed = Invoke(g_transform_get_childCount, e.t);
+        if (boxed) cc = *(int*)((char*)boxed + 16);
+        if (nodesVisited <= 3) {
+          Log("[VMD-DIRECT] Node #%d childCount=%d (boxed=%p)", nodesVisited, cc, boxed);
+        }
+        for (int c = 0; c < cc && top < 1024; c++) {
+          int idx = c; void *p[] = {&idx};
+          void *child = Invoke(g_transform_GetChild, e.t, p);
+          if (child) stk[top++] = {child, e.d+1};
+        }
+      } __except(1) {
+        if (nodesVisited <= 3) Log("[VMD-DIRECT] Node #%d child walk EXCEPTION", nodesVisited);
+      }
+    }
+  }
+  Log("[VMD-DIRECT] Walk complete: %d nodes visited", nodesVisited);
+
+  
+  if (s_bipedIKCount > 0 && !g_bipedIKSolversResolved) {
+    g_bipedIKSolversResolved = true;
+    __try {
+      void *bipedIK = s_bipedIK[0];
+      g_bipedIKSolvers = *(void**)((char*)bipedIK + 0x40);
+      if (g_bipedIKSolvers) {
+        g_ikSolver_LFoot = *(void**)((char*)g_bipedIKSolvers + 0x10);
+        g_ikSolver_RFoot = *(void**)((char*)g_bipedIKSolvers + 0x18);
+        g_ikSolver_LHand = *(void**)((char*)g_bipedIKSolvers + 0x20);
+        g_ikSolver_RHand = *(void**)((char*)g_bipedIKSolvers + 0x28);
+        Log("[VMD-DIRECT] BipedIKSolvers=%p LFoot=%p RFoot=%p LHand=%p RHand=%p",
+            g_bipedIKSolvers, g_ikSolver_LFoot, g_ikSolver_RFoot,
+            g_ikSolver_LHand, g_ikSolver_RHand);
+      } else {
+        Log("[VMD-DIRECT] WARNING: BipedIK solvers field is null!");
+      }
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+      Log("[VMD-DIRECT] Exception extracting BipedIK solvers");
+    }
+  }
+
+  
+  
+  int falseVal = 0; void *fp[] = {&falseVal};
+  for (int bi = 0; bi < s_bipedIKCount; bi++) {
+    __try { Invoke(g_animator_set_enabled, s_bipedIK[bi], fp); } __except(1) {}
+    Log("[VMD-DIRECT] BipedIK #%d DISABLED", bi+1);
+  }
+  for (int gi = 0; gi < s_grounderIKCount; gi++) {
+    __try { Invoke(g_animator_set_enabled, s_grounderIK[gi], fp); } __except(1) {}
+    Log("[VMD-DIRECT] GrounderBipedIK #%d DISABLED", gi+1);
+  }
+  
+  Log("[VMD-DIRECT] Components: %d BipedIK (disabled), %d GrounderIK (disabled), AnimMono=%p (kept enabled)",
+    s_bipedIKCount, s_grounderIKCount, s_animatorMono);
+
+}
+
+static void VmdDirectTick() {
+  if (!g_vmdDirectMode || g_vmdDirectBones.empty()) return;
+  VmdDirectDisableComponents();
+  
+  
+  SafeSetAnimatorEnabled(false);
+  
+}
+
+
+
+
+
+
+
+
+
+
+static void VmdDirectApplyFrame(float frameNum) {
+  if (!g_vmd || !g_vmd->loaded || g_vmdDirectBones.empty()) return;
+  static int s_callCount = 0;
+  s_callCount++;
+  int frameInt = (int)frameNum;
+  
+  static int s_lastMilestone = -1;
+  int milestone = frameInt / 30; 
+  bool doLog = false;
+  if (milestone != s_lastMilestone && milestone <= 10) {
+    s_lastMilestone = milestone;
+    doLog = true;
+    Log("[VMD-FRAME] milestone=%d frameNum=%.2f", milestone, frameNum);
+  }
+
+  
+  for (int i = 0; i < (int)g_vmdDirectBones.size(); i++) {
+    auto &vb = g_vmdDirectBones[i];
+    const char *mmdName = g_boneMap[vb.mapIdx].mmdName;
+
+    
+    Quat Q = {0, 0, 0, 1};
+    bool found = false;
+    auto it = g_vmd->boneTimelines.find(mmdName);
+    if (it != g_vmd->boneTimelines.end()) {
+      InterpResult interp = InterpolateBone(it->second.keys, frameNum, vb.hasPos);
+      Q = interp.rotation;
+      found = true;
+
+      
+      if (vb.hasPos) {
+        if (vb.hb == 0 && vb.transform) {
+          
+          Vec3 accumulatedPos = {0,0,0};
+          int centerIdx = FindBoneIdxByHB(-2);
+          if (centerIdx >= 0) accumulatedPos = {accumulatedPos.x + g_vmdDirectBones[centerIdx].restPos.x, accumulatedPos.y + g_vmdDirectBones[centerIdx].restPos.y, accumulatedPos.z + g_vmdDirectBones[centerIdx].restPos.z};
+          int grooveIdx = FindBoneIdxByHB(-3);
+          if (grooveIdx >= 0) accumulatedPos = {accumulatedPos.x + g_vmdDirectBones[grooveIdx].restPos.x, accumulatedPos.y + g_vmdDirectBones[grooveIdx].restPos.y, accumulatedPos.z + g_vmdDirectBones[grooveIdx].restPos.z};
+          
+          Vec3 fp = {vb.restPos.x + accumulatedPos.x, vb.restPos.y + accumulatedPos.y, vb.restPos.z + accumulatedPos.z};
+          SafeSetLocalPosition(vb.transform, fp);
+        } else if (vb.hb < 0) {
+          
+          vb.restPos = {interp.position.x*0.08f, interp.position.y*0.08f, interp.position.z*0.08f};
+        } else if (vb.transform) {
+          Vec3 vp = {interp.position.x*0.08f, interp.position.y*0.08f, interp.position.z*0.08f};
+          Vec3 fp = {vb.restPos.x+vp.x, vb.restPos.y+vp.y, vb.restPos.z+vp.z};
+          SafeSetLocalPosition(vb.transform, fp);
+        }
+      }
+    }
+
+    
+    
+    Quat ghostParentWorld = g_ghostOrigWorld; 
+    if (vb.ghostParentIdx >= 0) {
+      ghostParentWorld = g_vmdDirectBones[vb.ghostParentIdx].ghostWorld;
+    }
+    vb.ghostWorld = QuatMul(ghostParentWorld, Q);
+
+    
+    if (!vb.transform) continue;
+
+    
+    
+    
+    
+    
+    Quat correctedBoneOrig = vb.boneOrigWorld;
+    if (vb.hb >= 13 && vb.hb <= 18) {
+      correctedBoneOrig = vb.parentOrigWorld; 
+    }
+    
+    Quat parentAnimatedWorld = g_ghostOrigWorld;
+    if (g_transform_get_parent && g_camGetRot) {
+      void *parentT = Invoke(g_transform_get_parent, vb.transform);
+      if (parentT) {
+        float buf[4];
+        g_camGetRot(parentT, buf);
+        parentAnimatedWorld = {buf[0], buf[1], buf[2], buf[3]};
+      }
+    }
+    
+    Quat result = QuatMul(
+      QuatMul(
+        QuatMul(QuatInv(parentAnimatedWorld), vb.ghostWorld),
+        QuatInv(g_ghostOrigWorld)
+      ),
+      correctedBoneOrig
+    );
+    SafeSetLocalRotation(vb.transform, result);
+
+    
+    vb.boneWorld = QuatMul(parentAnimatedWorld, result);
+
+    if (doLog) {
+      Log("[VMD-GHOST] bone=%s hb=%d Q=(%.3f,%.3f,%.3f,%.3f) "
+          "parW=(%.3f,%.3f,%.3f,%.3f) res=(%.3f,%.3f,%.3f,%.3f)",
+        mmdName, vb.hb,
+        Q.x, Q.y, Q.z, Q.w,
+        parentAnimatedWorld.x, parentAnimatedWorld.y, parentAnimatedWorld.z, parentAnimatedWorld.w,
+        result.x, result.y, result.z, result.w);
+    }
+  }
+}
+
+
+
+
+
+
 static bool g_calibMode = false;
 static int g_calibBone = 0;
 static int g_calibRot = 0;

@@ -39,7 +39,9 @@ struct BoneMapEntry {
 
 static const BoneMapEntry g_boneMap[] = {
   
-  {"\xe3\x82\xbb\xe3\x83\xb3\xe3\x82\xbf\xe3\x83\xbc",         HB_Hips,          true},   
+  {"\xe3\x82\xbb\xe3\x83\xb3\xe3\x82\xbf\xe3\x83\xbc",         -2,               true},   
+  {"\xe3\x82\xb0\xe3\x83\xab\xe3\x83\xbc\xe3\x83\x96",         -3,               true},   
+  {"\xe4\xb8\x8b\xe5\x8d\x8a\xe8\xba\xab",                       HB_Hips,          true},   
   {"\xe4\xb8\x8a\xe5\x8d\x8a\xe8\xba\xab",                       HB_Spine,         false},  
   {"\xe4\xb8\x8a\xe5\x8d\x8a\xe8\xba\xab\x32",                   HB_Chest,         false},  
   {"\xe9\xa6\x96",                                                 HB_Neck,          false},  
@@ -138,7 +140,7 @@ static const FingerMapEntry g_fingerMap[] = {
   {"\xe3\x81\x82\xe3\x81\x94", "jawJoint"},           
 
   
-  {"\xe4\xb8\x8b\xe5\x8d\x8a\xe8\xba\xab", "Bip001_Pelvis"},     
+  
 
   
   {"\xe5\x85\xa8\xe3\x81\xa6\xe3\x81\xae\xe8\xa6\xaa", "Bip001"}, 
