@@ -129,6 +129,17 @@ static bool g_cameraNeedsCapture = false;
 static float g_origFov = 0.0f;              
 static Vec3 g_charWorldPos = {0, 0, 0};     
 static float g_charYaw = 0.0f;              
+static Vec3 g_camInitHipsWorldPos = {0,0,0}; 
+static Vec3 g_hipsWorldDelta = {0,0,0};      
+static Vec3 g_camInitInterest = {0,0,0};     
+static float g_camInitHipsYaw = 0.0f;        
+static float g_camHipsYawDelta = 0.0f;       
+static float g_camSegmentYawOffset = 0.0f;   
+static Vec3 g_camPrevInterest = {0,0,0};     
+static bool g_camPrevInterestValid = false;  
+static float g_camInitHeadWorldYaw = 0.0f;   
+static Vec3 g_headWorldPos = {0,0,0};        
+static Vec3 g_headForward = {0,0,1};         
 static bool g_camTestMode = false;          
 
 static float g_charHeight = 0.0f;           
@@ -137,6 +148,29 @@ static float g_camHeightScale = 1.0f;
 
 
 static void CaptureAndDisableCinemachine();
+
+
+
+static void ResetCameraState() {
+  g_cameraActive = false;
+  g_cameraNeedsCapture = false;
+  g_charWorldPos = {0, 0, 0};
+  g_charYaw = 0.0f;
+  g_camInitHipsWorldPos = {0, 0, 0};
+  g_hipsWorldDelta = {0, 0, 0};
+  g_camInitInterest = {0, 0, 0};
+  g_camInitHipsYaw = 0.0f;
+  g_camHipsYawDelta = 0.0f;
+  g_camSegmentYawOffset = 0.0f;
+  g_camPrevInterest = {0, 0, 0};
+  g_camPrevInterestValid = false;
+  g_camInitHeadWorldYaw = 0.0f;
+  g_headWorldPos = {0, 0, 0};
+  g_headForward = {0, 0, 1};
+  g_charHeight = 0.0f;
+  g_camHeightScale = 1.0f;
+  g_cameraPlayer.SetVmd(nullptr);
+}
 static void RestoreCinemachine();
 static void ApplyCameraFrame(float timeSec);
 static void ResetSkirtState();  
@@ -153,14 +187,6 @@ static void *s_bbc_SetSimWeight = nullptr;
 static void *s_bbc_BuildAndRun = nullptr;
 static void *s_bbc_SetSkipWriting = nullptr;
 static void *s_bbc_SetTimeScale = nullptr;
-
-
-static void *g_bipedIKSolvers = nullptr;     
-static void *g_ikSolver_LFoot = nullptr;     
-static void *g_ikSolver_RFoot = nullptr;     
-static void *g_ikSolver_LHand = nullptr;     
-static void *g_ikSolver_RHand = nullptr;     
-static bool  g_bipedIKSolversResolved = false;
 
 
 static void **g_slotAddr =
@@ -184,14 +210,6 @@ static char g_muscleAnimPath[512] = "plugin\\muscle_anim.bin";
 static char g_cameraVmdPath[512] = "plugin\\camera.vmd";
 
 static char g_morphVmdPath[512] = "";
-
-
-
-static bool g_useVmdDirect = false;
-
-static char g_pmxModelPath[512] = "";
-
-static char g_motionVmdPath[512] = "";
 
 
 
@@ -363,6 +381,7 @@ static FaceBoneSnapshot g_faceBones[MAX_FACE_BONES];
 static FaceBoneSnapshot g_faceRestPose[256]; 
 static int g_faceBoneCount = 0;
 static bool g_faceBonesCaptured = false;
+static bool g_faceBoneTouched[MAX_FACE_BONES] = {}; 
 static volatile bool g_faceTestActive = false; 
 static int g_faceTestFrame = 0;                
 static void *g_faceGetLocalPos = nullptr;

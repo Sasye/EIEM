@@ -232,6 +232,24 @@ static void RestoreCinemachine() {
 }
 
 
+
+
+
+
+static Vec3 SampleCharDisplacement(float timeSec) {
+  Vec3 disp = {0, 0, 0};
+  if (!g_vmd) return disp;
+  auto it = g_vmd->boneTimelines.find(
+      "\xe3\x82\xbb\xe3\x83\xb3\xe3\x82\xbf\xe3\x83\xbc"); 
+  if (it != g_vmd->boneTimelines.end()) {
+    float frameF = timeSec * 30.0f;
+    InterpResult ir = InterpolateBone(it->second.keys, frameF, true);
+    disp = ir.position;
+  }
+  return disp;
+}
+
+
 static void ApplyCameraFrame(float timeSec) {
   if (!g_cameraActive || !g_mainCamera || !g_mainCamTransform)
     return;
@@ -257,24 +275,42 @@ static void ApplyCameraFrame(float timeSec) {
   
   
   float effYaw = CAM_YAW_SIGN * g_charYaw + CAM_YAW_BIAS * 0.0174533f;
-  float cy = cosf(effYaw), sy = sinf(effYaw);
+
   
   
+  Vec3 charDisp = SampleCharDisplacement(timeSec);
+
   
   
-  
+  float camScale = g_cameraPlayer.scale;
   float hs = g_camHeightScale;
-  float px = cs.position.x * hs, py = cs.position.y * hs, pz = cs.position.z * hs;
+  float px = (cs.position.x - charDisp.x * camScale) * hs;
+  float py = (cs.position.y - charDisp.y * camScale) * hs;
+  float pz = (cs.position.z - charDisp.z * camScale) * hs;
+  float cy = cosf(effYaw), sy = sinf(effYaw);
   float rx = px * cy + pz * sy;
   float rz = -px * sy + pz * cy;
   float worldPos[3] = {rx + g_charWorldPos.x,
                        py + g_charWorldPos.y,
                        rz + g_charWorldPos.z};
+
   
-  float hy = effYaw * 0.5f;
-  Quat qYaw = {0, sinf(hy), 0, cosf(hy)};
-  Quat vmdRot = cs.rotation;
-  Quat finalRot = QuatMul(qYaw, vmdRot);
+  
+  
+  
+  
+  float toCharX = g_charWorldPos.x - worldPos[0];
+  float toCharZ = g_charWorldPos.z - worldPos[2];
+  float lookYaw = atan2f(toCharX, toCharZ);
+
+  
+  float pitch = CAM_SIGN_RX * cs.euler.x;
+  float roll  = CAM_SIGN_RZ * cs.euler.z;
+  float hp = pitch * 0.5f, hr = roll * 0.5f, hly = lookYaw * 0.5f;
+  Quat qLookYaw = {0, sinf(hly), 0, cosf(hly)};
+  Quat qPitch   = {sinf(hp), 0, 0, cosf(hp)};
+  Quat qRoll    = {0, 0, sinf(hr), cosf(hr)};
+  Quat finalRot = QuatMul(QuatMul(qLookYaw, qPitch), qRoll);
   float worldRot[4] = {finalRot.x, finalRot.y, finalRot.z, finalRot.w};
 
   static int s_camDiag = 0;

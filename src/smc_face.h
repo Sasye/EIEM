@@ -647,7 +647,7 @@ static void __fastcall Hooked_MorphToBoneJob(void *__this, void *param1,
   
   
   if ((g_faceTestActive || g_mouthWeightsFromMuscle) && g_faceBonesCaptured &&
-      param1 && param1 == g_confirmedSMC) {
+      g_boneMapReady && param1 && param1 == g_confirmedSMC) {
     __try {
       int blOff2 = SafeOff(OFF_bigList, 0x120, "bigList");
       void *bigBuf = *(void **)((char *)param1 + blOff2);
@@ -657,6 +657,13 @@ static void __fastcall Hooked_MorphToBoneJob(void *__this, void *param1,
       if (bigBuf && bigLen > 0 && bigLen == g_capturedLen) {
         MorphBoneEntry *live = (MorphBoneEntry *)bigBuf;
         for (int i = 0; i < bigLen; i++) {
+          
+          
+          
+          int boneID = live[i].boneID;
+          int arrIdx = (boneID >= 0 && boneID < 512) ? g_boneIDToIdx[boneID] : -1;
+          if (arrIdx < 0 || arrIdx >= g_faceBoneCount)
+            continue; 
           live[i].deltaPosX = 0;
           live[i].deltaPosY = 0;
           live[i].deltaPosZ = 0;
@@ -1362,6 +1369,7 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
       
       float deltaPosAccum[MAX_FACE_BONES][3] = {}; 
       float deltaRotAccum[MAX_FACE_BONES][3] = {}; 
+      memset(g_faceBoneTouched, 0, sizeof(g_faceBoneTouched)); 
 
       int applied = 0;
       for (int s = 0; s < NUM_MOUTH_SHAPES; s++) {
@@ -1389,9 +1397,19 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
           deltaPosAccum[arrIdx][0] += dpx * w;
           deltaPosAccum[arrIdx][1] += dpy * w;
           deltaPosAccum[arrIdx][2] += dpz * w;
-          deltaRotAccum[arrIdx][0] += g_capturedExpression[i].deltaRotX * w;
-          deltaRotAccum[arrIdx][1] += g_capturedExpression[i].deltaRotY * w;
-          deltaRotAccum[arrIdx][2] += g_capturedExpression[i].deltaRotZ * w;
+          
+          
+          
+          
+          float drx = g_capturedExpression[i].deltaRotX;
+          float dry = g_capturedExpression[i].deltaRotY;
+          float drz = g_capturedExpression[i].deltaRotZ;
+          if (fabsf(drx) < 30.0f && fabsf(dry) < 30.0f && fabsf(drz) < 30.0f) {
+            deltaRotAccum[arrIdx][0] += drx * w;
+            deltaRotAccum[arrIdx][1] += dry * w;
+            deltaRotAccum[arrIdx][2] += drz * w;
+          }
+          g_faceBoneTouched[arrIdx] = true;
           applied++;
         }
       }
@@ -1444,6 +1462,7 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
                 deltaRotAccum[arrIdx][2] +=
                     g_capturedExpression[i].deltaRotZ * w;
               }
+              g_faceBoneTouched[arrIdx] = true;
               applied++;
             }
           }
@@ -1451,16 +1470,16 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
       }
 
       
+      
+      
       for (int b = 0; b < g_faceBoneCount; b++) {
+        if (!g_faceBoneTouched[b])
+          continue;
+
         float dx = deltaPosAccum[b][0], dy = deltaPosAccum[b][1],
               dz = deltaPosAccum[b][2];
         float erx = deltaRotAccum[b][0], ery = deltaRotAccum[b][1],
               erz = deltaRotAccum[b][2];
-
-        
-        if (fabsf(dx) < 1e-7f && fabsf(dy) < 1e-7f && fabsf(dz) < 1e-7f &&
-            fabsf(erx) < 1e-7f && fabsf(ery) < 1e-7f && fabsf(erz) < 1e-7f)
-          continue;
 
         g_faceBones[b].px = g_faceRestPose[b].px + dx;
         g_faceBones[b].py = g_faceRestPose[b].py + dy;
@@ -1626,6 +1645,8 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
         for (int i = 0; i < g_faceBoneCount; i++) {
           if (!g_faceBoneRefs[i])
             continue;
+          if (!g_faceBoneTouched[i])
+            continue; 
           float pos[3] = {g_faceBones[i].px, g_faceBones[i].py,
                           g_faceBones[i].pz};
           float rot[4] = {g_faceBones[i].rx, g_faceBones[i].ry,

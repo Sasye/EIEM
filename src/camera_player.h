@@ -41,6 +41,8 @@ struct CameraState {
   Vec3 position;   
   Quat rotation;   
   float fov;       
+  Vec3 interest;   
+  Vec3 euler;      
   bool valid;
 };
 
@@ -112,6 +114,39 @@ struct CameraPlayer {
   bool HasData() const { return vmd && !vmd->cameraKeys.empty(); }
 
   void SetVmd(const VmdFile *v) { vmd = v; }
+
+  
+  
+  
+  Vec3 SampleInterest(float timeSec) const {
+    Vec3 out = {0, 0, 0};
+    if (!HasData()) return out;
+    const auto &keys = vmd->cameraKeys;
+    float frameF = timeSec * 30.0f;
+    if (frameF <= keys.front().frame)
+      return {keys.front().position[0], keys.front().position[1],
+              keys.front().position[2]};
+    if (frameF >= keys.back().frame)
+      return {keys.back().position[0], keys.back().position[1],
+              keys.back().position[2]};
+    int lo = 0, hi = (int)keys.size() - 1;
+    while (lo < hi - 1) {
+      int mid = (lo + hi) / 2;
+      if ((float)keys[mid].frame <= frameF) lo = mid;
+      else hi = mid;
+    }
+    const VmdCameraKeyframe &k0 = keys[lo];
+    const VmdCameraKeyframe &k1 = keys[hi];
+    float range = (float)(k1.frame - k0.frame);
+    float t = (range > 0.0f) ? (frameF - k0.frame) / range : 0.0f;
+    const uint8_t *ip = k1.interp;
+    float tx = CamBezierEval(ip[0], ip[2], ip[1], ip[3], t);
+    float ty = CamBezierEval(ip[4], ip[6], ip[5], ip[7], t);
+    float tz = CamBezierEval(ip[8], ip[10], ip[9], ip[11], t);
+    return {k0.position[0] + (k1.position[0] - k0.position[0]) * tx,
+            k0.position[1] + (k1.position[1] - k0.position[1]) * ty,
+            k0.position[2] + (k1.position[2] - k0.position[2]) * tz};
+  }
 
   
   CameraState Sample(float timeSec) const {
@@ -187,6 +222,7 @@ struct CameraPlayer {
   
   void BuildStateRaw(Vec3 interest, Vec3 euler, float distance, float fov,
                      CameraState &out) const {
+    out.euler = euler; 
     Quat camRot = CamQuatFromEuler(euler.x, euler.y, euler.z);
     
     
@@ -197,6 +233,7 @@ struct CameraPlayer {
                    (interest.z + offset.z) * scale};
     out.position = camPos;
     out.rotation = camRot;
+    out.interest = interest; 
     out.fov = fov + CAM_FOV_BIAS;
     out.valid = true;
   }

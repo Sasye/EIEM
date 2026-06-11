@@ -578,37 +578,6 @@ static DWORD WINAPI InitThread(LPVOID) {
   
   
   
-  FILE *ik_f = fopen("plugin\\ik_classes_dump.txt", "w");
-  if (ik_f) {
-    fprintf(ik_f, "=== IK Classes Dump ===\n");
-    for (size_t i = 0; i < ac; i++) {
-      void *img = il2cpp_assembly_get_image(asms[i]);
-      if (!img) continue;
-      size_t cc = il2cpp_image_get_class_count(img);
-      for (size_t j = 0; j < cc; j++) {
-        void *k = il2cpp_image_get_class(img, j);
-        if (!k) continue;
-        const char *cn = il2cpp_class_get_name(k);
-        if (!cn) continue;
-        if (strstr(cn, "IK") || strstr(cn, "Constraint")) {
-          const char *ns = il2cpp_class_get_namespace ? il2cpp_class_get_namespace(k) : "";
-          fprintf(ik_f, "[%s] %s\n", ns ? ns : "", cn);
-          void *it = nullptr, *field;
-          while ((field = il2cpp_class_get_fields(k, &it))) {
-             const char *fn = il2cpp_field_get_name(field);
-             int fo = (int)il2cpp_field_get_offset(field);
-             fprintf(ik_f, "  [0x%X] %s\n", fo, fn ? fn : "?");
-          }
-        }
-      }
-    }
-    fclose(ik_f);
-    Log("[OK] Dumped IK classes to ik_classes_dump.txt");
-  }
-
-  
-  
-  
 
   
   g_transformClass = FindClass("UnityEngine", "Transform", asms, ac);

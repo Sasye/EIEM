@@ -59,172 +59,6 @@ struct VmdMorphTimeline {
 };
 
 
-
-
-
-
-struct VmdBezier {
-  float x1, y1, x2, y2;  
-
-  VmdBezier() : x1(0.25f), y1(0.25f), x2(0.75f), y2(0.75f) {} 
-
-  
-  float EvalX(float s) const {
-    float is = 1.0f - s;
-    return 3.0f * x1 * s * is * is + 3.0f * x2 * s * s * is + s * s * s;
-  }
-
-  
-  float EvalY(float s) const {
-    float is = 1.0f - s;
-    return 3.0f * y1 * s * is * is + 3.0f * y2 * s * s * is + s * s * s;
-  }
-
-  
-  float FindBezierX(float time) const {
-    float lo = 0.0f, hi = 1.0f, mid = 0.5f;
-    float x = EvalX(mid);
-    for (int i = 0; i < 15 && fabsf(time - x) > 1e-5f; i++) {
-      if (time < x) hi = mid; else lo = mid;
-      mid = (lo + hi) * 0.5f;
-      x = EvalX(mid);
-    }
-    return mid;
-  }
-
-  
-  void SetFromInterp(const uint8_t *interp, int channel) {
-    x1 = interp[channel]      / 127.0f;
-    y1 = interp[channel + 4]  / 127.0f;
-    x2 = interp[channel + 8]  / 127.0f;
-    y2 = interp[channel + 12] / 127.0f;
-  }
-
-  
-  float Evaluate(float t) const {
-    
-    if (fabsf(x1 - y1) < 0.01f && fabsf(x2 - y2) < 0.01f) return t;
-    float s = FindBezierX(t);
-    return EvalY(s);
-  }
-};
-
-
-
-
-struct VmdBoneSample {
-  float pos[3];   
-  float rot[4];   
-};
-
-
-static VmdBoneSample vmd_quat_slerp_sample(
-    const float *p0, const float *r0,
-    const float *p1, const float *r1,
-    float tx, float ty, float tz, float tRot)
-{
-  VmdBoneSample out;
-  
-  out.pos[0] = p0[0] + (p1[0] - p0[0]) * tx;
-  out.pos[1] = p0[1] + (p1[1] - p0[1]) * ty;
-  out.pos[2] = p0[2] + (p1[2] - p0[2]) * tz;
-
-  
-  float dot = r0[0]*r1[0] + r0[1]*r1[1] + r0[2]*r1[2] + r0[3]*r1[3];
-  float sign = 1.0f;
-  if (dot < 0.0f) { dot = -dot; sign = -1.0f; }
-
-  float a, b;
-  if (dot > 0.9995f) {
-    
-    a = 1.0f - tRot;
-    b = tRot * sign;
-  } else {
-    float theta = acosf(dot);
-    float sinTheta = sinf(theta);
-    a = sinf((1.0f - tRot) * theta) / sinTheta;
-    b = sinf(tRot * theta) / sinTheta * sign;
-  }
-  out.rot[0] = a * r0[0] + b * r1[0];
-  out.rot[1] = a * r0[1] + b * r1[1];
-  out.rot[2] = a * r0[2] + b * r1[2];
-  out.rot[3] = a * r0[3] + b * r1[3];
-
-  
-  float len = sqrtf(out.rot[0]*out.rot[0] + out.rot[1]*out.rot[1] +
-                    out.rot[2]*out.rot[2] + out.rot[3]*out.rot[3]);
-  if (len > 1e-8f) {
-    out.rot[0] /= len; out.rot[1] /= len;
-    out.rot[2] /= len; out.rot[3] /= len;
-  }
-  return out;
-}
-
-
-struct VmdBoneTimelineEx {
-  std::string boneName;
-  std::vector<VmdBoneKeyframe> keys; 
-
-  
-  struct BezierSet {
-    VmdBezier tx, ty, tz, rot;
-  };
-  std::vector<BezierSet> beziers;
-
-  
-  void BuildBeziers() {
-    beziers.resize(keys.size());
-    for (size_t i = 0; i < keys.size(); i++) {
-      beziers[i].tx.SetFromInterp(keys[i].interp, 0);
-      beziers[i].ty.SetFromInterp(keys[i].interp, 1);
-      beziers[i].tz.SetFromInterp(keys[i].interp, 2);
-      beziers[i].rot.SetFromInterp(keys[i].interp, 3);
-    }
-  }
-
-  
-  VmdBoneSample Sample(float frameF) const {
-    VmdBoneSample out = {};
-    if (keys.empty()) {
-      out.rot[3] = 1.0f; 
-      return out;
-    }
-    if (frameF <= keys.front().frame) {
-      memcpy(out.pos, keys.front().pos, sizeof(out.pos));
-      memcpy(out.rot, keys.front().rot, sizeof(out.rot));
-      return out;
-    }
-    if (frameF >= keys.back().frame) {
-      memcpy(out.pos, keys.back().pos, sizeof(out.pos));
-      memcpy(out.rot, keys.back().rot, sizeof(out.rot));
-      return out;
-    }
-
-    
-    int lo = 0, hi = (int)keys.size() - 1;
-    while (lo < hi - 1) {
-      int mid = (lo + hi) / 2;
-      if (keys[mid].frame <= (uint32_t)frameF) lo = mid;
-      else hi = mid;
-    }
-
-    float timeRange = (float)(keys[hi].frame - keys[lo].frame);
-    float t = (frameF - keys[lo].frame) / timeRange;
-
-    
-    float tx = beziers[lo].tx.Evaluate(t);
-    float ty = beziers[lo].ty.Evaluate(t);
-    float tz = beziers[lo].tz.Evaluate(t);
-    float tRot = beziers[lo].rot.Evaluate(t);
-
-    return vmd_quat_slerp_sample(
-      keys[lo].pos, keys[lo].rot,
-      keys[hi].pos, keys[hi].rot,
-      tx, ty, tz, tRot);
-  }
-};
-
-
 struct VmdCameraKeyframe {
   uint32_t frame;
   float distance;       
@@ -354,10 +188,8 @@ static VmdFile *LoadVmd(const char *path) {
     VmdBoneKeyframe key;
     key.boneName = SjisToUtf8(nameBuf, 15);
     key.frame = frame;
-    
-    
-    key.pos[0] = -pos[0]; key.pos[1] = pos[1]; key.pos[2] = -pos[2];
-    key.rot[0] = -rot[0]; key.rot[1] = rot[1]; key.rot[2] = -rot[2]; key.rot[3] = rot[3];
+    memcpy(key.pos, pos, sizeof(pos));
+    memcpy(key.rot, rot, sizeof(rot));
     memcpy(key.interp, interp, sizeof(interp));
 
     if (frame > maxFrame) maxFrame = frame;
@@ -509,19 +341,4 @@ static void DumpVmd(const VmdFile *vmd, FILE *out) {
     }
     fprintf(out, "\n");
   }
-}
-
-
-
-
-static std::map<std::string, VmdBoneTimelineEx> BuildBoneTimelinesEx(const VmdFile *vmd) {
-  std::map<std::string, VmdBoneTimelineEx> result;
-  for (const auto &pair : vmd->boneTimelines) {
-    VmdBoneTimelineEx ex;
-    ex.boneName = pair.second.boneName;
-    ex.keys = pair.second.keys;
-    ex.BuildBeziers();
-    result[ex.boneName] = std::move(ex);
-  }
-  return result;
 }

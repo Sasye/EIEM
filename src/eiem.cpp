@@ -9,7 +9,6 @@
 #include <vector>
 
 #include "vmd_parser.h"
-#include "pmx_parser.h"
 #include "mmd_player.h"
 #include "bone_anim_player.h"
 #include "bone_map.h"
