@@ -65,7 +65,7 @@ You must first convert VMD animations to MUS4 format (`muscle_anim.bin`) using t
 ### Prerequisites
 
 - Unity Editor
-- MMD4Mecanim — converts VMD to Unity AnimationClip
+- [MMD4Mecanim](https://stereoarts.jp/#:~:text=MMD4Mecanim_Beta_20200105.zip) — converts VMD to Unity AnimationClip
 - Any Humanoid MMD model
 
 ### Steps

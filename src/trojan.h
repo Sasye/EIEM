@@ -1880,6 +1880,17 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
         memset(g_mouthWeights, 0, sizeof(g_mouthWeights));
         CleanupPoseHandler();
         RestoreBigList();
+        
+        if (g_confirmedSMC && OFF_allMorphBoneDirty > 0) {
+          *(bool *)((char *)g_confirmedSMC + OFF_allMorphBoneDirty) = true;
+        }
+        
+        memset(g_faceBoneTouched, 0, sizeof(g_faceBoneTouched));
+        
+        for (int i = 0; i < NUM_EXTRA_MORPHS; i++) {
+          g_extraMorphs[i].weight = 0;
+          g_extraMorphs[i].prevWeight = 0;
+        }
         RestoreDisabledComponents();
         RestoreSkirtColliders();
         SafeSetAnimatorEnabled(true);
@@ -2010,7 +2021,7 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
 
 
 static void MuscleAnimationTick() {
-  if (!g_musclePlayer || !g_musclePlayer->playing)
+  if (!g_musclePlayer || !g_musclePlayer->playing || !g_trojanActive)
     return;
   if (!g_muscleAnim || !g_muscleAnim->loaded)
     return;

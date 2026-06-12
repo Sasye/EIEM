@@ -771,6 +771,19 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
   s_frame++;
 
   
+  
+  
+  if (!g_trojanActive && g_mouthWeightsFromMuscle) {
+    g_mouthWeightsFromMuscle = false;
+    memset(g_mouthWeights, 0, sizeof(g_mouthWeights));
+    memset(g_faceBoneTouched, 0, sizeof(g_faceBoneTouched));
+    if (g_confirmedSMC && OFF_allMorphBoneDirty > 0) {
+      *(bool *)((char *)g_confirmedSMC + OFF_allMorphBoneDirty) = true;
+    }
+    Log("[FACE] Self-healed: cleared mouthWeightsFromMuscle (race fix)");
+  }
+
+  
   if (g_smcResetRequested) {
     s_frame = 1;
     

@@ -65,7 +65,7 @@ bin/d3dcompiler_47.dll   → 游戏目录/d3dcompiler_47.dll
 ### 前置条件
 
 - Unity 编辑器
-- MMD4Mecanim — 用于将 VMD 转换为 Unity AnimationClip
+- [MMD4Mecanim](https://stereoarts.jp/#:~:text=MMD4Mecanim_Beta_20200105.zip) — 用于将 VMD 转换为 Unity AnimationClip
 - 任意 Humanoid MMD 模型
 
 ### 步骤
