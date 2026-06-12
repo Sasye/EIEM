@@ -285,7 +285,9 @@ static void ApplyCameraFrame(float timeSec) {
   float camScale = g_cameraPlayer.scale;
   float hs = g_camHeightScale;
   float px = (cs.position.x - charDisp.x * camScale) * hs;
-  float py = (cs.position.y - charDisp.y * camScale) * hs;
+  
+  
+  float py = cs.position.y * hs;
   float pz = (cs.position.z - charDisp.z * camScale) * hs;
   float cy = cosf(effYaw), sy = sinf(effYaw);
   float rx = px * cy + pz * sy;
