@@ -825,17 +825,21 @@ static void DrawMainPanel() {
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
     if (ImGui::Button(u8"\u6d4f\u89c8##audio", ImVec2(80, 0))) {
       ImGui::PopStyleColor();
-      OPENFILENAMEA ofn = {};
-      char filePath[512] = "";
+      OPENFILENAMEW ofn = {};
+      wchar_t filePath[512] = L"";
       ofn.lStructSize = sizeof(ofn);
       ofn.hwndOwner = g_guiHwnd;
-      ofn.lpstrFilter = "Audio (*.wav;*.mp3)\0*.wav;*.mp3\0All Files\0*.*\0";
+      ofn.lpstrFilter = L"Audio (*.wav;*.mp3)\0*.wav;*.mp3\0All Files\0*.*\0";
       ofn.lpstrFile = filePath;
-      ofn.nMaxFile = sizeof(filePath);
+      ofn.nMaxFile = 512;
       ofn.Flags = OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
-      if (GetOpenFileNameA(&ofn)) {
-        strncpy(g_audioPath, filePath, sizeof(g_audioPath) - 1);
-        g_audioPath[sizeof(g_audioPath) - 1] = '\0';
+      if (GetOpenFileNameW(&ofn)) {
+        
+        wcsncpy(g_audioPathW, filePath, 511);
+        g_audioPathW[511] = L'\0';
+        
+        WideCharToMultiByte(CP_UTF8, 0, filePath, -1,
+                            g_audioPath, sizeof(g_audioPath), nullptr, nullptr);
         Log("[GUI] Audio selected: %s", g_audioPath);
         
         PostMessageW(g_gameHwnd, WM_MMD_GUI_LOAD_AUDIO, 0, 0);

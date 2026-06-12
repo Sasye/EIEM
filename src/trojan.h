@@ -1763,10 +1763,10 @@ static bool EnsureAudioLoaded() {
   if (!g_audioPlayer) g_audioPlayer = new AudioPlayer();
   if (g_audioPlayer->loaded) return true;
 
-  const char *path = (g_audioPath[0] != '\0') ? g_audioPath : g_audioDefaultPath;
+  const wchar_t *path = (g_audioPathW[0] != L'\0') ? g_audioPathW : g_audioDefaultPathW;
   
-  if (g_audioPath[0] == '\0') {
-    DWORD attr = GetFileAttributesA(path);
+  if (g_audioPathW[0] == L'\0') {
+    DWORD attr = GetFileAttributesW(path);
     if (attr == INVALID_FILE_ATTRIBUTES) return false;
   }
   return g_audioPlayer->Open(path);
@@ -1925,8 +1925,8 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
       Log("[GUI-CMD] Load audio: %s", g_audioPath);
       if (!g_audioPlayer) g_audioPlayer = new AudioPlayer();
       g_audioPlayer->Close();
-      if (g_audioPath[0] != '\0') {
-        if (g_audioPlayer->Open(g_audioPath)) {
+      if (g_audioPathW[0] != L'\0') {
+        if (g_audioPlayer->Open(g_audioPathW)) {
           g_audioPlayer->SetVolume(g_audioVolume);
           Log("[GUI-CMD] Audio loaded: %d ms", g_audioPlayer->GetLengthMs());
         } else

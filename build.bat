@@ -73,6 +73,7 @@ cl /nologo /utf-8 /O2 /MD /LD /EHsc /std:c++17 ^
     d3d11.lib ^
     dxgi.lib ^
     dwmapi.lib ^
+    ole32.lib ^
     /Fe"bin\eiem.dll" ^
     /link /DLL
 

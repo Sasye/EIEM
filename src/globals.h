@@ -217,9 +217,10 @@ static char g_morphVmdPath[512] = "";
 struct AudioPlayer;
 static AudioPlayer *g_audioPlayer = nullptr;
 
-static char g_audioPath[512] = "";
+static char g_audioPath[512] = "";          
+static wchar_t g_audioPathW[512] = L"";     
 
-static const char *g_audioDefaultPath = "plugin\\bgm.wav";
+static const wchar_t *g_audioDefaultPathW = L"plugin\\bgm.wav";
 
 static bool g_audioEnabled = true;
 
