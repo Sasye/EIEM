@@ -4,6 +4,8 @@ English | [中文](README.md)
 
 Brings MMD animation playback to *Arknights: Endfield*. Supports muscle-driven body motion, facial expressions, finger animation, camera motion, and synced background music, all controlled through an in-game GUI panel.
 
+example: [bilibili](https://www.bilibili.com/video/BV1YdEC6bEfP/)
+
 ## Usage Guidelines
 
 - You **should not** use this plugin or the game's built-in official assets (such as animations, scenes, models, etc.) to create or play any inappropriate motions/animations (including but not limited to content that is pornographic, violent, violates laws and regulations, or causes community discomfort).
