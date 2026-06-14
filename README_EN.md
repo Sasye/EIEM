@@ -27,6 +27,16 @@ example: [bilibili](https://www.bilibili.com/video/BV1YdEC6bEfP/)
 - Multi-character screen playback
 - ...
 
+## Compatibility Issues with EFMI (XXMI)
+
+Using this plugin alongside EFMI (XXMI) **may** cause the game to fail to open or crash.
+This issue stems from EFMI's global low-level DirectX hijacking, which attempts to forcibly take over the independent UI rendering pipeline created by EIEM. This intrusive behavior causes a severe memory exception within EFMI itself, ultimately bringing down the entire game process.
+Because of strict hook timing constraints, this conflict **cannot be simply fixed on the EIEM side** at present, so we currently **have no active plans to support EFMI**.
+Suggested alternatives:
+- Open an issue with EFMI to report the problem or wait for their updates.
+- Try using **SSMT** as an alternative to EFMI (briefly tested and appears to be mostly compatible).
+- Pull requests are very welcome if you can help resolve this conflict!
+
 ## Download
 
 You can download the latest release from [Releases](https://github.com/Sasye/EIEM/releases) or compile it yourself from source.
