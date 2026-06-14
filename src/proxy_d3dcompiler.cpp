@@ -2,7 +2,6 @@
 #include <string>
 #include <windows.h>
 
-
 #pragma comment(                                                               \
     linker,                                                                    \
     "/export:D3DCompile=C:\\Windows\\System32\\d3dcompiler_47.D3DCompile")
@@ -85,9 +84,7 @@
     linker,                                                                    \
     "/export:DebugSetMute=C:\\Windows\\System32\\d3dcompiler_47.DebugSetMute")
 
-
 void LoadPlugin() {
-  
   WIN32_FIND_DATAA fd;
   HANDLE hFind = FindFirstFileA("plugin\\*.dll", &fd);
   if (hFind != INVALID_HANDLE_VALUE) {
@@ -103,7 +100,6 @@ void LoadPlugin() {
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID reserved) {
   if (reason == DLL_PROCESS_ATTACH) {
     DisableThreadLibraryCalls(hModule);
-    
     CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)LoadPlugin, NULL, 0, NULL);
   }
   return TRUE;

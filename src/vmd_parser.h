@@ -1,8 +1,4 @@
 #pragma once
-
-
-
-
 #define _CRT_SECURE_NO_WARNINGS
 #include <cstdint>
 #include <cstdio>
@@ -13,9 +9,6 @@
 #include <map>
 #include <algorithm>
 #include <windows.h>
-
-
-
 
 
 struct VmdBoneKeyframe {
@@ -41,12 +34,10 @@ struct VmdMorphTimeline {
   std::string morphName;
   std::vector<VmdMorphKeyframe> keys; 
   
-  
   float Sample(float frameF) const {
     if (keys.empty()) return 0;
     if (frameF <= keys.front().frame) return keys.front().weight;
     if (frameF >= keys.back().frame) return keys.back().weight;
-    
     int lo = 0, hi = (int)keys.size() - 1;
     while (lo < hi - 1) {
       int mid = (lo + hi) / 2;
@@ -57,7 +48,6 @@ struct VmdMorphTimeline {
     return keys[lo].weight + (keys[hi].weight - keys[lo].weight) * t;
   }
 };
-
 
 struct VmdCameraKeyframe {
   uint32_t frame;
@@ -74,11 +64,8 @@ struct VmdFile {
   char modelName[21];     
   uint32_t totalFrames;   
 
-  
   std::map<std::string, VmdBoneTimeline> boneTimelines;
-  
   std::map<std::string, VmdMorphTimeline> morphTimelines;
-  
   std::vector<VmdCameraKeyframe> cameraKeys;
 
   bool loaded;
@@ -90,31 +77,22 @@ struct VmdFile {
   }
 };
 
-
-
-
 static std::string SjisToUtf8(const char *sjis, int maxLen) {
-  
   int sjisLen = 0;
   while (sjisLen < maxLen && sjis[sjisLen] != '\0') sjisLen++;
   if (sjisLen == 0) return "";
 
-  
   int wLen = MultiByteToWideChar(932, 0, sjis, sjisLen, NULL, 0);
   if (wLen <= 0) return "";
   std::vector<wchar_t> wBuf(wLen);
   MultiByteToWideChar(932, 0, sjis, sjisLen, wBuf.data(), wLen);
 
-  
   int u8Len = WideCharToMultiByte(CP_UTF8, 0, wBuf.data(), wLen, NULL, 0, NULL, NULL);
   if (u8Len <= 0) return "";
   std::string result(u8Len, '\0');
   WideCharToMultiByte(CP_UTF8, 0, wBuf.data(), wLen, &result[0], u8Len, NULL, NULL);
   return result;
 }
-
-
-
 
 static VmdFile *LoadVmd(const char *path) {
   VmdFile *vmd = new VmdFile();
@@ -125,13 +103,10 @@ static VmdFile *LoadVmd(const char *path) {
     return vmd;
   }
 
-  
   fseek(f, 0, SEEK_END);
   long fileSize = ftell(f);
   fseek(f, 0, SEEK_SET);
 
-  
-  
   char sigBuf[30];
   if (fread(sigBuf, 1, 30, f) != 30) {
     vmd->error = "File too small for header";
@@ -140,14 +115,12 @@ static VmdFile *LoadVmd(const char *path) {
   memcpy(vmd->signature, sigBuf, 30);
   vmd->signature[30] = '\0';
 
-  
   if (strncmp(sigBuf, "Vocaloid Motion Data 0002", 25) != 0 &&
       strncmp(sigBuf, "Vocaloid Motion Data file", 25) != 0) {
     vmd->error = "Invalid VMD signature";
     fclose(f); return vmd;
   }
 
-  
   char modelBuf[20];
   if (fread(modelBuf, 1, 20, f) != 20) {
     vmd->error = "File too small for model name";
@@ -157,19 +130,15 @@ static VmdFile *LoadVmd(const char *path) {
   strncpy(vmd->modelName, modelUtf8.c_str(), 20);
   vmd->modelName[20] = '\0';
 
-  
   uint32_t boneKeyCount = 0;
   if (fread(&boneKeyCount, 4, 1, f) != 1) {
     vmd->error = "Cannot read bone keyframe count";
     fclose(f); return vmd;
   }
 
-  
-  
   uint32_t maxFrame = 0;
 
   for (uint32_t i = 0; i < boneKeyCount; i++) {
-    
     char nameBuf[15];
     uint32_t frame;
     float pos[3];
@@ -194,7 +163,6 @@ static VmdFile *LoadVmd(const char *path) {
 
     if (frame > maxFrame) maxFrame = frame;
 
-    
     auto &tl = vmd->boneTimelines[key.boneName];
     if (tl.boneName.empty()) tl.boneName = key.boneName;
     tl.keys.push_back(key);
@@ -202,7 +170,6 @@ static VmdFile *LoadVmd(const char *path) {
 
   vmd->totalFrames = maxFrame;
 
-  
   for (auto &pair : vmd->boneTimelines) {
     std::sort(pair.second.keys.begin(), pair.second.keys.end(),
       [](const VmdBoneKeyframe &a, const VmdBoneKeyframe &b) {
@@ -210,10 +177,8 @@ static VmdFile *LoadVmd(const char *path) {
       });
   }
 
-  
   uint32_t morphKeyCount = 0;
   if (fread(&morphKeyCount, 4, 1, f) == 1 && morphKeyCount > 0) {
-    
     for (uint32_t i = 0; i < morphKeyCount; i++) {
       char nameBuf[15];
       uint32_t frame;
@@ -222,7 +187,6 @@ static VmdFile *LoadVmd(const char *path) {
       if (fread(nameBuf, 1, 15, f) != 15 ||
           fread(&frame, 4, 1, f) != 1 ||
           fread(&weight, 4, 1, f) != 1) {
-        
         break;
       }
       
@@ -238,7 +202,6 @@ static VmdFile *LoadVmd(const char *path) {
       tl.keys.push_back(key);
     }
     
-    
     for (auto &pair : vmd->morphTimelines) {
       std::sort(pair.second.keys.begin(), pair.second.keys.end(),
         [](const VmdMorphKeyframe &a, const VmdMorphKeyframe &b) {
@@ -249,9 +212,6 @@ static VmdFile *LoadVmd(const char *path) {
     vmd->totalFrames = maxFrame; 
   }
 
-  
-  
-  
   uint32_t cameraKeyCount = 0;
   if (fread(&cameraKeyCount, 4, 1, f) == 1 && cameraKeyCount > 0 &&
       cameraKeyCount < 1000000) {
@@ -287,7 +247,6 @@ static VmdFile *LoadVmd(const char *path) {
       vmd->cameraKeys.push_back(key);
     }
 
-    
     std::sort(vmd->cameraKeys.begin(), vmd->cameraKeys.end(),
       [](const VmdCameraKeyframe &a, const VmdCameraKeyframe &b) {
         return a.frame < b.frame;
@@ -304,9 +263,6 @@ static VmdFile *LoadVmd(const char *path) {
 static void FreeVmd(VmdFile *vmd) {
   if (vmd) delete vmd;
 }
-
-
-
 
 static void DumpVmd(const VmdFile *vmd, FILE *out) {
   fprintf(out, "=== VMD File Info ===\n");

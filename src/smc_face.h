@@ -1,14 +1,5 @@
 #pragma once
 
-
-
-
-
-
-
-
-
-
 typedef void (*NativeSetPos_t)(void *transform, float *vec3);
 typedef void (*NativeSetRot_t)(void *transform, float *quat);
 static NativeSetPos_t g_nativeSetPos = nullptr;
@@ -90,9 +81,6 @@ static void ResolveSMCOffsets(void *smcClass) {
       OFF_microExprWeights);
 }
 
-
-
-
 struct MouthShapeInfo {
   const char *name;
   int nameHash; 
@@ -120,12 +108,6 @@ static bool g_bigListCaptured = false;
 static bool g_hashCorrelationDone = false;
 static bool g_smcResetRequested = false;
 
-
-
-
-
-
-
 struct ExtraMorphTarget {
   const char *endfieldName; 
   int nameHash;             
@@ -146,20 +128,7 @@ struct ExtraMorph {
 };
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 static ExtraMorph g_extraMorphs[] = {
-    
     {"\xe3\x81\xbe\xe3\x81\xb0\xe3\x81\x9f\xe3\x81\x8d",
      "blink", 
      {{"eye_thinkcloseeyes_a_R_ctrl", 0, -1, -1, false},
@@ -201,7 +170,6 @@ static ExtraMorph g_extraMorphs[] = {
      0,
      0},
 
-    
     {"\xe4\xb8\x8a",
      "brow_up", 
      {{"brow_offset_u_R_ctrl", 0, -1, -1, false},
@@ -295,22 +263,17 @@ static const int NUM_EXTRA_MORPHS =
     sizeof(g_extraMorphs) / sizeof(g_extraMorphs[0]);
 static bool g_extraMorphsResolved = false;
 
-
 static int g_bsIdxA = -1, g_bsIdxI = -1, g_bsIdxU = -1, g_bsIdxE = -1,
            g_bsIdxO = -1;
 static bool g_bsIndicesResolved = false;
 static volatile bool g_mouthWeightsFromMuscle =
     false; 
 
-
-
 static void ResolveMouthShapes(char *smcBase) {
   if (g_mouthShapesResolved)
     return;
 
   __try {
-    
-    
     int hmOff = SafeOff(OFF_nativeHashMap, 0xF8, "nativeHashMap");
     void *hmBuffer = *(void **)(smcBase + hmOff);
     if (!hmBuffer) {
@@ -329,7 +292,6 @@ static void ResolveMouthShapes(char *smcBase) {
       return;
     }
 
-    
     if ((bucketCap & (bucketCap + 1)) != 0) {
       Log("[MOUTH-RESOLVE] WARNING: bucketCap=%d is not a power-of-2 bitmask! "
           "NativeHashMap layout may have changed.",
@@ -337,14 +299,12 @@ static void ResolveMouthShapes(char *smcBase) {
       return;
     }
 
-    
     if (allocLen <= 0 || allocLen > keyCapacity) {
       Log("[MOUTH-RESOLVE] Invalid allocLen=%d (keyCap=%d)", allocLen,
           keyCapacity);
       return;
     }
 
-    
     char *values = *(char **)(&hmData[0]);
     int *keys = *(int **)(&hmData[2]);
     int *nextArr = *(int **)(&hmData[4]);
@@ -355,7 +315,6 @@ static void ResolveMouthShapes(char *smcBase) {
       return;
     }
 
-    
     uintptr_t vAddr = (uintptr_t)values;
     uintptr_t kAddr = (uintptr_t)keys;
     int valStride = (int)((kAddr - vAddr) / keyCapacity);
@@ -369,27 +328,21 @@ static void ResolveMouthShapes(char *smcBase) {
         "allocLen=%d",
         keyCapacity, bucketCap, valStride, allocLen);
 
-    
     if (valStride != 40) {
       Log("[MOUTH-RESOLVE] WARNING: valStride=%d (expected 40), "
           "NativeHashMap value struct may have changed!",
           valStride);
     }
 
-    
     for (int m = 0; m < NUM_MOUTH_SHAPES; m++) {
       int targetHash = g_mouthShapes[m].nameHash;
-      
       int bucket = ((unsigned int)targetHash) & ((unsigned int)bucketCap);
       int entryIdx = buckets[bucket];
       int depth = 0;
 
       while (entryIdx >= 0 && entryIdx < keyCapacity && depth < 100) {
         if (keys[entryIdx] == targetHash) {
-          
-          
           int *vi = (int *)(values + entryIdx * valStride);
-          
           g_mouthShapes[m].morphId = vi[0];
           g_mouthShapes[m].startIdx = vi[4];
           g_mouthShapes[m].count = vi[5];
@@ -402,7 +355,6 @@ static void ResolveMouthShapes(char *smcBase) {
               "smcCount=%d partType=%d",
               g_mouthShapes[m].name, entryIdx, vi[0], vi[4], vi[5], vi[3]);
 
-          
           if (vi[4] < 0 || vi[4] > 10000 || vi[5] <= 0 || vi[5] > 500) {
             Log("[MOUTH-RESOLVE] WARNING: '%s' has suspicious "
                 "startIdx=%d/count=%d, NativeHashMap value layout may have "
@@ -420,11 +372,9 @@ static void ResolveMouthShapes(char *smcBase) {
     Log("[MOUTH-RESOLVE] NativeHashMap info collected (offsets will come from "
         "GROUPSCAN)");
 
-    
     int adOff = SafeOff(OFF_avatarData, 0x58, "avatarData");
     void *avatarData = *(void **)(smcBase + adOff);
 
-    
     if (avatarData && OFF_morphMappingNames < 0) {
       void *adClass = il2cpp_object_get_class(avatarData);
       if (adClass) {
@@ -459,7 +409,6 @@ static void ResolveMouthShapes(char *smcBase) {
         if (morphId < 0 || morphId >= nameArrLen)
           continue;
 
-        
         void *strObj = *(void **)((char *)nameArr + 0x20 + morphId * 8);
         if (!strObj)
           continue;
@@ -486,7 +435,6 @@ static void ResolveMouthShapes(char *smcBase) {
               tgt.resolved = true;
               extraResolved++;
 
-              
               if (smcStart < 0 || smcStart > 10000 || smcCount <= 0 ||
                   smcCount > 500) {
                 Log("[EXTRA-RESOLVE] WARNING: %s has suspicious "
@@ -510,7 +458,6 @@ static void ResolveMouthShapes(char *smcBase) {
           totalTargets);
       g_extraMorphsResolved = (extraResolved > 0);
 
-      
       Log("[MORPH-DUMP] All morphs with bone delta (count>0):");
       for (int e = 0; e < allocLen && e < keyCapacity; e++) {
         int *vi = (int *)(values + e * valStride);
@@ -535,7 +482,6 @@ static void ResolveMouthShapes(char *smcBase) {
   g_mouthShapesResolved = true;
 }
 
-
 static Quat EulerToQuat(float degX, float degY, float degZ) {
   const float D2R = 3.14159265358979f / 180.0f;
   float rx = degX * D2R * 0.5f;
@@ -544,7 +490,6 @@ static Quat EulerToQuat(float degX, float degY, float degZ) {
   float cx = cosf(rx), sx = sinf(rx);
   float cy = cosf(ry), sy = sinf(ry);
   float cz = cosf(rz), sz = sinf(rz);
-  
   Quat q;
   q.x = cx * sy * sz + sx * cy * cz;
   q.y = cx * sy * cz - sx * cy * sz;
@@ -552,7 +497,6 @@ static Quat EulerToQuat(float degX, float degY, float degZ) {
   q.w = cx * cy * cz + sx * sy * sz;
   return q;
 }
-
 
 static Quat MorphQuatMul(Quat a, Quat b) {
   Quat r;
@@ -562,9 +506,6 @@ static Quat MorphQuatMul(Quat a, Quat b) {
   r.w = a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z;
   return r;
 }
-
-
-
 
 typedef void(__fastcall *MorphToBoneJob_t)(void *__this, void *param1,
                                            void *param2, void *methodInfo);
@@ -577,8 +518,6 @@ static void __fastcall Hooked_MorphToBoneJob(void *__this, void *param1,
                                              void *param2, void *methodInfo) {
   s_jobCallCount++;
 
-  
-  
   if (!g_confirmedSMC && param1) {
     g_confirmedSMC = param1;
     Log("[JOB] Confirmed face SMC from MorphToBoneJob: %p", param1);
@@ -589,12 +528,6 @@ static void __fastcall Hooked_MorphToBoneJob(void *__this, void *param1,
     Log("[JOB]   this=%p param1(SMC)=%p", __this, param1);
   }
 
-  
-  
-  
-  
-  
-  
 
   if (!g_bigListCaptured && param1 && param1 == g_confirmedSMC) {
     __try {
@@ -603,20 +536,16 @@ static void __fastcall Hooked_MorphToBoneJob(void *__this, void *param1,
       int bigLen = *(int *)((char *)param1 + blOff + 8);
 
       if (bigBuf && bigLen > 0 && bigLen < 10000 && !g_bigListCaptured) {
-        
         if (bigLen > (int)(sizeof(g_capturedExpression) /
                           sizeof(MorphBoneEntry))) {
           Log("[BIGLIST] bigLen=%d exceeds buffer, clamping", bigLen);
           bigLen = (int)(sizeof(g_capturedExpression) / sizeof(MorphBoneEntry));
         }
-        
-        
         MorphBoneEntry *entries = (MorphBoneEntry *)bigBuf;
         memcpy(g_capturedExpression, entries, bigLen * sizeof(MorphBoneEntry));
         g_capturedLen = bigLen;
         g_bigListCaptured = true;
 
-        
         int nonZeroCount = 0;
         for (int i = 0; i < bigLen; i++) {
           if (entries[i].deltaPosX != 0 || entries[i].deltaPosY != 0 ||
@@ -630,7 +559,6 @@ static void __fastcall Hooked_MorphToBoneJob(void *__this, void *param1,
             bigLen, (int)sizeof(MorphBoneEntry),
             bigLen * (int)sizeof(MorphBoneEntry), nonZeroCount);
 
-        
         for (int i = 0; i < 5 && i < bigLen; i++) {
           Log("[BIGLIST] [%d] hash=%d boneID=%d pos=(%.3f,%.3f,%.3f) "
               "rot=(%.3f,%.3f,%.3f)",
@@ -644,8 +572,6 @@ static void __fastcall Hooked_MorphToBoneJob(void *__this, void *param1,
     }
   }
 
-  
-  
   if ((g_faceTestActive || g_mouthWeightsFromMuscle) && g_faceBonesCaptured &&
       g_boneMapReady && param1 && param1 == g_confirmedSMC) {
     __try {
@@ -653,13 +579,9 @@ static void __fastcall Hooked_MorphToBoneJob(void *__this, void *param1,
       void *bigBuf = *(void **)((char *)param1 + blOff2);
       int bigLen = *(int *)((char *)param1 + blOff2 + 8);
 
-      
       if (bigBuf && bigLen > 0 && bigLen == g_capturedLen) {
         MorphBoneEntry *live = (MorphBoneEntry *)bigBuf;
         for (int i = 0; i < bigLen; i++) {
-          
-          
-          
           int boneID = live[i].boneID;
           int arrIdx = (boneID >= 0 && boneID < 512) ? g_boneIDToIdx[boneID] : -1;
           if (arrIdx < 0 || arrIdx >= g_faceBoneCount)
@@ -672,7 +594,6 @@ static void __fastcall Hooked_MorphToBoneJob(void *__this, void *param1,
           live[i].deltaRotZ = 0;
         }
       } else if (bigBuf && bigLen > 0 && bigLen != g_capturedLen) {
-        
         Log("[JOB] WARNING: bigLen=%d != capturedLen=%d, skipping delta zero",
             bigLen, g_capturedLen);
       }
@@ -680,15 +601,9 @@ static void __fastcall Hooked_MorphToBoneJob(void *__this, void *param1,
     }
   }
 
-  
   if (g_origMorphToBoneJob)
     g_origMorphToBoneJob(__this, param1, param2, methodInfo);
-  
-  
 }
-
-
-
 
 typedef void(__fastcall *SpecialMorphJob_t)(void *__this, void *param1,
                                             void *param2, void *methodInfo);
@@ -696,12 +611,9 @@ static SpecialMorphJob_t g_origSpecialMorphJob = nullptr;
 
 static void __fastcall Hooked_SpecialMorphJob(void *__this, void *param1,
                                               void *param2, void *methodInfo) {
-  
-  
   if (g_origSpecialMorphJob)
     g_origSpecialMorphJob(__this, param1, param2, methodInfo);
 }
-
 
 static void RestoreBigList() {
   if (!g_confirmedSMC || g_capturedLen <= 0)
@@ -719,17 +631,10 @@ static void RestoreBigList() {
   }
 }
 
-
 static void CleanupPoseHandler(); 
-
-
-
 
 static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
                                         void *methodInfo) {
-  
-  
-  
   static int s_frame = 0;
   if (!g_skeletalMorphCore) {
     if (g_confirmedSMC && __this == g_confirmedSMC) {
@@ -738,18 +643,15 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
       g_faceGetLocalPos = nullptr; 
       Log("[FACE] Locked SMC (confirmed by MorphToBoneJob): %p", __this);
     } else {
-      
       if (g_origSMCUpdate)
         g_origSMCUpdate(__this, deltaTime, methodInfo);
       return;
     }
   }
   if (__this != g_skeletalMorphCore) {
-    
     static int s_otherCount = 0;
     if (s_otherCount < 3) {
       s_otherCount++;
-      
       __try {
         char *otherBase = (char *)__this;
         int btOff =
@@ -770,9 +672,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
 
   s_frame++;
 
-  
-  
-  
   if (!g_trojanActive && g_mouthWeightsFromMuscle) {
     g_mouthWeightsFromMuscle = false;
     memset(g_mouthWeights, 0, sizeof(g_mouthWeights));
@@ -783,17 +682,12 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
     Log("[FACE] Self-healed: cleared mouthWeightsFromMuscle (race fix)");
   }
 
-  
   if (g_smcResetRequested) {
     s_frame = 1;
-    
-    
-    
     g_smcResetRequested = false;
     Log("[FACE] SMC reset: s_frame reset to 1");
   }
 
-  
   if ((g_faceTestActive || g_mouthWeightsFromMuscle) && g_faceBonesCaptured &&
       g_faceSetLocalPos && g_faceSetLocalRot && s_frame > 5) {
     __try {
@@ -815,8 +709,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
     }
   }
 
-  
-  
   if (s_frame == 1 && !g_nativeSetPos) {
     g_nativeSetPos = (NativeSetPos_t)il2cpp_resolve_icall(
         "UnityEngine.Transform::set_localPosition_Injected(UnityEngine.Vector3&"
@@ -828,39 +720,26 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
         g_nativeSetRot);
   }
 
-  
   if (s_frame == 1) {
-    
-    
-    
     if (g_skeletalMorphCoreClass) {
       DumpClassFields(g_skeletalMorphCoreClass, "SkeletalMorphCore");
       ResolveSMCOffsets(g_skeletalMorphCoreClass);
       ResolveMouthShapes((char *)__this);
 
-      
-      
       int blOff = SafeOff(OFF_bigList, 0x120, "bigList");
       __try {
-        
-        
         char *blBase = (char *)__this + blOff;
         void *blBuf = *(void **)blBase;
         int blLen = *(int *)(blBase + 8);
 
         if (blBuf && blLen > 0 && blLen < MAX_BIGLIST) {
           MorphBoneEntry *entries = (MorphBoneEntry *)blBuf;
-          
-          
-          
-          
           Log("[BIGLIST-SMC] SMC BigList: %d entries (ratio to Job=%d: %.2f)",
               blLen, g_capturedLen,
               g_capturedLen > 0 ? (float)blLen / g_capturedLen : 0.0f);
           Log("[BIGLIST-SMC] Captured FULL BigList from SMC: %d entries",
               blLen);
 
-          
           if (blLen > 1710) {
             for (int d = 1704; d < 1704 + 5 && d < blLen; d++) {
               Log("[BIGLIST-SMC]   [%d] boneHash=%d boneID=%d "
@@ -871,7 +750,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
                   entries[d].deltaRotY, entries[d].deltaRotZ);
             }
           }
-          
           if (blLen > 433) {
             Log("[BIGLIST-SMC] Comparison at old offset 428:");
             for (int d = 428; d < 428 + 3 && d < blLen; d++) {
@@ -883,8 +761,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
                   entries[d].deltaRotY, entries[d].deltaRotZ);
             }
           }
-          
-          
           Log("[BIGLIST-SMC] Raw ints at entry[1704]:");
           int *rawE = (int *)&entries[1704];
           Log("[BIGLIST-SMC]   ints: %d %d %08X %08X %08X %08X %08X %08X %08X "
@@ -899,9 +775,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
       }
     }
 
-    
-    
-    
     __try {
       int adOff = SafeOff(OFF_avatarData, 0x58, "avatarData");
       void *avatarData = *(void **)((char *)__this + adOff);
@@ -910,7 +783,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
         if (adClass) {
           DumpClassFields(adClass, "SkeletalMorphAvatarData");
 
-          
           Log("[FACE] === AvatarData object exploration ===");
           void *fiter = nullptr;
           void *field;
@@ -920,7 +792,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
             if (!fname || foff < 0x10)
               continue;
 
-            
             __try {
               void *fval = *(void **)((char *)avatarData + foff);
               if (!fval)
@@ -929,7 +800,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
               if (addr < 0x10000 || addr > 0x7FFFFFFFFFFF)
                 continue;
 
-              
               __try {
                 void *arrClass = il2cpp_object_get_class(fval);
                 const char *arrName =
@@ -939,7 +809,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
                   Log("[FACE]   %s (0x%X): array class=%s len=%d", fname,
                       (int)foff, arrName ? arrName : "?", arrLen);
 
-                  
                   if (arrLen > 0) {
                     void **elems = (void **)((char *)fval + 32);
                     if (elems[0]) {
@@ -964,11 +833,7 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
     } __except (1) {
     }
 
-    
-    
-    
 
-    
     __try {
       int pdOff = SafeOff(OFF_poseDictMorph, 0x158, "poseDictMorph");
       void *poseDict = *(void **)((char *)__this + pdOff);
@@ -976,7 +841,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
         int dictCount = *(int *)((char *)poseDict + 0x20);
         Log("[FACE] m_poseDictMorph: count=%d", dictCount);
 
-        
         void *keys = *(void **)((char *)poseDict + 0x38);
         void *vals = *(void **)((char *)poseDict + 0x40);
 
@@ -991,21 +855,13 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
           Log("[FACE]   _values: class=%s len=%d", vName, vLen);
         }
 
-        
         void *entries = *(void **)((char *)poseDict + 0x18);
         if (entries) {
           int eLen = *(int *)((char *)entries + 24);
           Log("[FACE]   _entries: len=%d", eLen);
 
-          
-          
-          
-          
-          
           char *eData = (char *)entries + 32;
           for (int i = 0; i < 5 && i < dictCount; i++) {
-            
-            
             for (int stride : {16, 24, 32}) {
               int *ints = (int *)(eData + i * stride);
               float *flts = (float *)(eData + i * stride);
@@ -1020,7 +876,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
     } __except (1) {
     }
 
-    
     __try {
       int amOff = SafeOff(OFF_allMorphs, 0x210, "allMorphs");
       void *allMorphs = *(void **)((char *)__this + amOff);
@@ -1031,7 +886,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
         Log("[FACE] m_allMorphs (off=%d): class=%s len=%d", amOff, amName,
             amLen);
 
-        
         if (amLen > 0) {
           void **elems = (void **)((char *)allMorphs + 32);
           for (int i = 0; i < 3 && i < amLen; i++) {
@@ -1046,10 +900,7 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
     } __except (1) {
     }
 
-    
     __try {
-      
-      
       int phOff = SafeOff(OFF_phonemesWeights, 0x320, "phonemesWeights");
       void *phBuf = *(void **)((char *)__this + phOff);
       int phLen = *(int *)((char *)__this + phOff + 8);
@@ -1065,7 +916,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
     } __except (1) {
     }
 
-    
     __try {
       int mewOff = SafeOff(OFF_microExprWeights, 0x330, "microExprWeights");
       void *meBuf = *(void **)((char *)__this + mewOff);
@@ -1079,16 +929,12 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
     } __except (1) {
     }
 
-    
-    
-    
     __try {
       int adOff2 = SafeOff(OFF_avatarData, 0x58, "avatarData");
       void *avatarData = *(void **)((char *)__this + adOff2);
       if (avatarData) {
         Log("[FACE] === SkeletalMorphAvatarData ===");
 
-        
         int mnOff2 =
             SafeOff(OFF_morphMappingNames, 0x38, "morphMappingNames");
         void *nameArr = *(void **)((char *)avatarData + mnOff2);
@@ -1101,12 +947,10 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
             void *str = names[i];
             if (!str)
               continue;
-            
             __try {
               int slen = *(int *)((char *)str + 16);
               wchar_t *wchars = (wchar_t *)((char *)str + 20);
               if (slen > 0 && slen < 200) {
-                
                 char ascii[200] = {};
                 for (int c = 0; c < slen && c < 199; c++) {
                   ascii[c] = (wchars[c] < 128) ? (char)wchars[c] : '?';
@@ -1118,7 +962,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
           }
         }
 
-        
         void *mappingArr = *(void **)((char *)avatarData + 0x20);
         if (mappingArr) {
           int mCount = *(int *)((char *)mappingArr + 24);
@@ -1128,7 +971,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
             void *md0 = mappings[0];
             Log("[FACE] === First MappingData (%p) ===", md0);
 
-            
             for (int off = 0x10; off <= 0xA0; off += 0x08) {
               __try {
                 void *subPtr = *(void **)((char *)md0 + off);
@@ -1138,7 +980,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
                 if (subAddr < 0x10000 || subAddr > 0x7FFFFFFFFFFF)
                   continue;
 
-                
                 __try {
                   int subLen = *(int *)((char *)subPtr + 24);
                   if (subLen > 0 && subLen <= 200) {
@@ -1148,7 +989,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
                     Log("[FACE]   MD+0x%02X: arr len=%d, type=%s", off, subLen,
                         subName ? subName : "?");
 
-                    
                     float *sf = (float *)((char *)subPtr + 32);
                     int *si = (int *)((char *)subPtr + 32);
                     Log("[FACE]     floats[0-5]: %.4f %.4f %.4f %.4f %.4f %.4f",
@@ -1168,13 +1008,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
       Log("[FACE] Exception reading morph data");
     }
   }
-  
-  
-  
-  
-  
-  
-  
   {
     static bool s_exprOffsetsResolved = false;
     if (!s_exprOffsetsResolved && s_frame >= 3 && g_skeletalMorphCoreClass) {
@@ -1183,7 +1016,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
         int meOff = SafeOff(OFF_mainEmotion, 0x3C0, "mainEmotion");
         void *mainEmo = *(void **)((char *)__this + meOff);
         if (mainEmo) {
-          
           if (OFF_emoPose < 0) {
             void *emoCls = il2cpp_object_get_class(mainEmo);
             if (emoCls) {
@@ -1196,7 +1028,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
           int epOff = (OFF_emoPose >= 0) ? OFF_emoPose : 0x18;
           void *emoPose = *(void **)((char *)mainEmo + epOff);
           if (emoPose) {
-            
             void *poseCls = il2cpp_object_get_class(emoPose);
             if (poseCls && OFF_poseMouth < 0) {
               const char *mouthNames[] = {"_mouthValue", "m_mouthValue", "mouthValue"};
@@ -1208,7 +1039,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
               if (OFF_poseBrowL >= 0)
                 Log("[FACE] Resolved Pose._browValueL offset = 0x%X", OFF_poseBrowL);
             }
-            
             int pmOff = (OFF_poseMouth >= 0) ? OFF_poseMouth : 0x30;
             void *mouthList = *(void **)((char *)emoPose + pmOff);
             if (mouthList && OFF_mcvCtrlName < 0) {
@@ -1239,27 +1069,18 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
     }
   }
 
-  
-  
-  
-  
 
   if (s_frame == 15) {
     Log("[HASH] Frame 15: capturedLen=%d, correlDone=%d", g_capturedLen,
         (int)g_hashCorrelationDone);
   }
-  
-  
-  
   if (g_bigListCaptured && !g_boneMapReady && s_frame >= 20) {
-    
     g_boneMapReady = true;
     memset(g_boneIDToIdx, -1, sizeof(g_boneIDToIdx));
 
     __try {
       char *smcBase = (char *)__this;
 
-      
       int biOff = SafeOff(OFF_boneIDToIdx, 0xE0, "boneIDToIdx");
       void *buf = *(void **)(smcBase + biOff);
       int len = *(int *)(smcBase + biOff + 8);
@@ -1267,11 +1088,9 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
 
       if (buf && len > 0 && len < 500) {
         int *data = (int *)buf;
-        
         Log("[BONEMAP]   data[0-7]: %d %d %d %d %d %d %d %d", data[0], data[1],
             data[2], data[3], data[4], data[5], data[6], data[7]);
 
-        
         bool allNeg = true;
         for (int i = 0; i < 8 && i < len * 2; i++) {
           if (data[i] != -1) {
@@ -1281,7 +1100,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
         }
 
         if (!allNeg) {
-          
           int mapped = 0;
           for (int i = 0; i < len; i++) {
             int boneID = data[i * 2];
@@ -1299,8 +1117,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
           Log("[BONEMAP]   Mapped %d bones!", mapped);
         } else {
           Log("[BONEMAP]   All -1! Trying as flat lookup array...");
-          
-          
           int mapped = 0;
           for (int i = 0; i < len; i++) {
             if (data[i] >= 0 && data[i] < 256) {
@@ -1317,7 +1133,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
           } else {
             Log("[BONEMAP]   Still all -1 at frame %d, forcing dirty", s_frame);
             g_boneMapReady = false; 
-            
             if (OFF_allMorphBoneDirty > 0) {
               *(bool *)((char *)__this + OFF_allMorphBoneDirty) = true;
             }
@@ -1329,15 +1144,8 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
     }
   }
 
-  
-  
-  
-  
-  
 
-  
   if (g_faceTestActive && s_frame > 20 && !g_mouthWeightsFromMuscle) {
-    
     float t = g_faceTestFrame / 180.0f; 
     int baseShape = ((int)t) % NUM_MOUTH_SHAPES;
     int nextShape = (baseShape + 1) % NUM_MOUTH_SHAPES;
@@ -1350,8 +1158,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
     g_mouthWeights[nextShape] = blend;
   }
 
-  
-  
   bool faceActive =
       (g_faceTestActive || g_mouthWeightsFromMuscle) && s_frame > 20;
   if (s_frame == 25 || s_frame == 50 || s_frame == 100) {
@@ -1365,7 +1171,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
   if (faceActive && g_boneMapReady && g_boneIDMapCount > 0 &&
       g_capturedLen > 0 && g_mouthShapesResolved) {
     __try {
-      
       float totalWeight = 0;
       for (int s = 0; s < NUM_MOUTH_SHAPES; s++)
         totalWeight += g_mouthWeights[s];
@@ -1375,11 +1180,8 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
           g_mouthWeights[s] *= scale;
       }
 
-      
       memcpy(g_faceBones, g_faceRestPose, sizeof(g_faceBones));
 
-      
-      
       float deltaPosAccum[MAX_FACE_BONES][3] = {}; 
       float deltaRotAccum[MAX_FACE_BONES][3] = {}; 
       memset(g_faceBoneTouched, 0, sizeof(g_faceBoneTouched)); 
@@ -1410,10 +1212,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
           deltaPosAccum[arrIdx][0] += dpx * w;
           deltaPosAccum[arrIdx][1] += dpy * w;
           deltaPosAccum[arrIdx][2] += dpz * w;
-          
-          
-          
-          
           float drx = g_capturedExpression[i].deltaRotX;
           float dry = g_capturedExpression[i].deltaRotY;
           float drz = g_capturedExpression[i].deltaRotZ;
@@ -1427,7 +1225,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
         }
       }
 
-      
       if (g_extraMorphsResolved) {
         for (int em = 0; em < NUM_EXTRA_MORPHS; em++) {
           float w = g_extraMorphs[em].weight;
@@ -1458,13 +1255,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
               deltaPosAccum[arrIdx][1] += dpy * w;
               deltaPosAccum[arrIdx][2] += dpz * w;
 
-              
-              
-              
-              
-              
-              
-              
               bool isEyeMorph =
                   (strncmp(tgt.endfieldName, "eye_", 4) == 0);
               if (!isEyeMorph) {
@@ -1482,9 +1272,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
         }
       }
 
-      
-      
-      
       for (int b = 0; b < g_faceBoneCount; b++) {
         if (!g_faceBoneTouched[b])
           continue;
@@ -1498,7 +1285,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
         g_faceBones[b].py = g_faceRestPose[b].py + dy;
         g_faceBones[b].pz = g_faceRestPose[b].pz + dz;
 
-        
         Quat dq = EulerToQuat(erx, ery, erz);
         Quat rq = {g_faceRestPose[b].rx, g_faceRestPose[b].ry,
                    g_faceRestPose[b].rz, g_faceRestPose[b].rw};
@@ -1507,7 +1293,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
         res.x = dq.w * rq.x + dq.x * rq.w + dq.y * rq.z - dq.z * rq.y;
         res.y = dq.w * rq.y - dq.x * rq.z + dq.y * rq.w + dq.z * rq.x;
         res.z = dq.w * rq.z + dq.x * rq.y - dq.y * rq.x + dq.z * rq.w;
-        
         float len = sqrtf(res.x * res.x + res.y * res.y + res.z * res.z +
                           res.w * res.w);
         if (len > 1e-6f) {
@@ -1556,19 +1341,13 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
     g_faceTestFrame++;
   }
 
-  
   if ((g_faceTestActive || g_mouthWeightsFromMuscle) && g_faceBonesCaptured &&
       OFF_allMorphBoneDirty > 0) {
     char *smcBase = (char *)__this;
     *(bool *)(smcBase + OFF_allMorphBoneDirty) = false;
   }
 
-  
-  
-  
-  
 
-  
   if (!g_faceBoneRefs && s_frame >= 1) {
     __try {
       int btOff =
@@ -1582,7 +1361,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
           Log("[FACE] Bone refs resolved: %d bones (pre-Update frame %d)",
               g_faceBoneCount, s_frame);
 
-          
           if (!g_faceGetLocalPos && g_faceBoneRefs[0]) {
             void *tc = il2cpp_object_get_class(g_faceBoneRefs[0]);
             g_faceGetLocalPos =
@@ -1603,7 +1381,6 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
     }
   }
 
-  
   if (g_faceGetLocalPos && g_faceGetLocalRot && g_faceBoneRefs &&
       !g_faceBonesCaptured && s_frame >= 1) {
     int captured = 0;
@@ -1641,17 +1418,12 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
     }
   }
 
-  
   if (g_origSMCUpdate) {
     g_origSMCUpdate(__this, deltaTime, methodInfo);
   }
 
-  
-  
   {
-    
 
-    
     if ((g_faceTestActive || g_mouthWeightsFromMuscle) && g_faceBonesCaptured &&
         g_faceSetLocalPos && g_faceSetLocalRot && s_frame > 5) {
       __try {

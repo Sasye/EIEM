@@ -1,21 +1,11 @@
 #pragma once
-
-
-
-
-
-
 #include <windows.h>
 #include <mmsystem.h>
 #include <digitalv.h>  
 #include <cstdio>
 #include <cstring>
 
-
 void Log(const char *fmt, ...);
-
-
-
 
 #include <mfapi.h>
 #include <mfidl.h>
@@ -48,7 +38,6 @@ static bool DecodeMp3ToWav(const wchar_t *mp3Path, const wchar_t *wavPath) {
     return false;
   }
 
-  
   IMFMediaType *pcmType = nullptr;
   MFCreateMediaType(&pcmType);
   pcmType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
@@ -70,7 +59,6 @@ static bool DecodeMp3ToWav(const wchar_t *mp3Path, const wchar_t *wavPath) {
     return false;
   }
 
-  
   DWORD totalSize = 0;
   DWORD bufCap = 10 * 1024 * 1024; 
   BYTE *pcmBuf = (BYTE *)malloc(bufCap);
@@ -119,7 +107,6 @@ static bool DecodeMp3ToWav(const wchar_t *mp3Path, const wchar_t *wavPath) {
     return false;
   }
 
-  
   FILE *fp = _wfopen(wavPath, L"wb");
   if (!fp) {
     free(pcmBuf);
@@ -131,13 +118,11 @@ static bool DecodeMp3ToWav(const wchar_t *mp3Path, const wchar_t *wavPath) {
   DWORD byteRate = sampleRate * channels * bitsPerSample / 8;
   WORD blockAlign = (WORD)(channels * bitsPerSample / 8);
 
-  
   fwrite("RIFF", 1, 4, fp);
   DWORD fileSize = 36 + totalSize;
   fwrite(&fileSize, 4, 1, fp);
   fwrite("WAVE", 1, 4, fp);
 
-  
   fwrite("fmt ", 1, 4, fp);
   DWORD fmtSize = 16;
   fwrite(&fmtSize, 4, 1, fp);
@@ -151,7 +136,6 @@ static bool DecodeMp3ToWav(const wchar_t *mp3Path, const wchar_t *wavPath) {
   WORD bps = (WORD)bitsPerSample;
   fwrite(&bps, 2, 1, fp);
 
-  
   fwrite("data", 1, 4, fp);
   fwrite(&totalSize, 4, 1, fp);
   fwrite(pcmBuf, 1, totalSize, fp);
@@ -163,9 +147,6 @@ static bool DecodeMp3ToWav(const wchar_t *mp3Path, const wchar_t *wavPath) {
   return true;
 }
 
-
-
-
 struct AudioPlayer {
   bool loaded = false;
   bool playing = false;   
@@ -174,21 +155,17 @@ struct AudioPlayer {
   MCIDEVICEID devId = 0;  
   wchar_t tempWav[MAX_PATH] = {}; 
 
-  
   bool Open(const wchar_t *path) {
     Close();
     if (!path || path[0] == L'\0')
       return false;
 
-    
     const wchar_t *ext = wcsrchr(path, L'.');
     isMp3 = (ext && _wcsicmp(ext, L".mp3") == 0);
 
     const wchar_t *mciPath = path;
 
-    
     if (isMp3) {
-      
       wchar_t tempDir[MAX_PATH] = {};
       GetTempPathW(MAX_PATH, tempDir);
       _snwprintf(tempWav, MAX_PATH, L"%seiem_bgm_temp.wav", tempDir);
@@ -200,16 +177,13 @@ struct AudioPlayer {
       mciPath = tempWav;
     }
 
-    
     MCI_OPEN_PARMSW openParms = {};
     openParms.lpstrElementName = mciPath;
 
-    
     DWORD flags = MCI_OPEN_ELEMENT | MCI_WAIT;
     MCIERROR err = mciSendCommandW(0, MCI_OPEN, flags, (DWORD_PTR)&openParms);
 
     if (err != 0) {
-      
       memset(&openParms, 0, sizeof(openParms));
       openParms.lpstrDeviceType = L"mpegvideo";
       openParms.lpstrElementName = mciPath;
@@ -230,12 +204,10 @@ struct AudioPlayer {
 
     devId = openParms.wDeviceID;
 
-    
     MCI_SET_PARMS setParms = {};
     setParms.dwTimeFormat = MCI_FORMAT_MILLISECONDS;
     mciSendCommandW(devId, MCI_SET, MCI_SET_TIME_FORMAT | MCI_WAIT, (DWORD_PTR)&setParms);
 
-    
     MCI_STATUS_PARMS statusParms = {};
     statusParms.dwItem = MCI_STATUS_LENGTH;
     err = mciSendCommandW(devId, MCI_STATUS, MCI_STATUS_ITEM | MCI_WAIT, (DWORD_PTR)&statusParms);
@@ -310,14 +282,12 @@ struct AudioPlayer {
     loaded = false;
     playing = false;
     lengthMs = 0;
-    
     if (tempWav[0] != L'\0') {
       DeleteFileW(tempWav);
       tempWav[0] = L'\0';
     }
   }
 
-  
   int GetPositionMs() {
     if (!loaded || !devId)
       return -1;
@@ -331,7 +301,6 @@ struct AudioPlayer {
 
   int GetLengthMs() const { return lengthMs; }
 
-  
   bool AtEnd() {
     if (!loaded || lengthMs <= 0)
       return false;
@@ -341,7 +310,6 @@ struct AudioPlayer {
     return pos >= lengthMs - 30; 
   }
 
-  
   void SetVolume(int vol) {
     if (!loaded || !devId)
       return;

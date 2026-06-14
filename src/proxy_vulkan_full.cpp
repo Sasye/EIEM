@@ -2,10 +2,6 @@
 #include <stdio.h>
 #include <windows.h>
 
-
-
-
-
 #pragma comment(linker, "/export:vkAcquireNextImage2KHR=C:\\Windows\\System32\\vulkan-1.vkAcquireNextImage2KHR")
 #pragma comment(linker, "/export:vkAcquireNextImageKHR=C:\\Windows\\System32\\vulkan-1.vkAcquireNextImageKHR")
 #pragma comment(linker, "/export:vkAllocateCommandBuffers=C:\\Windows\\System32\\vulkan-1.vkAllocateCommandBuffers")
@@ -272,9 +268,7 @@
 #pragma comment(linker, "/export:vkWaitForFences=C:\\Windows\\System32\\vulkan-1.vkWaitForFences")
 #pragma comment(linker, "/export:vkWaitSemaphores=C:\\Windows\\System32\\vulkan-1.vkWaitSemaphores")
 
-
 void LoadPlugin() {
-    
     WIN32_FIND_DATAA fd;
     HANDLE hFind = FindFirstFileA("plugin\\*.dll", &fd);
     if (hFind != INVALID_HANDLE_VALUE) {
@@ -290,7 +284,6 @@ void LoadPlugin() {
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID reserved) {
     if (reason == DLL_PROCESS_ATTACH) {
         DisableThreadLibraryCalls(hModule);
-        
         CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)LoadPlugin, NULL, 0, NULL);
     }
     return TRUE;

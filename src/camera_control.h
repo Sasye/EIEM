@@ -1,21 +1,8 @@
 #pragma once
 
-
-
-
-
-
-
-
-
-
-
-
-
 static void ListComponentsOnGameObject(void *go, const char *tag) {
   if (!go) return;
   __try {
-    
     void *getCompMethod =
         FindMethod(il2cpp_object_get_class(go), "GetComponents", 1);
     if (!getCompMethod) {
@@ -57,7 +44,6 @@ static void InvestigateCamera() {
     return;
   }
 
-  
   void *mainCam = Invoke(g_camera_get_main, nullptr);
   if (!mainCam) {
     Log("[CAM-PROBE] Camera.main returned null (no main camera tagged?)");
@@ -65,7 +51,6 @@ static void InvestigateCamera() {
   }
   Log("[CAM-PROBE] Camera.main = %p", mainCam);
 
-  
   if (g_camera_get_fieldOfView) {
     void *fovBox = Invoke(g_camera_get_fieldOfView, mainCam);
     if (fovBox) {
@@ -74,7 +59,6 @@ static void InvestigateCamera() {
     }
   }
 
-  
   void *camGO = g_component_get_gameObject
                     ? Invoke(g_component_get_gameObject, mainCam)
                     : nullptr;
@@ -86,7 +70,6 @@ static void InvestigateCamera() {
     ListComponentsOnGameObject(camGO, "CameraGO");
   }
 
-  
   void *camTransform = g_component_get_transform
                            ? Invoke(g_component_get_transform, mainCam)
                            : nullptr;
@@ -96,7 +79,6 @@ static void InvestigateCamera() {
     void *parent = g_transform_get_parent ? Invoke(g_transform_get_parent, cur)
                                           : nullptr;
     if (!parent) break;
-    
     void *parentGO = g_component_get_gameObject
                          ? Invoke(g_component_get_gameObject, parent)
                          : nullptr;
@@ -115,13 +97,9 @@ static void InvestigateCamera() {
   Log("[CAM-PROBE] ===== Camera system investigation end =====");
 }
 
-
-
-
 static void *g_mainCamera = nullptr;        
 static void *g_mainCamTransform = nullptr;  
 static void *g_camRootTransform = nullptr;  
-
 
 static bool ResolveMainCamera() {
   if (!g_camera_get_main) return false;
@@ -135,8 +113,6 @@ static bool ResolveMainCamera() {
                            ? Invoke(g_component_get_transform, mainCam)
                            : nullptr;
 
-  
-  
   g_camRootTransform = nullptr;
   if (g_mainCamTransform && g_transform_get_parent) {
     g_camRootTransform = Invoke(g_transform_get_parent, g_mainCamTransform);
@@ -144,7 +120,6 @@ static bool ResolveMainCamera() {
       Log("[CAM] CameraRoot transform: %p", g_camRootTransform);
   }
 
-  
   s_cinemachineBrain = nullptr;
   __try {
     void *camGO = g_component_get_gameObject
@@ -180,18 +155,15 @@ static bool ResolveMainCamera() {
   return g_mainCamera != nullptr && g_mainCamTransform != nullptr;
 }
 
-
 static void CaptureAndDisableCinemachine() {
   if (!ResolveMainCamera()) {
     Log("[CAM] ResolveMainCamera failed, camera takeover aborted");
     return;
   }
-  
   if (g_camera_get_fieldOfView) {
     void *fovBox = Invoke(g_camera_get_fieldOfView, g_mainCamera);
     if (fovBox) g_origFov = *(float *)((char *)fovBox + 16);
   }
-  
   if (s_cinemachineBrain && g_animator_set_enabled) {
     __try {
       int falseVal = 0;
@@ -206,7 +178,6 @@ static void CaptureAndDisableCinemachine() {
   }
 }
 
-
 static void RestoreCinemachine() {
   if (s_cinemachineBrain && g_animator_set_enabled) {
     __try {
@@ -217,7 +188,6 @@ static void RestoreCinemachine() {
     } __except (1) {
     }
   }
-  
   if (g_mainCamera && g_camera_set_fieldOfView && g_origFov > 0.0f) {
     __try {
       void *params[] = {&g_origFov};
@@ -230,10 +200,6 @@ static void RestoreCinemachine() {
   g_mainCamTransform = nullptr;
   g_camRootTransform = nullptr;
 }
-
-
-
-
 
 
 static Vec3 SampleCharDisplacement(float timeSec) {
@@ -249,7 +215,6 @@ static Vec3 SampleCharDisplacement(float timeSec) {
   return disp;
 }
 
-
 static void ApplyCameraFrame(float timeSec) {
   if (!g_cameraActive || !g_mainCamera || !g_mainCamTransform)
     return;
@@ -258,7 +223,6 @@ static void ApplyCameraFrame(float timeSec) {
 
   CameraState cs;
   if (g_camTestMode) {
-    
     cs.position = {0, 0, 0};
     cs.rotation = {0, 0, 0, 1};
     cs.fov = 40.0f;
@@ -268,25 +232,13 @@ static void ApplyCameraFrame(float timeSec) {
   }
   if (!cs.valid) return;
 
-  
-  
-  
-  
-  
-  
   float effYaw = CAM_YAW_SIGN * g_charYaw + CAM_YAW_BIAS * 0.0174533f;
 
-  
-  
   Vec3 charDisp = SampleCharDisplacement(timeSec);
 
-  
-  
   float camScale = g_cameraPlayer.scale;
   float hs = g_camHeightScale;
   float px = (cs.position.x - charDisp.x * camScale) * hs;
-  
-  
   float py = cs.position.y * hs;
   float pz = (cs.position.z - charDisp.z * camScale) * hs;
   float cy = cosf(effYaw), sy = sinf(effYaw);
@@ -296,16 +248,10 @@ static void ApplyCameraFrame(float timeSec) {
                        py + g_charWorldPos.y,
                        rz + g_charWorldPos.z};
 
-  
-  
-  
-  
-  
   float toCharX = g_charWorldPos.x - worldPos[0];
   float toCharZ = g_charWorldPos.z - worldPos[2];
   float lookYaw = atan2f(toCharX, toCharZ);
 
-  
   float pitch = CAM_SIGN_RX * cs.euler.x;
   float roll  = CAM_SIGN_RZ * cs.euler.z;
   float hp = pitch * 0.5f, hr = roll * 0.5f, hly = lookYaw * 0.5f;
@@ -317,10 +263,7 @@ static void ApplyCameraFrame(float timeSec) {
 
   static int s_camDiag = 0;
 
-  
-  
   if (g_camTestMode) {
-    
     static LARGE_INTEGER s_freq = {}, s_start = {};
     if (s_freq.QuadPart == 0) {
       QueryPerformanceFrequency(&s_freq);
@@ -334,7 +277,6 @@ static void ApplyCameraFrame(float timeSec) {
     worldPos[0] = g_charWorldPos.x + r * sinf(ang);
     worldPos[1] = g_charWorldPos.y;
     worldPos[2] = g_charWorldPos.z + r * cosf(ang);
-    
     float half = (ang + 3.14159f) * 0.5f;
     worldRot[0] = 0.0f;
     worldRot[1] = sinf(half);
@@ -342,11 +284,6 @@ static void ApplyCameraFrame(float timeSec) {
     worldRot[3] = cosf(half);
   }
 
-  
-  
-  
-  
-  
   g_camHookTransform = g_mainCamTransform;
   __try {
     g_camSelfWrite = true;
@@ -360,7 +297,6 @@ static void ApplyCameraFrame(float timeSec) {
       Invoke(g_camera_set_fieldOfView, g_mainCamera, args);
     }
 
-    
     s_camDiag++;
     if (s_camDiag <= 3 || s_camDiag % 60 == 0) {
       float readPos[3] = {}, readRot[4] = {};

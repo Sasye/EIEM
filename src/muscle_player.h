@@ -1,13 +1,4 @@
 #pragma once
-
-
-
-
-
-
-
-
-
 #include <cstdio>
 #include <cstdint>
 #include <cstring>
@@ -48,7 +39,6 @@ struct MuscleAnim {
     FILE *f = fopen(path, "rb");
     if (!f) return false;
 
-    
     char hdr[4];
     fread(hdr, 1, 4, f);
     
@@ -84,17 +74,14 @@ struct MuscleAnim {
       hasBlendShapes = (blendShapeCount > 0);
     }
 
-    
     if (v2 || v3 || v4) {
       fread(armRestRots, sizeof(float), armBoneCount * 4, f);
     }
 
-    
     if (v3 || v4) {
       fread(fingerRestRots, sizeof(float), fingerBoneCount * 4, f);
     }
 
-    
     if (v4 && blendShapeCount > 0) {
       blendShapeNames.resize(blendShapeCount);
       for (int i = 0; i < blendShapeCount; i++) {
@@ -128,7 +115,6 @@ struct MuscleAnim {
       if ((v3 || v4) && fingerBoneCount > 0) {
         fread(frames[i].fingerBoneRots, sizeof(float), fingerBoneCount * 4, f);
       } else {
-        
         for (int b = 0; b < FINGER_BONE_COUNT; b++) {
           frames[i].fingerBoneRots[b*4+0] = 0;
           frames[i].fingerBoneRots[b*4+1] = 0;
@@ -149,7 +135,6 @@ struct MuscleAnim {
     return true;
   }
 
-  
   static void QuatSlerp(const float *a, const float *b, float t, float *out) {
     float dot = a[0]*b[0] + a[1]*b[1] + a[2]*b[2] + a[3]*b[3];
     float nb[4] = { b[0], b[1], b[2], b[3] };
@@ -170,7 +155,6 @@ struct MuscleAnim {
     if (len > 0.0001f) { for (int i = 0; i < 4; i++) out[i] /= len; }
   }
 
-  
   MuscleFrame GetFrame(float t) const {
     if (!loaded || frames.empty()) {
       MuscleFrame zero = {};
@@ -192,7 +176,6 @@ struct MuscleAnim {
     const MuscleFrame &a = frames[f0];
     const MuscleFrame &b = frames[f1];
 
-    
     for (int i = 0; i < 3; i++)
       result.bodyPos[i] = a.bodyPos[i] + (b.bodyPos[i] - a.bodyPos[i]) * frac;
     for (int i = 0; i < 4; i++)
@@ -200,25 +183,21 @@ struct MuscleAnim {
     for (int i = 0; i < 95; i++)
       result.muscles[i] = a.muscles[i] + (b.muscles[i] - a.muscles[i]) * frac;
 
-    
     if (hasArmBones) {
       for (int bone = 0; bone < armBoneCount; bone++)
         QuatSlerp(&a.armBoneRots[bone*4], &b.armBoneRots[bone*4], frac, &result.armBoneRots[bone*4]);
     }
 
-    
     if (hasFingerBones) {
       for (int bone = 0; bone < fingerBoneCount; bone++)
         QuatSlerp(&a.fingerBoneRots[bone*4], &b.fingerBoneRots[bone*4], frac, &result.fingerBoneRots[bone*4]);
     }
 
-    
     if (hasBlendShapes) {
       for (int i = 0; i < blendShapeCount; i++)
         result.blendShapes[i] = a.blendShapes[i] + (b.blendShapes[i] - a.blendShapes[i]) * frac;
     }
 
-    
     float len = 0;
     for (int i = 0; i < 4; i++) len += result.bodyRot[i] * result.bodyRot[i];
     if (len > 0.0001f) {

@@ -5,10 +5,6 @@ bin/
 *.res
 *.pdb
 *.ilk
-bigplan.md
-src/removed.md
-smc_reverse_engineering.md
-git-sync.py
 
 !deps/**/*.lib
 !deps/**/*.dll

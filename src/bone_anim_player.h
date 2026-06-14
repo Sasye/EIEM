@@ -1,6 +1,3 @@
-
-
-
 #pragma once
 #include <cstdio>
 #include <cstdint>
@@ -28,13 +25,11 @@ struct BoneAnim {
     FILE *f = fopen(path, "rb");
     if (!f) return false;
 
-    
     char magic[4];
     fread(magic, 1, 4, f);
     
     uint32_t version;
     fread(&version, 4, 1, f);
-    
     
     bool isDelta = (memcmp(magic, "BNED", 4) == 0 && version == 2);
     bool isAbsolute = (memcmp(magic, "BONE", 4) == 0 && version == 1);
@@ -49,29 +44,23 @@ struct BoneAnim {
       fclose(f); return false;
     }
 
-    
     if (isDelta) {
       for (uint32_t b = 0; b < boneCount; b++) {
         fread(restPose[b], sizeof(float), 4, f);
       }
     } else {
-      
       for (uint32_t b = 0; b < 55; b++) {
         restPose[b][0] = 0; restPose[b][1] = 0;
         restPose[b][2] = 0; restPose[b][3] = 1;
       }
     }
 
-    
     frames = new BoneFrame[frameCount];
 
-    
     for (uint32_t i = 0; i < frameCount; i++) {
       if (isDelta) {
-        
         fread(frames[i].hipsDeltaPos, sizeof(float), 3, f);
       } else {
-        
         float rootPos[3], rootRot[4];
         fread(rootPos, sizeof(float), 3, f);
         fread(rootRot, sizeof(float), 4, f);
@@ -80,7 +69,6 @@ struct BoneAnim {
         frames[i].hipsDeltaPos[2] = 0;
       }
 
-      
       for (uint32_t b = 0; b < boneCount; b++) {
         fread(frames[i].bones[b], sizeof(float), 4, f);
       }
@@ -95,7 +83,6 @@ struct BoneAnim {
     return true;
   }
 
-  
   static void QLerp(const float a[4], const float b[4], float t, float out[4]) {
     float dot = a[0]*b[0] + a[1]*b[1] + a[2]*b[2] + a[3]*b[3];
     float sign = dot < 0 ? -1.0f : 1.0f;
@@ -129,11 +116,9 @@ struct BoneAnim {
     const BoneFrame &b = frames[f1];
     BoneFrame result;
 
-    
     for (int i = 0; i < 3; i++)
       result.hipsDeltaPos[i] = a.hipsDeltaPos[i] + frac * (b.hipsDeltaPos[i] - a.hipsDeltaPos[i]);
 
-    
     for (int bone = 0; bone < 55; bone++) {
       QLerp(a.bones[bone], b.bones[bone], frac, result.bones[bone]);
     }

@@ -1,24 +1,6 @@
 #pragma once
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 static bool s_poseReady;
 static Il2CppHumanPose s_cachedPose;
 static float *s_musclePtr;
@@ -28,12 +10,8 @@ static float s_savedIdleBodyPos[3] = {};
 static float s_savedIdleBodyRot[4] = {0, 0, 0, 1};
 static int s_actualMuscleCount = 95; 
 
-
-
-
 static int g_stdToGameMap[95];
 static bool g_dynamicMapReady = false;
-
 
 static void InitHardcodedMuscleMap() {
   for (int i = 0; i < 95; i++) {
@@ -45,7 +23,6 @@ static void InitHardcodedMuscleMap() {
       g_stdToGameMap[i] = i + 6;
   }
 }
-
 
 static const char *g_muscleNames[] = {
     "Spine Front-Back",      
@@ -145,12 +122,7 @@ static const char *g_muscleNames[] = {
     "RF Little3 Stretch",    
 };
 
-
-
-
-
 static void BuildDynamicMuscleMap() {
-  
   void *domain = il2cpp_domain_get();
   if (!domain) {
     Log("[MUSCLE-MAP] No domain, keeping hardcoded map");
@@ -163,21 +135,18 @@ static void BuildDynamicMuscleMap() {
     return;
   }
 
-  
   void *htClass = FindClass("UnityEngine", "HumanTrait", asms, ac);
   if (!htClass) {
     Log("[MUSCLE-MAP] HumanTrait class not found, keeping hardcoded map");
     return;
   }
 
-  
   void *getMuscleNameMethod = FindMethod(htClass, "get_MuscleName", 0);
   if (!getMuscleNameMethod) {
     Log("[MUSCLE-MAP] get_MuscleName not found, keeping hardcoded map");
     return;
   }
 
-  
   void *exc = nullptr;
   void *nameArray = il2cpp_runtime_invoke(getMuscleNameMethod, nullptr, nullptr, &exc);
   if (exc || !nameArray) {
@@ -185,9 +154,6 @@ static void BuildDynamicMuscleMap() {
     return;
   }
 
-  
-  
-  
   int gameMuscleCnt = 0;
   __try {
     gameMuscleCnt = *(int *)((char *)nameArray + 24);
@@ -205,8 +171,6 @@ static void BuildDynamicMuscleMap() {
     return;
   }
 
-  
-  
   void **elements = (void **)((char *)nameArray + 32);
   char gameNames[256][64] = {};
   int maxRead = (gameMuscleCnt > 255) ? 255 : gameMuscleCnt;
@@ -223,101 +187,70 @@ static void BuildDynamicMuscleMap() {
     }
   }
 
-  
   for (int i = 0; i < maxRead; i++) {
     Log("[MUSCLE-MAP]   game[%d] = \"%s\"%s", i, gameNames[i],
         i >= 95 ? " (EXTRA)" : "");
   }
 
-  
-  
-  
-  
 
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
   auto NormalizeMuscle = [](const char *src, char *dst, int dstSz) {
-    
     char lower[128] = {};
     int li = 0;
     for (int i = 0; src[i] && li < 126; i++)
       lower[li++] = (src[i] >= 'A' && src[i] <= 'Z') ? (src[i] + 32) : src[i];
     lower[li] = 0;
 
-    
-    
     char *s = lower;
     int di = 0;
 
     while (*s && di < dstSz - 1) {
-      
       if (strncmp(s, "left-right", 10) == 0) {
         dst[di++] = 'l'; dst[di++] = 'r';
         s += 10; continue;
       }
-      
       if (strncmp(s, "l-r", 3) == 0) {
         dst[di++] = 'l'; dst[di++] = 'r';
         s += 3; continue;
       }
-      
       if (strncmp(s, "stretched", 9) == 0) {
         memcpy(dst + di, "stretch", 7); di += 7;
         s += 9; continue;
       }
-      
       if (strncmp(s, "left ", 5) == 0 && (s == lower || *(s - 1) == ' ')) {
         dst[di++] = 'l'; dst[di++] = ' ';
         s += 5; continue;
       }
-      
       if (strncmp(s, "right ", 6) == 0 && (s == lower || *(s - 1) == ' ')) {
         dst[di++] = 'r'; dst[di++] = ' ';
         s += 6; continue;
       }
-      
       if (strncmp(s, "upper leg", 9) == 0) {
         memcpy(dst + di, "upperleg", 8); di += 8;
         s += 9; continue;
       }
-      
       if (strncmp(s, "lower leg", 9) == 0) {
         memcpy(dst + di, "lowerleg", 8); di += 8;
         s += 9; continue;
       }
-      
       if (strncmp(s, "upper chest", 11) == 0) {
         memcpy(dst + di, "upperchest", 10); di += 10;
         s += 11; continue;
       }
-      
       if (strncmp(s, "lf ", 3) == 0 && (s == lower || *(s - 1) == ' ')) {
         dst[di++] = 'l'; dst[di++] = ' ';
         s += 3; continue;
       }
-      
       if (strncmp(s, "rf ", 3) == 0 && (s == lower || *(s - 1) == ' ')) {
         dst[di++] = 'r'; dst[di++] = ' ';
         s += 3; continue;
       }
-      
       if (*s == ' ' && s[1] >= '0' && s[1] <= '9') {
         s++; continue;
       }
-      
       if (strncmp(s, "twist in-out", 12) == 0) {
         memcpy(dst + di, "twist", 5); di += 5;
         s += 12; continue;
       }
-      
       if (strncmp(s, "twist roll", 10) == 0) {
         memcpy(dst + di, "twist", 5); di += 5;
         s += 10; continue;
@@ -327,7 +260,6 @@ static void BuildDynamicMuscleMap() {
     dst[di] = 0;
   };
 
-  
   char gameNorm[256][64] = {};
   for (int i = 0; i < maxRead; i++) {
     NormalizeMuscle(gameNames[i], gameNorm[i], 64);
@@ -383,8 +315,6 @@ static void ResetFaceCache() {
   g_capturedLen = 0;
   g_smcResetRequested = true;
 
-  
-  
   for (int i = 0; i < NUM_MOUTH_SHAPES; i++) {
     g_mouthShapes[i].resolved = false;
   }
@@ -396,11 +326,8 @@ static void ResetFaceCache() {
   Log("[RESET] Face cache cleared (including per-target resolved flags).");
 }
 
-
-
 static void CleanupPoseHandler() {
   if (g_poseHandleGC != 0) {
-    
     void *managedObj = il2cpp_gchandle_get_target(g_poseHandleGC);
     if (managedObj && g_humanPoseHandler_Dispose) {
       __try {
@@ -424,7 +351,6 @@ static void CleanupPoseHandler() {
   g_musclesArray = nullptr;
   g_gameNativePtr = nullptr;
   s_poseReady = false;
-  
   if (g_trojanHookTarget) {
     MH_DisableHook(g_trojanHookTarget);
     Log("[CLEANUP] Trojan hook disabled");
@@ -433,58 +359,43 @@ static void CleanupPoseHandler() {
 
 static void __cdecl Hooked_GetInternalAvatarPose(void *nativePtr, void *array,
                                                  int count) {
-  
   if (orig_GetInternalAvatarPose) {
     orig_GetInternalAvatarPose(nativePtr, array, count);
   }
 
-  
   if (!g_trojanActive || !g_mmdHasMuscles)
     return;
   if (g_trojanReentrant)
     return;
 
-  
   if (g_cachedMPtr && nativePtr == g_cachedMPtr)
     return;
 
-  
   if (!g_gameNativePtr) {
     g_gameNativePtr = nativePtr;
     Log("[TROJAN] Detected game nativePtr: %p (our m_Ptr: %p, count=%d)",
         nativePtr, g_cachedMPtr, count);
   }
 
-  
   if (nativePtr != g_gameNativePtr)
     return;
 
   g_trojanReentrant = true;
 
-  
-  
-  
 
   if (g_icall_SetInternalHumanPose && s_poseReady && s_musclePtr &&
       g_cachedMPtr) {
-    
     memcpy(s_musclePtr, (void *)g_mmdMuscles, 95 * sizeof(float));
 
-    
     float bodyPos[3] = {s_cachedPose.bodyPosX, s_cachedPose.bodyPosY,
                         s_cachedPose.bodyPosZ};
     float bodyRot[4] = {s_cachedPose.bodyRotX, s_cachedPose.bodyRotY,
                         s_cachedPose.bodyRotZ, s_cachedPose.bodyRotW};
 
     __try {
-      
-      
       g_icall_SetInternalHumanPose(g_cachedMPtr, bodyPos, bodyRot,
                                    s_cachedPose.muscles);
 
-      
-      
-      
       if (orig_GetInternalAvatarPose) {
         orig_GetInternalAvatarPose(g_cachedMPtr, array, count);
       }
@@ -499,24 +410,20 @@ static void __cdecl Hooked_GetInternalAvatarPose(void *nativePtr, void *array,
     static int s_logCount = 0;
     s_logCount++;
 
-    
     float *avatarData = (float *)array;
     if (s_logCount == 1) {
       Log("[TROJAN-DUMP] Avatar pose buffer: array=%p count=%d (%.0f quats)",
           array, count, count / 4.0f);
-      
       for (int i = 0; i < count && i < 80; i += 4) {
         Log("[TROJAN-DUMP] [%d-%d]: %.4f %.4f %.4f %.4f", i, i + 3,
             avatarData[i], avatarData[i + 1], avatarData[i + 2],
             avatarData[i + 3]);
       }
-      
       for (int i = 80; i < count && i < 160; i += 4) {
         Log("[TROJAN-DUMP] [%d-%d]: %.4f %.4f %.4f %.4f", i, i + 3,
             avatarData[i], avatarData[i + 1], avatarData[i + 2],
             avatarData[i + 3]);
       }
-      
       if (count > 160) {
         Log("[TROJAN-DUMP] ... total %d floats, showing range 160-%d:", count,
             count - 1);
@@ -528,17 +435,7 @@ static void __cdecl Hooked_GetInternalAvatarPose(void *nativePtr, void *array,
       }
     }
 
-    
-    
-    
     if (g_mmdHasArmBones && g_muscleAnim && g_muscleAnim->hasArmBones) {
-      
-      
-      
-      
-      
-      
-      
 
       static const int armHBB[ARM_BONE_COUNT] = {13, 15, 17, 14, 16, 18};
 
@@ -546,15 +443,10 @@ static void __cdecl Hooked_GetInternalAvatarPose(void *nativePtr, void *array,
         float *mmdCur = (float *)&g_mmdArmBoneRots[i * 4];
         float *mmdRest = &g_muscleAnim->armRestRots[i * 4];
 
-        
-        
-        
-        
         int boneIdx = armHBB[i];
         int offset = boneIdx * 4;
 
         if (offset + 3 < count) {
-          
           float invMR[4] = {-mmdRest[0], -mmdRest[1], -mmdRest[2], mmdRest[3]};
           float dx = invMR[3] * mmdCur[0] + invMR[0] * mmdCur[3] +
                      invMR[1] * mmdCur[2] - invMR[2] * mmdCur[1];
@@ -565,10 +457,8 @@ static void __cdecl Hooked_GetInternalAvatarPose(void *nativePtr, void *array,
           float dw = invMR[3] * mmdCur[3] - invMR[0] * mmdCur[0] -
                      invMR[1] * mmdCur[1] - invMR[2] * mmdCur[2];
 
-          
           float *gr =
               &avatarData[offset]; 
-          
           static float s_origArm[ARM_BONE_COUNT * 4] = {};
           static bool s_origSaved = false;
           if (!s_origSaved && s_logCount == 1) {
@@ -580,8 +470,6 @@ static void __cdecl Hooked_GetInternalAvatarPose(void *nativePtr, void *array,
             s_origSaved = true;
           }
 
-          
-          
           float ox = gr[0], oy = gr[1], oz = gr[2], ow = gr[3];
           gr[0] = ow * dx + ox * dw + oy * dz - oz * dy;
           gr[1] = ow * dy - ox * dz + oy * dw + oz * dx;
@@ -611,15 +499,11 @@ static void __cdecl Hooked_GetInternalAvatarPose(void *nativePtr, void *array,
   g_trojanReentrant = false;
 }
 
-
-
-
 #define WM_MMD_APPLY_POSE (WM_USER + 1)
 
 static WNDPROC g_origWndProc = nullptr;
 static volatile bool g_mmdPendingApply = false;
 static volatile bool g_mmdSetMode = false;
-
 
 typedef void *(*InvokerFn)(void *methodPtr, void *method, void *obj,
                            void **params, void *retval);
@@ -630,18 +514,10 @@ static void *__cdecl Hooked_Invoker(void *methodPtr, void *method, void *obj,
 }
 
 
-
-
-
-
-
-
-
 typedef void(__cdecl *fn_SetHP_icall)(void *handler, void *bodyPos,
                                       void *bodyRot, void *muscles,
                                       void *methodInfo);
 static fn_SetHP_icall s_directSetHP = nullptr;
-
 
 static void InitMmdPoseOnMainThread() {
   if (s_poseReady)
@@ -657,7 +533,6 @@ static void InitMmdPoseOnMainThread() {
   if (!managedObj)
     return;
 
-  
   void *getArgs[] = {&s_cachedPose};
   void *getExc = nullptr;
   il2cpp_runtime_invoke(g_humanPoseHandler_GetHumanPose, managedObj, getArgs,
@@ -672,7 +547,6 @@ static void InitMmdPoseOnMainThread() {
   if (!s_musclePtr)
     return;
 
-  
   uint64_t arrayLen = *(uint64_t *)((char *)s_cachedPose.muscles + 24);
   s_actualMuscleCount = (int)arrayLen;
   if (s_actualMuscleCount > 128)
@@ -680,20 +554,16 @@ static void InitMmdPoseOnMainThread() {
   Log("[MMD-INIT] Muscles array length = %llu (expected 95, got %d)", arrayLen,
       s_actualMuscleCount);
 
-  
   if (!g_dynamicMapReady)
     BuildDynamicMuscleMap();
 
-  
   if (*g_slotAddr) {
     g_slotOrigGet = *g_slotAddr;
     Log("[SLOT] Captured Get fn: %p", g_slotOrigGet);
   }
 
-  
   uint32_t h = il2cpp_gchandle_new(s_cachedPose.muscles, true);
 
-  
   s_directSetHP = (fn_SetHP_icall)g_slotSetFn;
 
   Log("[MMD-INIT] Ready! m_Ptr=%p muscles=%p setFn=%p", g_cachedMPtr,
@@ -703,7 +573,6 @@ static void InitMmdPoseOnMainThread() {
       s_cachedPose.bodyRotX, s_cachedPose.bodyRotY, s_cachedPose.bodyRotZ,
       s_cachedPose.bodyRotW);
 
-  
   memcpy(s_savedIdleMuscles, s_musclePtr, s_actualMuscleCount * sizeof(float));
   Log("[MMD-INIT] Saved %d idle muscles", s_actualMuscleCount);
   s_savedIdleBodyPos[0] = s_cachedPose.bodyPosX;
@@ -717,7 +586,6 @@ static void InitMmdPoseOnMainThread() {
       "fore51=%.3f",
       s_savedIdleMuscles[39], s_savedIdleMuscles[48], s_savedIdleMuscles[42],
       s_savedIdleMuscles[51]);
-  
   Log("[REST-MUSCLES] Spine[0-8]:  %.3f %.3f %.3f | %.3f %.3f %.3f | %.3f %.3f "
       "%.3f",
       s_musclePtr[0], s_musclePtr[1], s_musclePtr[2], s_musclePtr[3],
@@ -762,7 +630,6 @@ static void InitMmdPoseOnMainThread() {
       s_musclePtr[87], s_musclePtr[88], s_musclePtr[89], s_musclePtr[90],
       s_musclePtr[91], s_musclePtr[92], s_musclePtr[93], s_musclePtr[94]);
 
-  
   memcpy(s_musclePtr, (void *)g_mmdMuscles, 95 * sizeof(float));
   *g_slotAddr = g_slotSetFn;
   void *setArgs[] = {&s_cachedPose};
@@ -775,25 +642,19 @@ static void InitMmdPoseOnMainThread() {
   s_poseReady = true;
 }
 
-
 static void ApplyMmdPoseDirect() {
   if (!s_poseReady || !s_directSetHP || !g_cachedMPtr)
     return;
 
-  
   SafeSetAnimatorEnabled(false);
 
-  
   memcpy(s_musclePtr, (void *)g_mmdMuscles, 95 * sizeof(float));
 
-  
   float bodyPos[3] = {s_cachedPose.bodyPosX, s_cachedPose.bodyPosY,
                       s_cachedPose.bodyPosZ};
   float bodyRot[4] = {s_cachedPose.bodyRotX, s_cachedPose.bodyRotY,
                       s_cachedPose.bodyRotZ, s_cachedPose.bodyRotW};
 
-  
-  
   __try {
     s_directSetHP(g_cachedMPtr, bodyPos, bodyRot, s_cachedPose.muscles,
                   nullptr);
@@ -804,7 +665,6 @@ static void ApplyMmdPoseDirect() {
           GetExceptionCode());
       s_errLogged = true;
     }
-    
     if (g_gameHwnd && !g_mmdPendingApply) {
       g_mmdPendingApply = true;
       PostMessageW(g_gameHwnd, WM_MMD_APPLY_POSE, 0, 0);
@@ -822,11 +682,6 @@ static void ApplyMmdPoseDirect() {
 }
 
 
-
-
-
-
-
 #define MAX_HUMAN_BONES 55
 struct CachedBoneState {
   void *transform; 
@@ -839,7 +694,6 @@ static void *g_hipsTransform = nullptr;
 static volatile bool g_bonesReady = false; 
 static volatile int g_boneGeneration = 0;  
 
-
 static volatile int g_debugMuscleIdx = 0;      
 static volatile float g_debugMuscleVal = 0.0f; 
 static volatile bool g_debugMode = false;
@@ -848,20 +702,11 @@ static volatile int g_debugMaxIdx =
     95; 
 
 
-
-
-
-
-
-
-
 static int StandardToGame(int stdIdx) {
   if (stdIdx < 0 || stdIdx > 94)
     return -1;
   return g_stdToGameMap[stdIdx];
 }
-
-
 
 static float s_mmdFirstMuscles[95] = {};
 static float s_mmdFirstBodyPos[3] = {};
@@ -880,7 +725,6 @@ static void ApplyMmdPoseOnMainThread() {
 
   SafeSetAnimatorEnabled(false);
 
-  
   if (g_debugMode) {
     int mc = s_actualMuscleCount;
     for (int i = 0; i < mc; i++) {
@@ -916,8 +760,6 @@ static void ApplyMmdPoseOnMainThread() {
     return;
   }
 
-  
-  
 
   if (s_firstFrame) {
     memcpy(s_mmdFirstMuscles, (void *)g_mmdMuscles, 95 * sizeof(float));
@@ -935,14 +777,10 @@ static void ApplyMmdPoseOnMainThread() {
     s_firstFrame = false;
   }
 
-  
-  
   int mc = s_actualMuscleCount;
   for (int i = 0; i < mc; i++) {
     s_musclePtr[i] = 0.0f;
   }
-  
-  
   {
     bool mapped[128] = {};
     for (int s = 0; s < 95; s++) {
@@ -956,32 +794,11 @@ static void ApplyMmdPoseOnMainThread() {
     }
   }
 
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
 
-  
-  
   static const float SHOULDER_DU_OFFSET = 0.0f;
-  
   static const float ARM_DU_OFFSET = -0.10f;
-  
-  
   static const float ARM_FB_OFFSET = 0.12f;
-  
   static const float FOREARM_STRETCH_OFFSET = -0.08f;
-  
   static const float NECK_NOD_OFFSET = 0.05f;
 
   for (int stdIdx = 0; stdIdx < 95; stdIdx++) {
@@ -991,15 +808,9 @@ static void ApplyMmdPoseOnMainThread() {
 
     float mmdCur = ((volatile float *)g_mmdMuscles)[stdIdx];
 
-    
-    
-    
-    
-    
     if (stdIdx >= 15 && stdIdx <= 20)
       continue;
 
-    
     switch (stdIdx) {
     case 9:
       mmdCur += NECK_NOD_OFFSET;
@@ -1027,11 +838,6 @@ static void ApplyMmdPoseOnMainThread() {
     s_musclePtr[gameIdx] = mmdCur;
   }
 
-  
-  
-  
-  
-  
   s_cachedPose.bodyPosX =
       g_restBodyPos[0] + (g_mmdBodyPos[0] - s_mmdFirstBodyPos[0]);
   s_cachedPose.bodyPosY =
@@ -1039,9 +845,6 @@ static void ApplyMmdPoseOnMainThread() {
   s_cachedPose.bodyPosZ =
       g_restBodyPos[2] + (g_mmdBodyPos[2] - s_mmdFirstBodyPos[2]);
 
-  
-  
-  
   s_cachedPose.bodyRotX = g_mmdBodyRot[0];
   s_cachedPose.bodyRotY = g_mmdBodyRot[1];
   s_cachedPose.bodyRotZ = g_mmdBodyRot[2];
@@ -1057,7 +860,6 @@ static void ApplyMmdPoseOnMainThread() {
     s_cachedPose.bodyRotW /= qlen;
   }
 
-  
   *g_slotAddr = g_slotSetFn;
   void *setArgs[] = {&s_cachedPose};
   void *setExc = nullptr;
@@ -1065,14 +867,9 @@ static void ApplyMmdPoseOnMainThread() {
                         &setExc);
   *g_slotAddr = g_slotOrigGet;
 
-  
-  
-  
-  
   if (g_mmdHasArmBones && g_muscleAnim && g_muscleAnim->hasArmBones &&
       g_cachedAnimator) {
 
-    
     if (!s_ikDisabled) {
       s_ikDisabled = true;
 
@@ -1085,7 +882,6 @@ static void ApplyMmdPoseOnMainThread() {
       if (animatorGO) {
         void *rootTransform = SafeGetComponentTransform(g_cachedAnimator);
         if (rootTransform) {
-          
           struct WalkEntry {
             void *t;
             int d;
@@ -1097,7 +893,6 @@ static void ApplyMmdPoseOnMainThread() {
           while (top > 0) {
             WalkEntry e = stack[--top];
 
-            
             void *go = nullptr;
             __try {
               go = Invoke(g_component_get_gameObject, e.t);
@@ -1105,7 +900,6 @@ static void ApplyMmdPoseOnMainThread() {
             }
 
             if (go) {
-              
               void *componentClass = nullptr;
               void *componentType = nullptr;
               {
@@ -1149,8 +943,6 @@ static void ApplyMmdPoseOnMainThread() {
 
                       if (strcmp(clsName, "BipedIK") == 0 &&
                           s_bipedIKCount < MAX_IK) {
-                        
-                        
                         char ikGoName[64] = "?";
                         __try {
                           if (g_object_get_name) {
@@ -1200,14 +992,12 @@ static void ApplyMmdPoseOnMainThread() {
                         Log("[IK-DISABLE] Found AnimatorMono: %p GO='%s'",
                             s_animatorMono, amGoName);
                       }
-                      
                       if (strcmp(clsName, "BeyondBoneCloth") == 0 &&
                           s_bbcCount < MAX_BBC) {
                         int idx = s_bbcCount;
                         s_bbcInstances[s_bbcCount++] = data[i];
                         Log("[BBC] Found BeyondBoneCloth #%d: %p",
                             s_bbcCount, data[i]);
-                        
                         __try {
                           if (g_component_get_gameObject && g_object_get_name) {
                             void *go = Invoke(g_component_get_gameObject, data[i]);
@@ -1239,7 +1029,6 @@ static void ApplyMmdPoseOnMainThread() {
               }
             }
 
-            
             if (e.d < 2) {
               __try {
                 void *ccResult = Invoke(g_transform_get_childCount, e.t);
@@ -1255,8 +1044,6 @@ static void ApplyMmdPoseOnMainThread() {
             }
           }
 
-          
-          
           for (int bi = 0; bi < s_bipedIKCount; bi++) {
             if (s_bipedIK[bi] && g_animator_set_enabled) {
               __try {
@@ -1284,16 +1071,10 @@ static void ApplyMmdPoseOnMainThread() {
             }
           }
 
-          
-          
-          
-          
-          
           for (int fd = 0; fd < s_followDamperCount; fd++) {
             Log("[IK-DISABLE] TransformFollowDamper #%d KEPT ENABLED (decoration)", fd + 1);
           }
 
-          
           if (s_animatorMono && g_animator_set_enabled) {
             __try {
               int falseVal = 0;
@@ -1307,8 +1088,6 @@ static void ApplyMmdPoseOnMainThread() {
           if (s_bipedIKCount == 0)
             Log("[IK-DISABLE] WARNING: BipedIK not found!");
 
-          
-          
           if (s_bbcCount > 0 && !s_bbcMethodsResolved) {
             s_bbcMethodsResolved = true;
             void *bbcCls = il2cpp_object_get_class(s_bbcInstances[0]);
@@ -1336,13 +1115,6 @@ static void ApplyMmdPoseOnMainThread() {
                   s_bbc_BuildAndRun, s_bbc_SetSkipWriting);
             }
           }
-          
-          
-          
-          
-          
-          
-          
           if (s_bbcCount > 0 && g_animator_set_enabled) {
             int falseVal = 0, trueVal = 1;
             float one = 1.0f;
@@ -1352,21 +1124,15 @@ static void ApplyMmdPoseOnMainThread() {
             for (int bi = 0; bi < s_bbcCount; bi++) {
               if (!s_bbcInstances[bi]) continue;
               __try {
-                
-                
-                
-                
                 void *process = *(void **)((char *)s_bbcInstances[bi] + offProc);
                 bool needsRebuild = (!process || (uintptr_t)process < 0x10000);
 
                 if (needsRebuild) {
-                  
                   void *offArgs[] = {&falseVal};
                   Invoke(g_animator_set_enabled, s_bbcInstances[bi], offArgs);
                   void *onArgs[] = {&trueVal};
                   Invoke(g_animator_set_enabled, s_bbcInstances[bi], onArgs);
                 }
-                
                 if (s_bbc_SetSkipWriting) {
                   void *skipArgs[] = {&falseVal};
                   void *exc = nullptr;
@@ -1390,9 +1156,6 @@ static void ApplyMmdPoseOnMainThread() {
               } __except (1) {}
             }
 
-            
-            
-            
             s_skirtScaleResolved = false;
             s_skirtDirty = true;
             ApplySkirtColliderScale();
@@ -1404,20 +1167,13 @@ static void ApplyMmdPoseOnMainThread() {
         }
       }
     }
-    
-    
-    
     if (s_skirtRetryFrames > 0) {
       s_skirtRetryFrames--;
       s_skirtScaleResolved = false;  
       s_skirtDirty = true;
       ApplySkirtColliderScale();
     }
-    
-  
-  
   if (g_mmdHasFingerBones && g_muscleAnim && g_muscleAnim->hasFingerBones) {
-    
     if (!g_fingerTransformsResolved) {
       g_fingerTransformsResolved = true;
       static const char *fingerNames[FINGER_BONE_COUNT] = {
@@ -1446,7 +1202,6 @@ static void ApplyMmdPoseOnMainThread() {
           FINGER_BONE_COUNT);
     }
 
-    
     if (!g_fingerRestCaptured) {
       g_fingerRestCaptured = true;
       for (int i = 0; i < FINGER_BONE_COUNT; i++) {
@@ -1464,7 +1219,6 @@ static void ApplyMmdPoseOnMainThread() {
         g_gameFingerRest[i * 4 + 3] = gr.w;
       }
       Log("[FINGER-ANIM] Captured game finger rest rotations");
-      
       for (int d = 0; d < 6 && d < FINGER_BONE_COUNT; d++) {
         float *gr = &g_gameFingerRest[d * 4];
         float *mr = &g_muscleAnim->fingerRestRots[d * 4];
@@ -1473,17 +1227,12 @@ static void ApplyMmdPoseOnMainThread() {
       }
     }
 
-    
-    
-    
-    
     for (int i = 0; i < FINGER_BONE_COUNT; i++) {
       if (!g_fingerTransforms[i])
         continue;
       float *mmdCur = (float *)&g_mmdFingerBoneRots[i * 4];
       float *mmdRest = &g_muscleAnim->fingerRestRots[i * 4];
 
-      
       float invR[4] = {-mmdRest[0], -mmdRest[1], -mmdRest[2], mmdRest[3]};
       float dx = invR[3] * mmdCur[0] + invR[0] * mmdCur[3] +
                  invR[1] * mmdCur[2] - invR[2] * mmdCur[1];
@@ -1494,19 +1243,15 @@ static void ApplyMmdPoseOnMainThread() {
       float dw = invR[3] * mmdCur[3] - invR[0] * mmdCur[0] -
                  invR[1] * mmdCur[1] - invR[2] * mmdCur[2];
 
-      
       if (i < 15) {
         dx = -dx; dy = -dy; dz = -dz;
       }
 
-      
-      
       float dot = dw; 
       if (dot < 0) { dx = -dx; dy = -dy; dz = -dz; dw = -dw; dot = -dot; }
       float t = 0.75f;
       float sx, sy;
       if (dot > 0.9995f) {
-        
         sx = 1.0f - t;
         sy = t;
       } else {
@@ -1515,20 +1260,17 @@ static void ApplyMmdPoseOnMainThread() {
         sx = sinf((1.0f - t) * theta) / sinT;
         sy = sinf(t * theta) / sinT;
       }
-      
       float sdx = sy * dx;
       float sdy = sy * dy;
       float sdz = sy * dz;
       float sdw = sx + sy * dw;
 
-      
       float *gr = &g_gameFingerRest[i * 4];
       float rx = gr[3] * sdx + gr[0] * sdw + gr[1] * sdz - gr[2] * sdy;
       float ry = gr[3] * sdy - gr[0] * sdz + gr[1] * sdw + gr[2] * sdx;
       float rz = gr[3] * sdz + gr[0] * sdy - gr[1] * sdx + gr[2] * sdw;
       float rw = gr[3] * sdw - gr[0] * sdx - gr[1] * sdy - gr[2] * sdz;
 
-      
       float len = sqrtf(rx * rx + ry * ry + rz * rz + rw * rw);
       if (len > 0.001f) { rx /= len; ry /= len; rz /= len; rw /= len; }
 
@@ -1536,8 +1278,6 @@ static void ApplyMmdPoseOnMainThread() {
     }
   }
 
-  
-    
   }
 
   static int s_cnt = 0;
@@ -1554,23 +1294,17 @@ static void ApplyMmdPoseOnMainThread() {
         s_musclePtr[g42], dxPos, dyPos, dzPos, setExc ? "ERR" : "OK");
   }
 
-  
-  
-  
   if (g_cameraNeedsCapture && g_cameraPlayer.HasData()) {
     g_cameraNeedsCapture = false;
-    
     __try {
       void *charTransform = SafeGetComponentTransform(g_cachedAnimator);
       if (charTransform && g_camGetPos) {
         float pos[3] = {};
         g_camGetPos(charTransform, pos);
         g_charWorldPos = {pos[0], pos[1], pos[2]};
-        
         if (g_camGetRot) {
           float q[4] = {};
           g_camGetRot(charTransform, q);  
-          
           g_charYaw = atan2f(2.0f * (q[3] * q[1] + q[0] * q[2]),
                              1.0f - 2.0f * (q[1] * q[1] + q[2] * q[2]));
         }
@@ -1578,12 +1312,7 @@ static void ApplyMmdPoseOnMainThread() {
             g_charWorldPos.x, g_charWorldPos.y, g_charWorldPos.z,
             g_charYaw * 57.2958f);
 
-        
-        
-        
         g_camInitHipsWorldPos = g_charWorldPos; 
-        
-        
         g_camInitHipsYaw = 0.0f; 
         if (g_muscleAnim && g_muscleAnim->loaded &&
             !g_muscleAnim->frames.empty()) {
@@ -1602,7 +1331,6 @@ static void ApplyMmdPoseOnMainThread() {
             Log("[CAM] Initial Hips world pos: (%.3f, %.3f, %.3f)",
                 hipsPos.x, hipsPos.y, hipsPos.z);
           }
-          
           void *headT0 = SafeGetBoneTransform(10); 
           if (headT0 && g_camGetRot) {
             float hq[4] = {};
@@ -1618,10 +1346,6 @@ static void ApplyMmdPoseOnMainThread() {
           }
         }
 
-        
-        
-        
-        
         g_charHeight = 0.0f;
         if (g_animator_GetBoneTransform && g_cachedAnimator) {
           void *headT = SafeGetBoneTransform(10); 
@@ -1633,9 +1357,6 @@ static void ApplyMmdPoseOnMainThread() {
           }
         }
         if (g_charHeight > 0.0f) {
-          
-          
-          
           if (g_camRefHeight <= 0.0f)
             g_camRefHeight = (CAM_REF_HEIGHT > 0.0f) ? CAM_REF_HEIGHT
                                                      : g_charHeight;
@@ -1651,18 +1372,12 @@ static void ApplyMmdPoseOnMainThread() {
     }
     CaptureAndDisableCinemachine();
     g_cameraActive = true;
-    
-    
     g_camInitInterest = g_cameraPlayer.SampleInterest(0.0f);
     Log("[CAM] Initial VMD interest: (%.1f, %.1f, %.1f)",
         g_camInitInterest.x, g_camInitInterest.y, g_camInitInterest.z);
   }
 
-  
-  
-  
   if (g_cameraActive && g_musclePlayer) {
-    
     __try {
       if (g_animator_GetBoneTransform && g_cachedAnimator) {
         void *hipsT = SafeGetBoneTransform(0); 
@@ -1681,9 +1396,6 @@ static void ApplyMmdPoseOnMainThread() {
         }
       }
     } __except (1) {}
-    
-    
-    
     __try {
       if (g_animator_GetBoneTransform && g_cachedAnimator) {
         void *headT = SafeGetBoneTransform(10); 
@@ -1693,7 +1405,6 @@ static void ApplyMmdPoseOnMainThread() {
           if (g_camGetRot) {
             float hq[4] = {};
             g_camGetRot(headT, hq); 
-            
             g_headForward.x = 2.0f * (hq[3] * hq[1] + hq[0] * hq[2]);
             g_headForward.y = 2.0f * (hq[1] * hq[2] - hq[3] * hq[0]);
             g_headForward.z = 1.0f - 2.0f * (hq[0] * hq[0] + hq[1] * hq[1]);
@@ -1701,12 +1412,6 @@ static void ApplyMmdPoseOnMainThread() {
         }
       }
     } __except (1) {}
-    
-    
-    
-    
-    
-    
     if (g_muscleAnim && g_muscleAnim->loaded) {
       MuscleFrame mf = g_muscleAnim->GetFrame(g_musclePlayer->currentTime);
       float bx = mf.bodyRot[0], by = mf.bodyRot[1];
@@ -1722,13 +1427,10 @@ static void ApplyMmdPoseOnMainThread() {
   }
 }
 
-
 static void ReapplyBoneTransforms() {
   if (!g_bonesReady)
     return;
 
-  
-  
 
   for (int b = 0; b < MAX_HUMAN_BONES; b++) {
     if (!g_cachedBones[b].valid || !g_cachedBones[b].transform)
@@ -1736,12 +1438,10 @@ static void ReapplyBoneTransforms() {
     SafeSetLocalRotation(g_cachedBones[b].transform, g_cachedBones[b].rotation);
   }
 
-  
   if (g_hipsTransform) {
     SafeSetLocalPosition(g_hipsTransform, g_cachedHipsPos);
   }
 }
-
 
 static int SafeInvokeCursorAction(void* actionObj) {
   if (!actionObj || !g_actionInvokeMethod) return -1;
@@ -1754,17 +1454,12 @@ static int SafeInvokeCursorAction(void* actionObj) {
   }
 }
 
-
-
-
-
 static bool EnsureAudioLoaded() {
   if (!g_audioEnabled) return false;
   if (!g_audioPlayer) g_audioPlayer = new AudioPlayer();
   if (g_audioPlayer->loaded) return true;
 
   const wchar_t *path = (g_audioPathW[0] != L'\0') ? g_audioPathW : g_audioDefaultPathW;
-  
   if (g_audioPathW[0] == L'\0') {
     DWORD attr = GetFileAttributesW(path);
     if (attr == INVALID_FILE_ATTRIBUTES) return false;
@@ -1772,16 +1467,12 @@ static bool EnsureAudioLoaded() {
   return g_audioPlayer->Open(path);
 }
 
-
-
 static void AudioStartFresh() {
   if (!EnsureAudioLoaded()) { g_audioIsClock = false; return; }
   bool normalSpeed = !g_musclePlayer || fabsf(g_musclePlayer->speed - 1.0f) < 0.001f;
   if (!normalSpeed) { g_audioIsClock = false; return; }
 
   if (g_audioOffset < 0.0f) {
-    
-    
     g_audioPendingStart = true;
     g_audioIsClock = false;
     Log("[AUDIO] Start deferred %.2f s (negative offset)", -g_audioOffset);
@@ -1798,16 +1489,21 @@ static void AudioStartFresh() {
 }
 
 
-
 static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
                                    LPARAM lParam) {
+  if (msg == WM_CLOSE || msg == WM_DESTROY) {
+    Log("[WNDPROC] Game window closing (msg=0x%X), signaling threads to exit",
+        msg);
+    g_guiRunning = false;
+    g_trojanActive = false;
+  }
+
   if (msg == WM_MMD_APPLY_POSE) {
     static bool s_firstLog = false;
     if (!s_firstLog) {
       Log("[WNDPROC] WM_MMD_APPLY_POSE received on main thread!");
       s_firstLog = true;
     }
-    
     if (!s_poseReady) {
       InitMmdPoseOnMainThread();
     }
@@ -1817,14 +1513,10 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
     g_mmdPendingApply = false;
     return 0;
   }
-  
   if (msg >= (WM_USER + 100) && msg <= (WM_USER + 109)) {
-    
-    
     switch (msg) {
     case (WM_USER + 100): 
       Log("[GUI-CMD] Play");
-      
       if (!g_muscleAnim) g_muscleAnim = new MuscleAnim();
       if (!g_muscleAnim->loaded)
         g_muscleAnim->Load(g_muscleAnimPath);
@@ -1835,19 +1527,15 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
           g_musclePlayer->loop  = g_playbackLoop;
         }
         if (g_musclePlayer->playing) {
-          
         } else if (g_musclePlayer->currentTime > 0) {
           g_musclePlayer->TogglePause(); 
-          
           if (g_audioIsClock && g_audioPlayer) g_audioPlayer->Resume();
         } else {
-          
           RefreshEntityAnimator();
           if (InitMusclePoseHandler()) {
             if (g_trojanHookTarget) MH_EnableHook(g_trojanHookTarget);
             g_trojanActive = true;
             g_musclePlayer->Start(g_muscleAnim->Duration());
-            
             if (g_cameraEnabled) {
               if (!g_cameraVmd) g_cameraVmd = LoadVmd(g_cameraVmdPath);
               if (g_cameraVmd && g_cameraVmd->loaded &&
@@ -1856,7 +1544,6 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
                 g_cameraNeedsCapture = true;
               }
             }
-            
             AudioStartFresh();
           }
         }
@@ -1880,13 +1567,10 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
         memset(g_mouthWeights, 0, sizeof(g_mouthWeights));
         CleanupPoseHandler();
         RestoreBigList();
-        
         if (g_confirmedSMC && OFF_allMorphBoneDirty > 0) {
           *(bool *)((char *)g_confirmedSMC + OFF_allMorphBoneDirty) = true;
         }
-        
         memset(g_faceBoneTouched, 0, sizeof(g_faceBoneTouched));
-        
         for (int i = 0; i < NUM_EXTRA_MORPHS; i++) {
           g_extraMorphs[i].weight = 0;
           g_extraMorphs[i].prevWeight = 0;
@@ -1894,17 +1578,11 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
         RestoreDisabledComponents();
         RestoreSkirtColliders();
         SafeSetAnimatorEnabled(true);
-        
-        
         if (g_cameraActive) {
           RestoreCinemachine();
         }
         ResetCameraState();
-        
-        
-        
         s_firstFrame = true;
-        
         if (g_audioPlayer) g_audioPlayer->Stop();
         g_audioIsClock = false;
         g_audioPendingStart = false;
@@ -1962,7 +1640,6 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
       return 0;
     case (WM_USER + 106): 
       Log("[GUI-CMD] Re-capture character");
-      
       if (g_musclePlayer &&
           (g_musclePlayer->playing || g_musclePlayer->currentTime > 0)) {
         g_musclePlayer->Stop();
@@ -1975,13 +1652,11 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
           g_cameraNeedsCapture = false;
         }
         SafeSetAnimatorEnabled(true);
-        
         if (g_audioPlayer) g_audioPlayer->Stop();
         g_audioIsClock = false;
         g_audioPendingStart = false;
         Log("[GUI-CMD] Stopped for character switch");
       }
-      
       g_cachedAnimator = nullptr;
       s_poseReady = false;
       g_mmdHasMuscles = false;
@@ -1993,7 +1668,6 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
       g_mouthWeightsFromMuscle = false;
       g_bsIndicesResolved = false;
       memset(g_mouthWeights, 0, sizeof(g_mouthWeights));
-      
       RefreshEntityAnimator();
       if (g_cachedAnimator) {
         Log("[GUI-CMD] New character captured: animator=%p", g_cachedAnimator);
@@ -2005,9 +1679,6 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
   }
   LRESULT r = CallWindowProcW(g_origWndProc, hwnd, msg, wParam, lParam);
 
-  
-  
-  
   if (g_guiVisible && g_cursorShowAction && g_actionInvokeMethod) {
     if (msg == WM_LBUTTONDOWN || msg == WM_RBUTTONDOWN ||
         msg == WM_MBUTTONDOWN || msg == WM_ACTIVATE ||
@@ -2019,16 +1690,12 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
   return r;
 }
 
-
 static void MuscleAnimationTick() {
   if (!g_musclePlayer || !g_musclePlayer->playing || !g_trojanActive)
     return;
   if (!g_muscleAnim || !g_muscleAnim->loaded)
     return;
 
-  
-  
-  
   if (g_mmdPendingApply)
     return;
 
@@ -2036,14 +1703,9 @@ static void MuscleAnimationTick() {
   float frameNum =
       g_musclePlayer->Tick(); 
 
-  
-  
   if (g_audioPendingStart && g_audioPlayer && g_audioPlayer->loaded) {
     float expectedAudio = g_musclePlayer->currentTime + g_audioOffset;
     if (expectedAudio >= 0.0f) {
-      
-      
-      
       g_audioPendingStart = false;
       if (g_gameHwnd) {
         int motionMs = (int)(g_musclePlayer->currentTime * 1000.0f);
@@ -2053,10 +1715,7 @@ static void MuscleAnimationTick() {
     }
   }
 
-  
-  
   if (g_audioIsClock && g_audioPlayer && g_audioPlayer->loaded) {
-    
     if (fabsf(g_musclePlayer->speed - 1.0f) > 0.001f) {
       g_audioPlayer->Pause();
       g_audioIsClock = false;
@@ -2064,32 +1723,25 @@ static void MuscleAnimationTick() {
     } else {
       int posMs = g_audioPlayer->GetPositionMs();
       if (posMs > 0) { 
-        
         float audioSec = posMs / 1000.0f - g_audioOffset;
         float drift = audioSec - g_musclePlayer->currentTime;
 
         if (fabsf(drift) > 0.15f) {
-          
           g_musclePlayer->currentTime = audioSec;
         } else if (fabsf(drift) > 0.005f) {
-          
           g_musclePlayer->currentTime += drift * 0.1f;
         }
-        
         if (g_musclePlayer->currentTime < 0) g_musclePlayer->currentTime = 0;
         frameNum = g_musclePlayer->currentTime * 30.0f;
       }
 
-      
       if (g_musclePlayer->loop && prevTime > 0.5f &&
           g_musclePlayer->currentTime < 0.1f) {
         if (g_audioOffset < 0.0f) {
-          
           g_audioPendingStart = true;
           g_audioIsClock = false;
           Log("[AUDIO] Loop restart deferred (negative offset)");
         } else if (g_gameHwnd) {
-          
           PostMessageW(g_gameHwnd, WM_USER + 108, (WPARAM)0, 0);
           Log("[AUDIO] Loop restart posted");
         }
@@ -2101,7 +1753,6 @@ static void MuscleAnimationTick() {
       frameNum / g_muscleAnim->fps; 
   MuscleFrame mf = g_muscleAnim->GetFrame(timeSec);
 
-  
   memcpy((void *)g_mmdMuscles, mf.muscles, 95 * sizeof(float));
   memcpy((void *)g_mmdBodyPos, mf.bodyPos, 3 * sizeof(float));
   memcpy((void *)g_mmdBodyRot, mf.bodyRot, 4 * sizeof(float));
@@ -2117,13 +1768,10 @@ static void MuscleAnimationTick() {
   }
   g_mmdHasMuscles = true;
 
-  
-  
   if (!g_vmd && !g_bsIndicesResolved) {
     g_bsIndicesResolved = true; 
 
     if (g_morphVmdPath[0] != '\0') {
-      
       VmdFile *v = LoadVmd(g_morphVmdPath);
       if (v && v->loaded && !v->morphTimelines.empty()) {
         g_vmd = v;
@@ -2134,7 +1782,6 @@ static void MuscleAnimationTick() {
         if (v) FreeVmd(v);
       }
     } else {
-      
       WIN32_FIND_DATAA fd;
       HANDLE hFind = FindFirstFileA("plugin\\*.vmd", &fd);
       if (hFind != INVALID_HANDLE_VALUE) {
@@ -2142,7 +1789,6 @@ static void MuscleAnimationTick() {
         char bestName[MAX_PATH] = {};
         int bestMorphCount = -1;
         do {
-          
           if (_stricmp(fd.cFileName, "camera.vmd") == 0) continue;
 
           char vmdPath[MAX_PATH];
@@ -2157,7 +1803,6 @@ static void MuscleAnimationTick() {
           Log("[MOUTH] Scanned %s: %d morph timelines, %u frames",
               fd.cFileName, mc, candidate->totalFrames);
           if (mc > bestMorphCount) {
-            
             if (bestVmd) FreeVmd(bestVmd);
             bestVmd = candidate;
             bestMorphCount = mc;
@@ -2184,10 +1829,7 @@ static void MuscleAnimationTick() {
     }
   }
 
-  
   if (g_vmd && g_vmd->loaded && !g_vmd->morphTimelines.empty()) {
-    
-    
     static const char *morphNames[5] = {
         "\xe3\x81\x82", 
         "\xe3\x81\x84", 
@@ -2216,7 +1858,6 @@ static void MuscleAnimationTick() {
         }
       }
 
-      
       for (auto &pair : g_vmd->morphTimelines) {
         float peak = 0;
         float firstW = pair.second.keys.empty() ? 0 : pair.second.keys.front().weight;
@@ -2227,7 +1868,6 @@ static void MuscleAnimationTick() {
       }
     }
 
-    
     static float s_prevMouthWeights[5] = {};
     static float s_mouthAlpha =
         0.25f; 
@@ -2238,7 +1878,6 @@ static void MuscleAnimationTick() {
       if (it != g_vmd->morphTimelines.end()) {
         target = it->second.Sample(frameNum);
       }
-      
       float smoothed = s_prevMouthWeights[i] +
                        s_mouthAlpha * (target - s_prevMouthWeights[i]);
       s_prevMouthWeights[i] = smoothed;
@@ -2246,7 +1885,6 @@ static void MuscleAnimationTick() {
     }
     g_mouthWeightsFromMuscle = true;
 
-    
     static float s_extraAlpha = 0.25f;
     for (int em = 0; em < NUM_EXTRA_MORPHS; em++) {
       float target = 0.0f;
@@ -2261,13 +1899,10 @@ static void MuscleAnimationTick() {
     }
   }
 
-  
   if (g_gameHwnd) {
     g_mmdPendingApply = true;
     PostMessageW(g_gameHwnd, WM_MMD_APPLY_POSE, 0, 0);
   }
-  
-  
 
   static bool s_logged = false;
   if (!s_logged) {
@@ -2291,12 +1926,10 @@ static void AnimationTick() {
   if (!g_resolvedMappings || g_resolvedMappings->empty())
     return;
 
-  
   SafeSetAnimatorEnabled(false);
 
   float frame = g_player->Tick();
 
-  
   FILE *dumpF = nullptr;
   if (!s_dumpedFrame0 && frame < 1.0f) {
     s_dumpedFrame0 = true;
@@ -2315,12 +1948,6 @@ static void AnimationTick() {
     InterpResult interp =
         InterpolateBone(it->second.keys, frame, rm.isPositionBone);
 
-    
-    
-    
-    
-    
-    
     Quat raw = interp.rotation;
     Quat R_bip = rm.hasBind ? Quat{rm.bindRot[0], rm.bindRot[1], rm.bindRot[2],
                                    rm.bindRot[3]}
@@ -2331,42 +1958,34 @@ static void AnimationTick() {
     int mode = g_corrMode % g_corrCount;
     switch (mode) {
     case 0: {
-      
       result = QuatMul(QuatMul(R_bip, QuatInv(R_mmd)), raw);
     } break;
     case 1: {
-      
       Quat vmd_flipped = {raw.x, raw.y, -raw.z, -raw.w};
       result = QuatMul(QuatMul(R_bip, QuatInv(R_mmd)), vmd_flipped);
     } break;
     case 2: {
-      
       Quat vmd_flipped = {-raw.x, -raw.y, raw.z, raw.w};
       result = QuatMul(QuatMul(R_bip, QuatInv(R_mmd)), vmd_flipped);
     } break;
     case 3: {
-      
       result = QuatMul(raw, QuatMul(R_bip, QuatInv(R_mmd)));
     } break;
     case 4: {
-      
       result = QuatMul(QuatMul(QuatInv(R_mmd), R_bip), raw);
     } break;
     case 5: {
-      
       static const Quat G = {0.5f, -0.5f, 0.5f, 0.5f};
       static const Quat Ginv = {-0.5f, 0.5f, -0.5f, 0.5f};
       Quat sim_raw = QuatMul(QuatMul(G, raw), Ginv);
       result = QuatMul(QuatMul(R_bip, QuatInv(R_mmd)), sim_raw);
     } break;
     case 6: {
-      
       static const Quat G = {0.5f, -0.5f, 0.5f, 0.5f};
       static const Quat Ginv = {-0.5f, 0.5f, -0.5f, 0.5f};
       result = QuatMul(R_bip, QuatMul(QuatMul(G, raw), Ginv));
     } break;
     case 7: {
-      
       result = R_bip;
     } break;
     default:
@@ -2381,7 +2000,6 @@ static void AnimationTick() {
                  rm.bindPos[2] + vmdPos.z};
       SafeSetLocalPosition(rm.transform, fp);
     }
-    
     if (dumpF) {
       fprintf(dumpF,
               "%-20s hb=%2d  vmd(%7.4f,%7.4f,%7.4f,%7.4f)  "

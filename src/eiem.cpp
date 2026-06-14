@@ -23,8 +23,6 @@
 
 #include "smc_face.h"
 
-
-
 static int32_t UnboxInt(void *boxed) {
   __try {
     return boxed ? *(int32_t *)((char *)boxed + 16) : 0;
@@ -44,9 +42,6 @@ static bool UnboxBool(void *boxed) {
 #include "trojan.h"
 #include "gui.h"
 #include "init.h"
-
-
-
 
 static HANDLE g_initThread = nullptr;
 

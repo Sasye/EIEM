@@ -1,15 +1,5 @@
 #pragma once
 
-
-
-
-
-
-
-
-
-
-
 static const char *g_humanBoneNames[] = {
     "Hips",                    
     "LeftUpperLeg",            
@@ -69,21 +59,15 @@ static const char *g_humanBoneNames[] = {
 };
 static const int g_humanBoneCount = 55;
 
-
-
-
 static void DiscoverSkeleton();            
 static void *g_playerController = nullptr; 
 static void *g_mainCharEntity = nullptr;   
 static void *g_cachedAnimator =
     nullptr; 
 
-
-
 static VmdFile *g_vmd = nullptr;
 static std::vector<ResolvedBoneMapping> *g_resolvedMappings = nullptr;
 static MmdPlayer *g_player = nullptr;
-
 
 static void SafeRefreshEntity() {
   __try {
@@ -94,9 +78,6 @@ static void SafeRefreshEntity() {
       int ecOff = SafeOff(OFF_entityComplexAnim, 0x110, "entityComplexAnim");
       void *complexAnimCom = *(void **)((char *)entity + ecOff);
       if (complexAnimCom) {
-        
-        
-        
         if (OFF_complexAnimAnimator < 0) {
           __try {
             void *cacClass = il2cpp_object_get_class(complexAnimCom);
@@ -149,13 +130,11 @@ static void SafeGetBoneName(void *transform, char *buf, int sz) {
   }
 }
 
-
 static void *SafeFindChildRecursive(void *transform, const char *targetName,
                                     int maxDepth) {
   if (!transform || maxDepth <= 0)
     return nullptr;
   __try {
-    
     char name[256] = "";
     if (g_object_get_name) {
       void *nameStr = Invoke(g_object_get_name, transform);
@@ -165,7 +144,6 @@ static void *SafeFindChildRecursive(void *transform, const char *targetName,
     if (strcmp(name, targetName) == 0)
       return transform;
 
-    
     void *countBoxed = Invoke(g_transform_get_childCount, transform);
     int count = countBoxed ? *(int *)((char *)countBoxed + 16) : 0;
     for (int i = 0; i < count; i++) {
@@ -182,7 +160,6 @@ static void *SafeFindChildRecursive(void *transform, const char *targetName,
   return nullptr;
 }
 
-
 static void *SafeGetComponentTransform(void *component) {
   if (!component || !g_component_get_transform)
     return nullptr;
@@ -193,14 +170,11 @@ static void *SafeGetComponentTransform(void *component) {
   }
 }
 
-
 static void RefreshEntityAnimator() {
   if (!g_playerController)
     return;
   SafeRefreshEntity();
 }
-
-
 
 static void RestoreDisabledComponents() {
   if (!g_animator_set_enabled)
@@ -237,7 +211,6 @@ static void RestoreDisabledComponents() {
   }
   EnableComp(s_animatorMono, "AnimatorMono");
 
-  
   s_ikDisabled = false;
   memset(s_bipedIK, 0, sizeof(s_bipedIK));
   s_bipedIKCount = 0;
@@ -247,10 +220,7 @@ static void RestoreDisabledComponents() {
   s_followDamperCount = 0;
   s_animatorMono = nullptr;
 
-  
-  
   if (s_bbcCount > 0) {
-    
     if (s_bbc_SetAnimPoseRatio) {
       float zero = 0.0f;
       for (int i = 0; i < s_bbcCount; i++) {
@@ -263,7 +233,6 @@ static void RestoreDisabledComponents() {
         } __except (1) {}
       }
     }
-    
     if (s_bbc_ResetCloth) {
       float resetTime = 0.0f;
       for (int i = 0; i < s_bbcCount; i++) {
@@ -278,7 +247,6 @@ static void RestoreDisabledComponents() {
     }
     Log("[BBC] Restored %d cloth instances (ratio=0, reset)", s_bbcCount);
   }
-  
   s_bbcCount = 0;
   s_skirtBBCIndex = -1;  
   ResetSkirtState();
@@ -286,9 +254,6 @@ static void RestoreDisabledComponents() {
 
   Log("[IK-RESTORE] All components restored");
 }
-
-
-
 
 static void SafeSetLocalRotation(void *transform, Quat q) {
   if (!transform || !g_transform_set_localRotation)
@@ -324,9 +289,6 @@ static void SafeSetAnimatorEnabled(bool enabled) {
   }
 }
 
-
-
-
 static bool ReadWorldPosition(void *transform, Vec3 &out) {
   if (!g_transform_get_position || !transform)
     return false;
@@ -342,17 +304,13 @@ static bool ReadWorldPosition(void *transform, Vec3 &out) {
   return false;
 }
 
-
-
 static void ComputeStances(std::vector<ResolvedBoneMapping> &mappings) {
-  
   for (auto &rm : mappings) {
     if (!rm.valid)
       continue;
     rm.mmdStance = LookupMmdStance(rm.mmdName);
   }
 
-  
   if (!g_transform_get_position) {
     Log("[WARN] get_position not available, using identity Endfield stances");
     for (auto &rm : mappings) {
@@ -362,7 +320,6 @@ static void ComputeStances(std::vector<ResolvedBoneMapping> &mappings) {
     return;
   }
 
-  
   static const struct {
     const char *bone;
     const char *child;
@@ -402,7 +359,6 @@ static void ComputeStances(std::vector<ResolvedBoneMapping> &mappings) {
   };
   static const int chainCount = sizeof(boneChain) / sizeof(boneChain[0]);
 
-  
   std::map<std::string, size_t> nameToIdx;
   for (size_t i = 0; i < mappings.size(); i++) {
     if (mappings[i].valid)
@@ -416,7 +372,6 @@ static void ComputeStances(std::vector<ResolvedBoneMapping> &mappings) {
       continue;
     }
 
-    
     Vec3 defaultAxis = {0, 0, 0};
     bool inTable = false;
     for (int s = 0; s < g_mmdStanceCount; s++) {
@@ -439,7 +394,6 @@ static void ComputeStances(std::vector<ResolvedBoneMapping> &mappings) {
       continue;
     }
 
-    
     Vec3 childPos = thisPos;
     bool foundChild = false;
     for (int c = 0; c < chainCount; c++) {
@@ -476,9 +430,6 @@ static void ComputeStances(std::vector<ResolvedBoneMapping> &mappings) {
   Log("[STANCE] Computed stances for %d bones", (int)mappings.size());
 }
 
-
-
-
 static void CaptureBindPose(ResolvedBoneMapping &rm) {
   if (rm.hasBind)
     return;
@@ -508,18 +459,11 @@ static void CaptureBindPose(ResolvedBoneMapping &rm) {
 }
 
 
-
-
-
-
-
-
 struct MmdRestRot {
   int humanBone;
   float r[4];
 };
 static const MmdRestRot g_mmdRest[] = {
-    
     {0, {0.054970f, -0.000550f, 0.009985f, 0.998438f}},    
     {1, {-0.221591f, 0.253252f, -0.060742f, 0.939719f}},   
     {2, {-0.193183f, -0.279992f, 0.066861f, 0.937984f}},   
@@ -542,7 +486,6 @@ static const MmdRestRot g_mmdRest[] = {
 };
 static const int g_mmdRestCount = sizeof(g_mmdRest) / sizeof(g_mmdRest[0]);
 
-
 static Quat GetMmdRestRot(int hb) {
   for (int i = 0; i < g_mmdRestCount; i++) {
     if (g_mmdRest[i].humanBone == hb)
@@ -553,12 +496,6 @@ static Quat GetMmdRestRot(int hb) {
 }
 
 
-
-
-
-
-
-
 static bool
 CaptureRestPoseViaRebind(std::vector<ResolvedBoneMapping> &mappings) {
   if (!g_cachedAnimator || !g_animator_Rebind) {
@@ -566,11 +503,9 @@ CaptureRestPoseViaRebind(std::vector<ResolvedBoneMapping> &mappings) {
     return false;
   }
 
-  
   SafeSetAnimatorEnabled(true);
   Sleep(50);
 
-  
   __try {
     Invoke(g_animator_Rebind, g_cachedAnimator);
   } __except (1) {
@@ -578,7 +513,6 @@ CaptureRestPoseViaRebind(std::vector<ResolvedBoneMapping> &mappings) {
     return false;
   }
 
-  
   if (g_animator_Update) {
     __try {
       float dt = 0.0f;
@@ -589,17 +523,14 @@ CaptureRestPoseViaRebind(std::vector<ResolvedBoneMapping> &mappings) {
   }
   Sleep(50);
 
-  
   SafeSetAnimatorEnabled(false);
 
-  
   Log("[BIND] Reading rest pose after Rebind...");
   for (auto &rm : mappings) {
     rm.hasBind = false;
     CaptureBindPose(rm); 
   }
 
-  
   for (auto &rm : mappings) {
     if (rm.humanBone >= 0 && rm.humanBone <= 18) {
       Log("  %-18s hb=%2d REST(%7.4f,%7.4f,%7.4f,%7.4f)", rm.mmdName.c_str(),
@@ -610,18 +541,12 @@ CaptureRestPoseViaRebind(std::vector<ResolvedBoneMapping> &mappings) {
   return true;
 }
 
-
-
-
 static int g_corrMode = 0;
 static const int g_corrCount = 8;
 static const char *g_modeNames[] = {
     "retarget",     "retarget-negZ", "retarget-negXY", "retarget-post",
     "retarget-inv", "retarget+sim",  "sim+bind(old)",  "restPose"};
 static bool s_dumpedFrame0 = false;
-
-
-
 
 static bool g_calibMode = false;
 static int g_calibBone = 0;
@@ -660,7 +585,6 @@ static void CalibrationTick() {
   Quat finalRot = QuatMul(bind, g_calibRots[ri].q);
   SafeSetLocalRotation(rm.transform, finalRot);
 
-  
   static int lastBi = -1, lastRi = -1;
   if (bi != lastBi || ri != lastRi) {
     lastBi = bi;
@@ -671,9 +595,6 @@ static void CalibrationTick() {
   }
 }
 
-
-
-
 static MuscleAnim *g_muscleAnim = nullptr;
 static MmdPlayer *g_musclePlayer = nullptr;
 static uint32_t g_poseHandleGC = 0;
@@ -681,24 +602,17 @@ static void *g_cachedMPtr = nullptr;
 static void *g_musclesArray = nullptr;
 static uint32_t g_musclesArrayGC = 0;
 
-
 static float g_restBodyPos[3] = {0};
 static float g_restBodyRot[4] = {0, 0, 0, 1};
-
 
 static BoneAnim *g_boneAnim = nullptr;
 static MmdPlayer *g_bonePlayer = nullptr;
 
-
-
-
 struct Il2CppHumanPose {
   float bodyPosX, bodyPosY, bodyPosZ;           
   float bodyRotX, bodyRotY, bodyRotZ, bodyRotW; 
-  
   void *muscles; 
 };
-
 
 static void *CreateFloatArray(int count) {
   if (!il2cpp_array_new_specific)
@@ -716,12 +630,9 @@ static void *CreateFloatArray(int count) {
   return arr;
 }
 
-
-
 static float *GetArrayData(void *arr) {
   if (!arr)
     return nullptr;
-  
   return (float *)((char *)arr + 32);
 }
 
@@ -735,7 +646,6 @@ static bool InitMusclePoseHandler() {
     return false;
   }
 
-  
   void *avatar = Invoke(g_animator_get_avatar, g_cachedAnimator);
   void *rootTransform = SafeGetComponentTransform(g_cachedAnimator);
   if (!avatar || !rootTransform) {
@@ -745,7 +655,6 @@ static bool InitMusclePoseHandler() {
 
   void *poseHandler = nullptr;
 
-  
   __try {
     poseHandler = il2cpp_object_new(g_humanPoseHandlerClass);
     if (!poseHandler) {
@@ -765,12 +674,10 @@ static bool InitMusclePoseHandler() {
     return false;
   }
 
-  
   g_poseHandleGC = il2cpp_gchandle_new(poseHandler, true);
   Log("[MUSCLE] GC pinned handler: handle=%u obj=%p", g_poseHandleGC,
       poseHandler);
 
-  
   g_cachedMPtr = *(void **)((char *)poseHandler + 16);
   Log("[MUSCLE] m_Ptr = %p", g_cachedMPtr);
   if (!g_cachedMPtr) {
@@ -778,8 +685,6 @@ static bool InitMusclePoseHandler() {
     return false;
   }
 
-  
-  
   g_musclesArray = CreateFloatArray(95);
   if (!g_musclesArray) {
     Log("[MUSCLE] Failed to create float[95] array");
@@ -789,12 +694,10 @@ static bool InitMusclePoseHandler() {
   Log("[MUSCLE] GC pinned muscles array: handle=%u arr=%p", g_musclesArrayGC,
       g_musclesArray);
 
-  
   void *mPtrCheck = *(void **)((char *)poseHandler + 16);
   Log("[MUSCLE] m_Ptr after array alloc = %p (was %p)", mPtrCheck,
       g_cachedMPtr);
 
-  
   if (g_humanPoseHandler_GetHumanPose) {
     Il2CppHumanPose testPose = {};
     __try {
@@ -805,7 +708,6 @@ static bool InitMusclePoseHandler() {
       if (exc) {
         Log("[MUSCLE] GetHumanPose exception");
       } else {
-        
         g_restBodyPos[0] = testPose.bodyPosX;
         g_restBodyPos[1] = testPose.bodyPosY;
         g_restBodyPos[2] = testPose.bodyPosZ;
@@ -819,8 +721,6 @@ static bool InitMusclePoseHandler() {
             testPose.bodyRotX, testPose.bodyRotY, testPose.bodyRotZ,
             testPose.bodyRotW);
 
-        
-        
         if (g_animator_GetBoneTransform && g_cachedAnimator) {
           void *rootT = SafeGetComponentTransform(g_cachedAnimator);
           void *headT = SafeGetBoneTransform(10); 
@@ -840,7 +740,6 @@ static bool InitMusclePoseHandler() {
     }
   }
 
-  
   if (g_humanPoseHandler_GetHumanPose) {
     void **slots = (void **)g_humanPoseHandler_GetHumanPose;
     Log("[MI-DUMP] GetHumanPose MethodInfo at %p:",
@@ -848,7 +747,6 @@ static bool InitMusclePoseHandler() {
     for (int i = 0; i < 10; i++) {
       Log("[MI-DUMP]   [%d] = %p", i, slots[i]);
     }
-    
     void *mp = ((MInfo *)g_humanPoseHandler_GetHumanPose)->mp;
     Log("[MI-DUMP]   MInfo::mp = %p (this is what Hook() uses)", mp);
   }
@@ -860,10 +758,6 @@ static bool InitMusclePoseHandler() {
 
 static int s_muscleLogCounter = 0;
 
-
-
-
-
 static Quat QMul(Quat a, Quat b) {
   Quat r;
   r.x = a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y;
@@ -872,7 +766,6 @@ static Quat QMul(Quat a, Quat b) {
   r.w = a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z;
   return r;
 }
-
 
 static Quat SafeGetLocalRotation(void *transform) {
   Quat q = {0, 0, 0, 1};
@@ -886,7 +779,6 @@ static Quat SafeGetLocalRotation(void *transform) {
   }
   return q;
 }
-
 
 static Vec3 SafeGetLocalPosition(void *transform) {
   Vec3 p = {0, 0, 0};
@@ -913,11 +805,9 @@ static void BoneAnimationTick() {
   if (!g_cachedAnimator || !g_animator_GetBoneTransform)
     return;
 
-  
   if (!g_boneRestCaptured) {
     Log("[BONE] Forcing T-pose and capturing game rest pose...");
 
-    
     SafeSetAnimatorEnabled(false);
     if (g_animator_Rebind) {
       __try {
@@ -927,10 +817,8 @@ static void BoneAnimationTick() {
         Log("[BONE] Rebind() crashed");
       }
     }
-    
     Sleep(50);
 
-    
     static const char *boneNames[] = {"Hips",
                                       "LeftUpperLeg",
                                       "RightUpperLeg",
@@ -1001,7 +889,6 @@ static void BoneAnimationTick() {
 
     g_boneRestCaptured = true;
 
-    
     FILE *df = fopen("plugin\\bone_rest_compare.txt", "w");
     if (df) {
       fprintf(df, "=== Bone Rest Pose Comparison ===\n\n");
@@ -1041,15 +928,12 @@ static void BoneAnimationTick() {
         g_boneRestHipsPos.z);
   }
 
-  
-  
   SafeSetAnimatorEnabled(
       false); 
 
   float time = g_bonePlayer->Tick();
   BoneFrame bf = g_boneAnim->GetFrame(time);
 
-  
   auto qMul = [](const float a[4], const float b[4], float out[4]) {
     out[0] = a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1];
     out[1] = a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0];
@@ -1065,7 +949,6 @@ static void BoneAnimationTick() {
 
     float *delta = bf.bones[b];
 
-    
     float gameRest[4] = {g_boneRestRot[b].x, g_boneRestRot[b].y,
                          g_boneRestRot[b].z, g_boneRestRot[b].w};
     float finalRot[4];
@@ -1076,7 +959,6 @@ static void BoneAnimationTick() {
     applied++;
   }
 
-  
   void *hipsT = SafeGetBoneTransform(0);
   if (hipsT) {
     Vec3 hipsPos;
@@ -1088,7 +970,6 @@ static void BoneAnimationTick() {
 
   static int s_logCount = 0;
   if (s_logCount < 3) {
-    
     BoneFrame f0 = g_boneAnim->GetFrame(0);
     Log("[BONE] t=%.2f applied=%d | Hips gameR(%.3f,%.3f,%.3f,%.3f) "
         "d(%.3f,%.3f,%.3f,%.3f)",

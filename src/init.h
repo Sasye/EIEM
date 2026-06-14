@@ -1,18 +1,6 @@
 #pragma once
 
-
-
-
-
-
-
-
-
-
-
-
 static void LoadAndResolveVmd(HWND hwnd) {
-  
   char filePath[MAX_PATH] = {0};
   OPENFILENAMEA ofn = {};
   ofn.lStructSize = sizeof(ofn);
@@ -30,7 +18,6 @@ static void LoadAndResolveVmd(HWND hwnd) {
 
   Log("[VMD] Loading: %s", filePath);
 
-  
   if (g_vmd) {
     FreeVmd(g_vmd);
     g_vmd = nullptr;
@@ -39,7 +26,6 @@ static void LoadAndResolveVmd(HWND hwnd) {
     g_resolvedMappings = new std::vector<ResolvedBoneMapping>();
   g_resolvedMappings->clear();
 
-  
   g_vmd = LoadVmd(filePath);
   if (!g_vmd->loaded) {
     Log("[VMD] ERROR: %s", g_vmd->error.c_str());
@@ -50,16 +36,13 @@ static void LoadAndResolveVmd(HWND hwnd) {
       g_vmd->modelName, g_vmd->totalFrames, g_vmd->totalFrames / 30.0f,
       g_vmd->boneTimelines.size());
 
-  
   FILE *dumpFile = fopen("plugin/eiem_vmd_dump.txt", "w");
   if (dumpFile) {
     DumpVmd(g_vmd, dumpFile);
 
-    
     fprintf(dumpFile, "\n=== Bone Mapping Resolution ===\n");
     RefreshEntityAnimator();
 
-    
     void *charRootTransform = nullptr;
     if (g_cachedAnimator && g_component_get_transform) {
       charRootTransform = SafeGetComponentTransform(g_cachedAnimator);
@@ -83,7 +66,6 @@ static void LoadAndResolveVmd(HWND hwnd) {
       rm.transform = nullptr;
       rm.valid = false;
 
-      
       if (humanBone >= 0 && g_cachedAnimator && g_animator_GetBoneTransform) {
         void *t = SafeGetBoneTransform(humanBone);
         if (t) {
@@ -92,7 +74,6 @@ static void LoadAndResolveVmd(HWND hwnd) {
         }
       }
 
-      
       if (!rm.valid) {
         const char *fingerName = LookupFingerMapping(mmdName);
         if (fingerName && charRootTransform) {
@@ -140,20 +121,10 @@ static void LoadAndResolveVmd(HWND hwnd) {
 }
 
 
-
-
-
 #include "camera_control.h"
-
-
 
 static bool IsWindowAlive(HWND hwnd) {
   if (!IsWindow(hwnd))
-    return false;
-  
-  
-  
-  if (IsHungAppWindow(hwnd))
     return false;
   return true;
 }
@@ -161,12 +132,10 @@ static bool IsWindowAlive(HWND hwnd) {
 static DWORD WINAPI HotkeyThread(LPVOID) {
   Log("[OK] Hotkey thread started");
 
-  
   void *domain = il2cpp_domain_get();
   if (domain)
     il2cpp_thread_attach(domain);
 
-  
   HWND hwnd = nullptr;
   while (!hwnd) {
     hwnd = FindWindowA("UnityWndClass", NULL);
@@ -175,7 +144,6 @@ static DWORD WINAPI HotkeyThread(LPVOID) {
   g_gameHwnd = hwnd;
   Log("[OK] Game window found: %p", hwnd);
 
-  
   g_origWndProc =
       (WNDPROC)SetWindowLongPtrW(hwnd, GWLP_WNDPROC, (LONG_PTR)MmdWndProc);
   if (g_origWndProc) {
@@ -184,8 +152,7 @@ static DWORD WINAPI HotkeyThread(LPVOID) {
     Log("[WARN] Failed to subclass game window (err=%lu)", GetLastError());
   }
 
-  while (IsWindowAlive(hwnd)) {
-    
+  while (g_guiRunning && IsWindowAlive(hwnd)) {
     static bool insPressed = false;
     if (GetAsyncKeyState(VK_INSERT) & 0x8000) {
       if (!insPressed) {
@@ -196,13 +163,10 @@ static DWORD WINAPI HotkeyThread(LPVOID) {
       insPressed = false;
     }
 
-    
     AnimationTick();
     AnimationTick();
     MuscleAnimationTick();
 
-    
-    
     if (g_camTestMode && g_cameraActive) {
       ApplyCameraFrame(0.0f);
     }
@@ -210,14 +174,10 @@ static DWORD WINAPI HotkeyThread(LPVOID) {
     Sleep((g_musclePlayer && g_musclePlayer->playing) || g_camTestMode ? 0 : 50);
   }
 
-  
-  Log("[INFO] Game window closed/hung, hotkey thread exiting");
+  Log("[INFO] Game window closed, hotkey thread exiting");
   ExitThread(0);
   return 0; 
 }
-
-
-
 
 static void DumpTransformHierarchy(void *transform, int depth, FILE *dumpFile) {
   if (!transform || depth > 15)
@@ -269,9 +229,6 @@ static void DumpTransformHierarchy(void *transform, int depth, FILE *dumpFile) {
   }
 }
 
-
-
-
 static void DiscoverSkeleton() {
   Log("=== EIEM Phase 2: Bone Discovery ===");
 
@@ -285,17 +242,11 @@ static void DiscoverSkeleton() {
   void *domain = il2cpp_domain_get();
   il2cpp_thread_attach(domain);
 
-  
-  
-  
   fprintf(df, "=== Captured Instances ===\n");
   fprintf(df, "PlayerController: %p\n", g_playerController);
   fprintf(df, "MainCharacter Entity: %p\n", g_mainCharEntity);
   fprintf(df, "Cached Animator: %p\n", g_cachedAnimator);
 
-  
-  
-  
   if (g_playerController && !g_mainCharEntity) {
     __try {
       int pcOff = SafeOff(OFF_pcEntity, 0x70, "pcEntity");
@@ -306,9 +257,6 @@ static void DiscoverSkeleton() {
     }
   }
 
-  
-  
-  
   if (g_mainCharEntity && !g_cachedAnimator) {
     __try {
       int ecOff = SafeOff(OFF_entityComplexAnim, 0x110, "entityComplexAnim");
@@ -326,14 +274,10 @@ static void DiscoverSkeleton() {
     }
   }
 
-  
-  
-  
   if (g_cachedAnimator) {
     fprintf(df, "\n=== Animator Analysis ===\n");
     fprintf(df, "Animator ptr: %p\n", g_cachedAnimator);
 
-    
     if (g_animator_get_isHuman) {
       void *boxed = Invoke(g_animator_get_isHuman, g_cachedAnimator);
       bool isHuman = UnboxBool(boxed);
@@ -341,7 +285,6 @@ static void DiscoverSkeleton() {
       Log("Animator.isHuman = %s", isHuman ? "YES" : "NO");
     }
 
-    
     if (g_animator_get_avatar) {
       void *avatar = Invoke(g_animator_get_avatar, g_cachedAnimator);
       fprintf(df, "Avatar: %p\n", avatar);
@@ -354,7 +297,6 @@ static void DiscoverSkeleton() {
       }
     }
 
-    
     if (g_animator_GetBoneTransform) {
       fprintf(df, "\n=== HumanBodyBones Enumeration ===\n");
       int foundCount = 0;
@@ -406,9 +348,6 @@ static void DiscoverSkeleton() {
               g_humanBoneCount);
     }
 
-    
-    
-    
     if (g_component_get_transform) {
       void *animTransform = Invoke(g_component_get_transform, g_cachedAnimator);
       if (animTransform) {
@@ -417,30 +356,21 @@ static void DiscoverSkeleton() {
       }
     }
 
-    
-    
-    
     fprintf(df, "\n=== BlendShape Discovery ===\n");
     if (g_component_get_gameObject && g_smr_get_sharedMesh &&
         g_mesh_get_blendShapeCount && g_mesh_GetBlendShapeName) {
-      
       void *go = nullptr;
       __try {
         go = Invoke(g_component_get_gameObject, g_cachedAnimator);
       } __except (1) {
       }
       if (go) {
-        
-        
         void *animTransform = nullptr;
         __try {
           animTransform = Invoke(g_component_get_transform, g_cachedAnimator);
         } __except (1) {
         }
         if (animTransform) {
-          
-          
-          
           const char *faceMeshNames[] = {"S_actor_endminf_face_01_lod0",
                                          "S_actor_endminf_body_01_lod0",
                                          nullptr};
@@ -450,7 +380,6 @@ static void DiscoverSkeleton() {
             if (!meshTransform)
               continue;
 
-            
             void *meshGo = nullptr;
             __try {
               meshGo = Invoke(g_component_get_gameObject, meshTransform);
@@ -460,7 +389,6 @@ static void DiscoverSkeleton() {
             if (!meshGo)
               continue;
 
-            
             void *smrType = il2cpp_class_get_type(g_skinnedMeshRendererClass);
             void *smrTypeObj = il2cpp_type_get_object(smrType);
             void *smr = nullptr;
@@ -473,7 +401,6 @@ static void DiscoverSkeleton() {
             if (!smr)
               continue;
 
-            
             void *mesh = nullptr;
             __try {
               mesh = Invoke(g_smr_get_sharedMesh, smr);
@@ -483,7 +410,6 @@ static void DiscoverSkeleton() {
             if (!mesh)
               continue;
 
-            
             void *countBoxed = nullptr;
             __try {
               countBoxed = Invoke(g_mesh_get_blendShapeCount, mesh);
@@ -502,7 +428,6 @@ static void DiscoverSkeleton() {
                 if (nameStr)
                   ReadStrUtf8(nameStr, bsName, sizeof(bsName));
 
-                
                 void *wParams[] = {&bs};
                 void *wBoxed = Invoke(g_smr_GetBlendShapeWeight, smr, wParams);
                 float weight = wBoxed ? *(float *)((char *)wBoxed + 16) : 0.0f;
@@ -541,11 +466,7 @@ static void DiscoverSkeleton() {
 }
 
 
-
-
-
 static DWORD WINAPI InitThread(LPVOID) {
-  
   while (!GetModuleHandleW(L"GameAssembly.dll"))
     Sleep(500);
   Sleep(3000); 
@@ -562,24 +483,17 @@ static DWORD WINAPI InitThread(LPVOID) {
   }
   Log("[OK] IL2CPP API resolved");
 
-  
   InitHardcodedMuscleMap();
 
-  
   void *domain = il2cpp_domain_get();
   il2cpp_thread_attach(domain);
   size_t ac;
   void **asms = il2cpp_domain_get_assemblies(domain, &ac);
   Log("[OK] Domain attached, %zu assemblies", ac);
 
-  
   MH_Initialize();
 
-  
-  
-  
 
-  
   g_transformClass = FindClass("UnityEngine", "Transform", asms, ac);
   if (g_transformClass) {
     Log("[OK] Transform class found");
@@ -609,14 +523,12 @@ static DWORD WINAPI InitThread(LPVOID) {
     Log("[WARN] Transform class NOT found");
   }
 
-  
   void *objectClass = FindClass("UnityEngine", "Object", asms, ac);
   if (objectClass) {
     g_object_get_name = FindMethod(objectClass, "get_name", 0);
     Log("[OK] Object.get_name: %p", g_object_get_name);
   }
 
-  
   g_animatorClass = FindClass("UnityEngine", "Animator", asms, ac);
   if (g_animatorClass) {
     Log("[OK] Animator class found");
@@ -634,7 +546,6 @@ static DWORD WINAPI InitThread(LPVOID) {
     Log("  Rebind: %p  Update: %p", g_animator_Rebind, g_animator_Update);
     Log("  SetBoneLocalRotation: %p", g_animator_SetBoneLocalRotation);
 
-    
     void *behaviourClass = FindClass("UnityEngine", "Behaviour", asms, ac);
     if (behaviourClass) {
       g_animator_get_enabled = FindMethod(behaviourClass, "get_enabled", 0);
@@ -646,11 +557,9 @@ static DWORD WINAPI InitThread(LPVOID) {
     Log("[WARN] Animator class NOT found");
   }
 
-  
   g_humanPoseHandlerClass =
       FindClass("UnityEngine", "HumanPoseHandler", asms, ac);
   if (g_humanPoseHandlerClass) {
-    
     void *iter = nullptr;
     void *method;
     Log("[HPH] Enumerating HumanPoseHandler methods:");
@@ -660,7 +569,6 @@ static DWORD WINAPI InitThread(LPVOID) {
       int nparams = il2cpp_method_get_param_count(method);
       Log("[HPH]   %s (%d params) = %p", name, nparams, method);
 
-      
       if (strcmp(name, ".ctor") == 0 && nparams == 2)
         g_humanPoseHandler_ctor = method;
       if (strcmp(name, "SetHumanPose") == 0)
@@ -674,7 +582,6 @@ static DWORD WINAPI InitThread(LPVOID) {
       }
     }
 
-    
     __try {
       il2cpp_class_get_method_from_name(g_humanPoseHandlerClass,
                                         "SetInternalAvatarPose", 1);
@@ -688,7 +595,6 @@ static DWORD WINAPI InitThread(LPVOID) {
       Log("[HPH]   get_method_from_name crashed for SetInternalHumanPose");
     }
 
-    
     if (!g_humanPoseHandler_SetHumanPose && il2cpp_resolve_icall) {
       Log("[HPH] SetHumanPose stripped! Resolving native icalls...");
 
@@ -706,8 +612,6 @@ static DWORD WINAPI InitThread(LPVOID) {
         Log("[HPH]   SetInternalHumanPose = %p", fn2);
       }
 
-      
-      
       void *fn3 =
           il2cpp_resolve_icall("UnityEngine.HumanPoseHandler::SetHumanPose");
       if (fn3) {
@@ -715,7 +619,6 @@ static DWORD WINAPI InitThread(LPVOID) {
         Log("[HPH]   SetHumanPose compiled = %p", fn3);
       }
 
-      
       auto dumpBytes64 = [](const char *name, void *fn) {
         if (!fn)
           return;
@@ -734,7 +637,6 @@ static DWORD WINAPI InitThread(LPVOID) {
       g_icall_GetInternalAvatarPose = (fn_InternalAvatarPose)fnGet;
       Log("[HPH]   GetInternalAvatarPose = %p", fnGet);
 
-      
       if (fnGet && g_icall_SetInternalAvatarPose) {
         MH_STATUS st =
             MH_CreateHook(fnGet, (void *)Hooked_GetInternalAvatarPose,
@@ -752,16 +654,11 @@ static DWORD WINAPI InitThread(LPVOID) {
       dumpBytes64("GetAvatarPose", fnGet);
       dumpBytes64("SetHumanPose", fn3);
 
-      
       void *compiledGet = ((void **)g_humanPoseHandler_GetHumanPose)[0];
       if (compiledGet) {
         Log("[SCAN] Compiled GetHumanPose at %p", compiledGet);
         unsigned char *p = (unsigned char *)compiledGet;
 
-        
-        
-        
-        
         uintptr_t gaBase = (uintptr_t)GetModuleHandleW(L"GameAssembly.dll");
         int callOffset = -1;
         int movOffset = -1;
@@ -776,7 +673,6 @@ static DWORD WINAPI InitThread(LPVOID) {
           if (target <= gaBase || target >= gaBase + 0x10000000)
             continue;
 
-          
           unsigned char *candidate = (unsigned char *)target;
           int foundMov = -1;
           __try {
@@ -797,7 +693,6 @@ static DWORD WINAPI InitThread(LPVOID) {
             Log("[SCAN] Helper thunk at %p (found CALL at +0x%X, MOV at +0x%X)",
                 (void *)target, i, foundMov);
 
-            
             for (int j = 0; j < 96; j++) {
               if (h[j] == 0x48 && h[j+1] == 0x8D && h[j+2] == 0x0D) {
                 leaOffset = j;
@@ -831,7 +726,6 @@ static DWORD WINAPI InitThread(LPVOID) {
             }
             Log("[SLOT] icall name: \"%s\"", nameBuf);
 
-            
             char setName[256] = {};
             strncpy(setName, nameBuf, 255);
             char *getPos = strstr(setName, "Get");
@@ -868,7 +762,6 @@ static DWORD WINAPI InitThread(LPVOID) {
     Log("[WARN] HumanPoseHandler NOT found");
   }
 
-  
   g_gameObjectClass = FindClass("UnityEngine", "GameObject", asms, ac);
   if (g_gameObjectClass) {
     g_gameObject_get_transform =
@@ -876,7 +769,6 @@ static DWORD WINAPI InitThread(LPVOID) {
     Log("[OK] GameObject.get_transform: %p", g_gameObject_get_transform);
   }
 
-  
   g_componentClass = FindClass("UnityEngine", "Component", asms, ac);
   if (g_componentClass) {
     g_component_get_gameObject =
@@ -886,14 +778,12 @@ static DWORD WINAPI InitThread(LPVOID) {
     Log("[OK] Component.get_transform: %p", g_component_get_transform);
   }
 
-  
   if (g_gameObjectClass) {
     g_gameObject_GetComponent =
         FindMethod(g_gameObjectClass, "GetComponent", 1);
     Log("[OK] GameObject.GetComponent: %p", g_gameObject_GetComponent);
   }
 
-  
   g_skinnedMeshRendererClass =
       FindClass("UnityEngine", "SkinnedMeshRenderer", asms, ac);
   if (g_skinnedMeshRendererClass) {
@@ -912,7 +802,6 @@ static DWORD WINAPI InitThread(LPVOID) {
     Log("[WARN] SkinnedMeshRenderer class NOT found");
   }
 
-  
   void *meshClass = FindClass("UnityEngine", "Mesh", asms, ac);
   if (meshClass) {
     g_mesh_get_blendShapeCount =
@@ -924,7 +813,6 @@ static DWORD WINAPI InitThread(LPVOID) {
     Log("[WARN] Mesh class NOT found");
   }
 
-  
   g_cameraClass = FindClass("UnityEngine", "Camera", asms, ac);
   if (g_cameraClass) {
     g_camera_get_main = FindMethod(g_cameraClass, "get_main", 0);
@@ -936,8 +824,6 @@ static DWORD WINAPI InitThread(LPVOID) {
     Log("[WARN] Camera class NOT found");
   }
 
-  
-  
   if (!g_camSetPos) {
     g_camSetPos = (void (*)(void *, float *))il2cpp_resolve_icall(
         "UnityEngine.Transform::set_position_Injected(UnityEngine.Vector3&)");
@@ -950,14 +836,11 @@ static DWORD WINAPI InitThread(LPVOID) {
     Log("[CAM] Transform icalls: setPos=%p setRot=%p getPos=%p getRot=%p",
         g_camSetPos, g_camSetRot, g_camGetPos, g_camGetRot);
 
-    
     void *setLocalPos = il2cpp_resolve_icall(
         "UnityEngine.Transform::set_localPosition_Injected(UnityEngine.Vector3&)");
     void *setLocalRot = il2cpp_resolve_icall(
         "UnityEngine.Transform::set_localRotation_Injected(UnityEngine.Quaternion&)");
 
-    
-    
     if (g_camSetPos &&
         MH_CreateHook((void *)g_camSetPos, (void *)Hook_SetPos,
                       (void **)&g_origSetPos) == MH_OK)
@@ -978,16 +861,11 @@ static DWORD WINAPI InitThread(LPVOID) {
         g_origSetPos, g_origSetRot, g_origSetLocalPos, g_origSetLocalRot);
   }
 
-  
-  
-  
   void *pcClass =
       FindClass("Beyond.Gameplay.Core", "PlayerController", asms, ac);
   if (pcClass) {
     Log("[OK] PlayerController class found");
 
-    
-    
     {
       const char *entityNames[] = {"mainCharacter", "m_entity", "_entity",
                                    "m_mainCharacter", "entity",
@@ -1021,7 +899,6 @@ static DWORD WINAPI InitThread(LPVOID) {
             g_mainCharEntity = entity;
             Log("[HOOK] SetMainCharacter: Entity=%p", entity);
 
-            
             if (OFF_entityComplexAnim < 0) {
               __try {
                 void *entClass = il2cpp_object_get_class(entity);
@@ -1054,7 +931,6 @@ static DWORD WINAPI InitThread(LPVOID) {
                   SafeOff(OFF_entityComplexAnim, 0x110, "entityComplexAnim");
               void *complexAnimCom = *(void **)((char *)entity + ecOff);
               if (complexAnimCom) {
-                
                 if (OFF_complexAnimAnimator < 0) {
                   __try {
                     void *cacClass = il2cpp_object_get_class(complexAnimCom);
@@ -1093,12 +969,9 @@ static DWORD WINAPI InitThread(LPVOID) {
             }
           }
           orig_SetMainCharacter(self, entity, flag);
-          
-          
           g_confirmedSMC = nullptr;
           g_skeletalMorphCore = nullptr;
           g_boneMapReady = false;
-          
           ResetFaceCache();
           Log("[SWITCH] SMC tracking reset for new character");
         }
@@ -1115,9 +988,6 @@ static DWORD WINAPI InitThread(LPVOID) {
   } else {
     Log("[WARN] PlayerController class NOT found");
   }
-  
-  
-  
   void *smcClass = FindClass("Beyond.Gameplay.View.SkeletalMorph",
                              "SkeletalMorphCore", asms, ac);
   if (!smcClass)
@@ -1128,7 +998,6 @@ static DWORD WINAPI InitThread(LPVOID) {
     g_skeletalMorphCoreClass = smcClass;
     Log("[FACE] SkeletalMorphCore class found");
 
-    
     void *updateMethod = nullptr;
     void *miter = nullptr;
     void *m;
@@ -1149,7 +1018,6 @@ static DWORD WINAPI InitThread(LPVOID) {
       Log("[FACE] Update method not found in SkeletalMorphCore");
     }
 
-    
     void *jobMethod = nullptr;
     void *specialJobMethod = nullptr;
     miter = nullptr;
@@ -1181,29 +1049,19 @@ static DWORD WINAPI InitThread(LPVOID) {
       }
     }
 
-    
-    
-    
-    
     Log("[FACE] ApplyBoneToTransJob hook DISABLED (unstable ABI)");
   } else {
     Log("[FACE] SkeletalMorphCore class not found");
   }
 
-  
 
-  
-  
   Log("\n=== Phase 2 Init Complete ===");
   Log("Hooks installed. Press Numpad1 in-game to dump bone discovery.");
 
-  
   DumpCursorMethods();
 
-  
   CreateThread(NULL, 0, HotkeyThread, NULL, 0, NULL);
 
-  
   g_guiRunning = true;
   CreateThread(NULL, 0, GuiThread, NULL, 0, NULL);
 

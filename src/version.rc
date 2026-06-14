@@ -1,8 +1,8 @@
 #include <winver.h>
 
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION 0,1,1,0
-PRODUCTVERSION 0,1,1,0
+FILEVERSION 0,1,2,0
+PRODUCTVERSION 0,1,2,0
 FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
 FILEFLAGS 0
 FILEOS VOS__WINDOWS32
@@ -14,11 +14,11 @@ BEGIN
         BLOCK "040904b0"
         BEGIN
             VALUE "FileDescription", "EIEM - Importing Endfield MMD"
-            VALUE "FileVersion", "0.1.1.0"
+            VALUE "FileVersion", "0.1.2.0"
             VALUE "InternalName", "eiem"
             VALUE "OriginalFilename", "eiem.dll"
             VALUE "ProductName", "EIEM"
-            VALUE "ProductVersion", "0.1.1"
+            VALUE "ProductVersion", "0.1.2"
         END
     END
     BLOCK "VarFileInfo"

@@ -1,39 +1,18 @@
 #pragma once
-
-
-
-
-
-
-
-
-
-
 #include <cmath>
 #include <cstdint>
 #include <vector>
 #include "vmd_parser.h"
 #include "mmd_player.h"  
 
-
-
-
-
 #define CAM_SIGN_RX (-1.0f)
 #define CAM_SIGN_RY (-1.0f)
 #define CAM_SIGN_RZ (-1.0f)
-
 
 #define CAM_SCALE    0.07f    
 #define CAM_FOV_BIAS 5.0f     
 #define CAM_YAW_BIAS 180.0f   
 #define CAM_YAW_SIGN 1.0f     
-
-
-
-
-
-
 
 #define CAM_REF_HEIGHT 1.245f
 
@@ -46,14 +25,7 @@ struct CameraState {
   bool valid;
 };
 
-
-
-
-
-
-
 static inline float CamBezierAxis(float p1, float p2, float s) {
-  
   float u = 1.0f - s;
   return 3.0f * u * u * s * p1 + 3.0f * u * s * s * p2 + s * s * s;
 }
@@ -62,16 +34,13 @@ static inline float CamBezierEval(uint8_t bx1, uint8_t by1, uint8_t bx2,
                                   uint8_t by2, float t) {
   float x1 = bx1 / 127.0f, y1 = by1 / 127.0f;
   float x2 = bx2 / 127.0f, y2 = by2 / 127.0f;
-  
   if (fabsf(x1 - y1) < 1e-4f && fabsf(x2 - y2) < 1e-4f) return t;
   if (t <= 0.0f) return 0.0f;
   if (t >= 1.0f) return 1.0f;
-  
   float s = t;
   for (int i = 0; i < 12; i++) {
     float x = CamBezierAxis(x1, x2, s) - t;
     if (fabsf(x) < 1e-5f) break;
-    
     float u = 1.0f - s;
     float dx = 3.0f * u * u * x1 + 6.0f * u * s * (x2 - x1) +
                3.0f * s * s * (1.0f - x2);
@@ -83,7 +52,6 @@ static inline float CamBezierEval(uint8_t bx1, uint8_t by1, uint8_t bx2,
   return CamBezierAxis(y1, y2, s);
 }
 
-
 static inline Quat CamQuatFromEuler(float rx, float ry, float rz) {
   rx *= CAM_SIGN_RX;
   ry *= CAM_SIGN_RY;
@@ -92,13 +60,10 @@ static inline Quat CamQuatFromEuler(float rx, float ry, float rz) {
   Quat qx = {sinf(hx), 0, 0, cosf(hx)};
   Quat qy = {0, sinf(hy), 0, cosf(hy)};
   Quat qz = {0, 0, sinf(hz), cosf(hz)};
-  
   return QuatMul(QuatMul(qy, qx), qz);
 }
 
-
 static inline Vec3 CamQuatRotate(Quat q, Vec3 v) {
-  
   Vec3 u = {q.x, q.y, q.z};
   Vec3 t = {2.0f * (u.y * v.z - u.z * v.y), 2.0f * (u.z * v.x - u.x * v.z),
             2.0f * (u.x * v.y - u.y * v.x)};
@@ -115,9 +80,6 @@ struct CameraPlayer {
 
   void SetVmd(const VmdFile *v) { vmd = v; }
 
-  
-  
-  
   Vec3 SampleInterest(float timeSec) const {
     Vec3 out = {0, 0, 0};
     if (!HasData()) return out;
@@ -148,7 +110,6 @@ struct CameraPlayer {
             k0.position[2] + (k1.position[2] - k0.position[2]) * tz};
   }
 
-  
   CameraState Sample(float timeSec) const {
     CameraState out;
     out.valid = false;
@@ -160,7 +121,6 @@ struct CameraPlayer {
     const auto &keys = vmd->cameraKeys;
     float frameF = timeSec * 30.0f;
 
-    
     if (frameF <= keys.front().frame) {
       BuildState(keys.front(), out);
       return out;
@@ -170,7 +130,6 @@ struct CameraPlayer {
       return out;
     }
 
-    
     int lo = 0, hi = (int)keys.size() - 1;
     while (lo < hi - 1) {
       int mid = (lo + hi) / 2;
@@ -185,10 +144,6 @@ struct CameraPlayer {
     float range = (float)(k1.frame - k0.frame);
     float t = (range > 0.0f) ? (frameF - k0.frame) / range : 0.0f;
 
-    
-    
-    
-    
     const uint8_t *ip = k1.interp;
     float tx = CamBezierEval(ip[0], ip[2], ip[1], ip[3], t);
     float ty = CamBezierEval(ip[4], ip[6], ip[5], ip[7], t);
@@ -212,21 +167,16 @@ struct CameraPlayer {
   }
 
  private:
-  
   void BuildState(const VmdCameraKeyframe &k, CameraState &out) const {
     Vec3 interest = {k.position[0], k.position[1], k.position[2]};
     Vec3 euler = {k.rotation[0], k.rotation[1], k.rotation[2]};
     BuildStateRaw(interest, euler, k.distance, (float)k.fov, out);
   }
 
-  
   void BuildStateRaw(Vec3 interest, Vec3 euler, float distance, float fov,
                      CameraState &out) const {
     out.euler = euler; 
     Quat camRot = CamQuatFromEuler(euler.x, euler.y, euler.z);
-    
-    
-    
     Vec3 offset = CamQuatRotate(camRot, {0.0f, 0.0f, distance});
     Vec3 camPos = {(interest.x + offset.x) * scale,
                    (interest.y + offset.y) * scale,

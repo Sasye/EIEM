@@ -1,19 +1,11 @@
 #pragma once
-
-
-
-
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <windows.h>
 #include "MinHook.h"
 
-
 void Log(const char *fmt, ...);
-
-
-
 
 #define D(ret, name, ...)                                                      \
   typedef ret (*t_##name)(__VA_ARGS__);                                        \
@@ -58,14 +50,10 @@ D(void *, il2cpp_gchandle_get_target, uint32_t);
 D(void, il2cpp_gchandle_free, uint32_t);
 #undef D
 
-
-
-
 static HMODULE hGA = nullptr;
 struct MInfo {
   void *mp;
 };
-
 
 struct Vector3 { float x, y, z; };
 struct Quaternion { float x, y, z, w; };
@@ -92,7 +80,6 @@ static int ReadStr(void *s, char *b, int sz) {
     return -2;
   }
 }
-
 
 static int ReadStrUtf8(void *s, char *b, int sz) {
   __try {
@@ -167,9 +154,6 @@ static void *FindMethod(void *k, const char *n, int pc) {
   return nullptr;
 }
 
-
-
-
 static void *FindMethodInHierarchy(void *k, const char *n, int pc) {
   void *cur = k;
   int depth = 0;
@@ -228,9 +212,6 @@ static void *Invoke(void *method, void *obj, void **params = nullptr) {
   }
 }
 
-
-
-
 static void DumpClassMethods(void *klass, const char *label) {
   if (!klass) return;
   const char *cn = il2cpp_class_get_name(klass);
@@ -243,7 +224,6 @@ static void DumpClassMethods(void *klass, const char *label) {
   }
 }
 
-
 static void DumpClassFields(void *klass, const char *label) {
   if (!klass) return;
   const char *cn = il2cpp_class_get_name(klass);
@@ -255,9 +235,6 @@ static void DumpClassFields(void *klass, const char *label) {
     Log("  [0x%X] %s", (int)fo, fn ? fn : "?");
   }
 }
-
-
-
 
 static int FindFieldInHierarchy(void *klass, const char **names, int nameCount,
                                 const char **outFieldName) {
@@ -284,7 +261,6 @@ static int FindFieldInHierarchy(void *klass, const char **names, int nameCount,
   }
   return -1;
 }
-
 
 static void DumpFieldsHierarchy(void *klass) {
   if (!klass || !il2cpp_class_get_parent)

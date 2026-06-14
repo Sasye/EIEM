@@ -1,32 +1,6 @@
 #pragma once
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 static float s_skirtRadiusA = 1.0f;          
 static float s_skirtRadiusB = 3.0f;          
 static float s_skirtHipRadiusDelta = 0.124f; 
@@ -43,13 +17,9 @@ static int s_skirtCenterAxis = 0;
 static void *s_coll_SetSize = nullptr;       
 static void *s_coll_UpdateParams = nullptr;  
 static void *s_cloth_SetParamChange = nullptr; 
-
 static int OFF_bbc_process = -1;             
 static int OFF_cp_colliderList = -1;         
 static int OFF_radiusSep = -1;               
-
-
-
 
 static void ResetSkirtState() {
   s_skirtScaleResolved = false;
@@ -60,8 +30,6 @@ static void ResetSkirtState() {
 }
 
 
-
-
 static void ApplySkirtColliderScale() {
   if (s_skirtBBCIndex < 0 || s_skirtBBCIndex >= s_bbcCount) return;
   if (!s_bbcInstances[s_skirtBBCIndex]) return;
@@ -69,7 +37,6 @@ static void ApplySkirtColliderScale() {
   s_skirtDirty = false;
 
   void *skirt = s_bbcInstances[s_skirtBBCIndex];
-  
   int offProc = (OFF_bbc_process >= 0) ? OFF_bbc_process : 0xA8;
   int offCL   = (OFF_cp_colliderList >= 0) ? OFF_cp_colliderList : 0x3A0;
   int offRS   = (OFF_radiusSep >= 0) ? OFF_radiusSep : 0x45;
@@ -82,14 +49,12 @@ static void ApplySkirtColliderScale() {
     int count = *(int *)((char *)colliderList + 0x18);
     if (!items || count <= 0 || count > 8) return;
 
-    
     if (!s_skirtScaleResolved) {
       void *coll0 = *(void **)((char *)items + 0x20);
       void *collCls = coll0 ? il2cpp_object_get_class(coll0) : nullptr;
       if (collCls) {
         s_coll_SetSize = FindMethodInHierarchy(collCls, "SetSize", 1);
         s_coll_UpdateParams = FindMethodInHierarchy(collCls, "UpdateParameters", 0);
-        
         if (OFF_radiusSep < 0) {
           const char *rsNames[] = {"radiusSeparation", "m_radiusSeparation"};
           OFF_radiusSep = FindFieldInHierarchy(collCls, rsNames, 2, nullptr);
@@ -101,14 +66,12 @@ static void ApplySkirtColliderScale() {
       void *clothCls = il2cpp_object_get_class(skirt);
       if (clothCls) {
         s_cloth_SetParamChange = FindMethodInHierarchy(clothCls, "SetParameterChange", 0);
-        
         if (OFF_bbc_process < 0) {
           const char *procNames[] = {"process", "m_process", "clothProcess"};
           OFF_bbc_process = FindFieldInHierarchy(clothCls, procNames, 3, nullptr);
           if (OFF_bbc_process >= 0)
             Log("[SKIRT] Resolved BBC->process offset = 0x%X", OFF_bbc_process);
         }
-        
         if (OFF_cp_colliderList < 0 && process) {
           void *procCls = il2cpp_object_get_class(process);
           if (procCls) {
@@ -141,18 +104,13 @@ static void ApplySkirtColliderScale() {
 
     if (!s_coll_SetSize || !s_coll_UpdateParams) return;
 
-    
     for (int i = 0; i < s_skirtColliderCount; i++) {
       void *c = *(void **)((char *)items + 0x20 + i * 8);
       if (!c) continue;
 
-      
-      
-      
       bool isThighCapsule = fabsf(s_skirtOrigCenter[i][0]) > 0.1f;
 
       if (!isThighCapsule) {
-        
         *(unsigned char *)((char *)c + offRS) = 0;
         float *ctR = (float *)((char *)c + 0x20);
         ctR[0] = s_skirtOrigCenter[i][0];
@@ -167,22 +125,14 @@ static void ApplySkirtColliderScale() {
         continue;
       }
 
-      
       *(unsigned char *)((char *)c + offRS) = s_skirtTaperOn ? 1 : 0;
-      
       float *ct = (float *)((char *)c + 0x20);
       ct[0] = s_skirtOrigCenter[i][0] + s_skirtCenterOfs[0];
       ct[1] = s_skirtOrigCenter[i][1] + s_skirtCenterOfs[1];
       ct[2] = s_skirtOrigCenter[i][2] + s_skirtCenterOfs[2];
-      
       float baseR = s_skirtOrigSize[i][0];
-      
-      
-      
       float hipR;
       if (s_skirtHipRadiusDelta >= 0.0f) {
-        
-        
         float hs = (g_charHeight > 0.1f) ? (g_charHeight / 1.245f) : 1.0f;
         float scaledDelta = s_skirtHipRadiusDelta * hs;
         hipR = baseR + scaledDelta;
@@ -217,10 +167,6 @@ static void ApplySkirtColliderScale() {
 
 
 
-
-
-
-
 static void RestoreSkirtColliders() {
   if (!s_skirtScaleResolved) return; 
   if (s_skirtBBCIndex < 0 || s_skirtBBCIndex >= s_bbcCount) return;
@@ -241,14 +187,11 @@ static void RestoreSkirtColliders() {
     for (int i = 0; i < count && i < s_skirtColliderCount; i++) {
       void *c = *(void **)((char *)items + 0x20 + i * 8);
       if (!c) continue;
-      
       *(unsigned char *)((char *)c + offRS) = 0;
-      
       float *ct = (float *)((char *)c + 0x20);
       ct[0] = s_skirtOrigCenter[i][0];
       ct[1] = s_skirtOrigCenter[i][1];
       ct[2] = s_skirtOrigCenter[i][2];
-      
       if (s_coll_SetSize) {
         Vector3 origSize = {
           s_skirtOrigSize[i][0], s_skirtOrigSize[i][1], s_skirtOrigSize[i][2]
@@ -269,7 +212,6 @@ static void RestoreSkirtColliders() {
   } __except (1) {
     Log("[SKIRT] exception in RestoreSkirtColliders");
   }
-  
   s_skirtScaleResolved = false;
   s_skirtDirty = true;
   s_skirtRadiusA = 1.0f;
@@ -277,9 +219,6 @@ static void RestoreSkirtColliders() {
   s_skirtLengthScale = 1.0f;
   s_skirtCenterOfs[0] = s_skirtCenterOfs[1] = s_skirtCenterOfs[2] = 0;
 }
-
-
-
 
 static void ApplySkirtExtremeTest() {
   if (s_skirtBBCIndex < 0 || s_skirtBBCIndex >= s_bbcCount || !s_bbcInstances[s_skirtBBCIndex]) {
@@ -300,7 +239,6 @@ static void ApplySkirtExtremeTest() {
     if (!items || count <= 0 || count > 8) {
       Log("[SKIRT-X] bad count %d", count); return;
     }
-    
     if (!s_coll_SetSize || !s_coll_UpdateParams) {
       void *coll0 = *(void **)((char *)items + 0x20);
       void *collCls = coll0 ? il2cpp_object_get_class(coll0) : nullptr;
@@ -321,7 +259,6 @@ static void ApplySkirtExtremeTest() {
       float *sz = (float *)((char *)c + 0x2C);
       Log("[SKIRT-X] coll[%d] BEFORE center=(%.3f,%.3f,%.3f) size=(%.4f,%.4f,%.4f)",
           i, center[0], center[1], center[2], sz[0], sz[1], sz[2]);
-      
       Vector3 newSize = { 0.25f, 0.25f, 1.0f };
       void *exc = nullptr;
       void *args[] = { &newSize };
@@ -338,11 +275,6 @@ static void ApplySkirtExtremeTest() {
     Log("[SKIRT-X] exception");
   }
 }
-
-
-
-
-
 
 static void *s_cloth_getSerializeData = nullptr;
 static void DumpSkirtClothConstraints() {
@@ -363,15 +295,11 @@ static void DumpSkirtClothConstraints() {
     if (!sd) { Log("[SKIRT-SD] SerializeData null"); return; }
     Log("[SKIRT-SD] SerializeData=%p", sd);
 
-    
     void *sdCls = il2cpp_object_get_class(sd);
     if (!sdCls) { Log("[SKIRT-SD] sd class null"); return; }
     const char *sdName = il2cpp_class_get_name(sdCls);
     Log("[SKIRT-SD] SerializeData class = %s", sdName ? sdName : "?");
 
-    
-    
-    
     struct { int off; const char *name; } targets[] = {
       { 0xC0, "tetherConstraint" },
       { 0xC8, "distanceConstraint" },
@@ -387,9 +315,7 @@ static void DumpSkirtClothConstraints() {
       void *cls = il2cpp_object_get_class(obj);
       const char *cn = cls ? il2cpp_class_get_name(cls) : "?";
       Log("[SKIRT-SD] === %s -> %s @%p ===", targets[t].name, cn ? cn : "?", obj);
-      
       if (cls) DumpClassFields(cls, targets[t].name);
-      
       for (int off = 0x10; off <= 0x60; off += 4) {
         float f = *(float *)((char *)obj + off);
         int   iv = *(int *)((char *)obj + off);
@@ -397,9 +323,6 @@ static void DumpSkirtClothConstraints() {
       }
     }
 
-    
-    
-    
     int offProc2 = (OFF_bbc_process >= 0) ? OFF_bbc_process : 0xA8;
     int offCL2   = (OFF_cp_colliderList >= 0) ? OFF_cp_colliderList : 0x3A0;
     void *process = *(void **)((char *)skirt + offProc2);
