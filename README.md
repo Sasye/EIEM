@@ -27,15 +27,6 @@
 - 多角色同屏播放
 - ...
 
-## 与 EFMI (XXMI) 的兼容性问题
-
-如果与 EFMI (XXMI) 一起使用本插件，则**可能会**导致游戏无法打开或崩溃。
-该问题是由于 EFMI 进行了全局的 DirectX 底层劫持，试图强行接管 EIEM 创建的独立 UI 渲染管线。这种越界操作会导致 EFMI 自身触发严重的内存异常，并最终连带导致整个游戏进程崩溃。
-由于 hook 时机的必要性，此冲突目前**无法由 EIEM 侧进行简单修复**，因此本项目**暂无主动支持 EFMI 的计划**。
-您可以尝试以下替代方案：
-- 向 EFMI 侧提交 Issue 进行反馈，或等待 EFMI 侧的后续更新。
-- 非常欢迎您提交 PR 来协助修复此冲突！
-
 ## 下载
 
 您可以在 [Releases](https://github.com/Sasye/EIEM/releases) 下载最新发布版或从源代码自行编译。
@@ -51,6 +42,7 @@ bin/d3dcompiler_47.dll   → 游戏目录/d3dcompiler_47.dll
 ```
 
 > **注意**：`d3dcompiler_47.dll`（DX环境）和 `vulkan-1.dll`（Vulkan环境）为代理加载器，二者放其一或全放均可。如果你同时在使用其他共用的代理加载器插件（如 [AntiKick](https://github.com/Sasye/EndFieldAntiKick) [SynchroFocus](https://github.com/Sasye/EndfieldSynchroFocus) 或 [BetterBuffBar](https://github.com/Sasye/EndfieldBetterBuffBar)等），无需重复放置代理加载器。
+> 如果您**没有安装过此类型的插件**，您可能需要自行创建plugin文件夹。
 
 ## 资源文件准备
 

@@ -210,6 +210,40 @@ static bool CreateDeviceD3D(HWND hWnd) {
   }
   g_pDCompDevice->CreateTargetForHwnd(hWnd, TRUE, &g_pDCompTarget);
   g_pDCompDevice->CreateVisual(&g_pDCompVisual);
+
+  if (g_pSwapChain) {
+    __try {
+      void *vtable = *(void **)g_pSwapChain;
+      HMODULE hModule = NULL;
+      if (GetModuleHandleExA(
+              GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                  GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+              (LPCSTR)vtable, &hModule)) {
+        char moduleName[MAX_PATH] = {};
+        GetModuleFileNameA(hModule, moduleName, MAX_PATH);
+        for (int i = 0; moduleName[i]; i++)
+          moduleName[i] = (char)tolower((unsigned char)moduleName[i]);
+        if (strstr(moduleName, "d3d11.dll")) {
+          Log("[GUI] DETECTED 3DMigoto/SSMT wrapper on SwapChain!");
+          IDXGISwapChain1 *candidate =
+              *(IDXGISwapChain1 **)((char *)g_pSwapChain + 8);
+          IDXGISwapChain1 *verified = nullptr;
+          if (candidate &&
+              SUCCEEDED(candidate->QueryInterface(IID_PPV_ARGS(&verified)))) {
+            Log("[GUI] Unwrapped real swap chain: %p", verified);
+            g_pSwapChain->Release();
+            g_pSwapChain = verified;
+          } else {
+            Log("[GUI] WARN: +8 offset is not a valid IDXGISwapChain1, "
+                "skipping unwrap");
+          }
+        }
+      }
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+      Log("[GUI] WARN: Exception during 3DMigoto detection, skipping");
+    }
+  }
+
   g_pDCompVisual->SetContent(g_pSwapChain);
   g_pDCompTarget->SetRoot(g_pDCompVisual);
   g_pDCompDevice->Commit();
