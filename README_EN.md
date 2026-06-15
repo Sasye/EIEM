@@ -43,6 +43,7 @@ bin/d3dcompiler_47.dll   → game_dir/d3dcompiler_47.dll
 ```
 
 > **Note**: `d3dcompiler_47.dll` (DX environment) and `vulkan-1.dll` (Vulkan environment) are proxy loaders. You can place either one or both. If you already use another plugin that shares a proxy loader (such as [AntiKick](https://github.com/Sasye/EndFieldAntiKick), [SynchroFocus](https://github.com/Sasye/EndfieldSynchroFocus), or [BetterBuffBar](https://github.com/Sasye/EndfieldBetterBuffBar), etc.), there is no need to place the proxy loader again.
+
 > If you have **never installed a plugin of this type before**, you may need to create the `plugin` folder yourself.
 
 ## Preparing Resource Files

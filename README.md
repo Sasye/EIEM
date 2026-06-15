@@ -42,6 +42,7 @@ bin/d3dcompiler_47.dll   → 游戏目录/d3dcompiler_47.dll
 ```
 
 > **注意**：`d3dcompiler_47.dll`（DX环境）和 `vulkan-1.dll`（Vulkan环境）为代理加载器，二者放其一或全放均可。如果你同时在使用其他共用的代理加载器插件（如 [AntiKick](https://github.com/Sasye/EndFieldAntiKick) [SynchroFocus](https://github.com/Sasye/EndfieldSynchroFocus) 或 [BetterBuffBar](https://github.com/Sasye/EndfieldBetterBuffBar)等），无需重复放置代理加载器。
+
 > 如果您**没有安装过此类型的插件**，您可能需要自行创建plugin文件夹。
 
 ## 资源文件准备
