@@ -164,7 +164,6 @@ static DWORD WINAPI HotkeyThread(LPVOID) {
     }
 
     AnimationTick();
-    AnimationTick();
     MuscleAnimationTick();
 
     if (g_camTestMode && g_cameraActive) {

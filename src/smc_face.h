@@ -348,8 +348,6 @@ static void ResolveMouthShapes(char *smcBase) {
           g_mouthShapes[m].count = vi[5];
           g_mouthShapes[m].jobStartIdx = vi[4]; 
           g_mouthShapes[m].jobCount = vi[5];
-          g_mouthShapes[m].jobStartIdx = vi[4];
-          g_mouthShapes[m].jobCount = vi[5];
           g_mouthShapes[m].resolved = true;
           Log("[MOUTH-RESOLVE] '%s' entry[%d]: morphId=%d smcStartIdx=%d "
               "smcCount=%d partType=%d",

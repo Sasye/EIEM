@@ -34,7 +34,6 @@ This issue stems from EFMI's global low-level DirectX hijacking, which attempts 
 Because of strict hook timing constraints, this conflict **cannot be simply fixed on the EIEM side** at present, so we currently **have no active plans to support EFMI**.
 Suggested alternatives:
 - Open an issue with EFMI to report the problem or wait for their updates.
-- Try using **SSMT** as an alternative to EFMI (briefly tested and appears to be mostly compatible).
 - Pull requests are very welcome if you can help resolve this conflict!
 
 ## Download
