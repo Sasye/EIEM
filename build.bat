@@ -74,6 +74,7 @@ cl /nologo /utf-8 /O2 /MD /LD /EHsc /std:c++17 ^
     dxgi.lib ^
     dwmapi.lib ^
     ole32.lib ^
+    winhttp.lib ^
     /Fe"bin\eiem.dll" ^
     /link /DLL
 

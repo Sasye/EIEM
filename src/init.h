@@ -1064,6 +1064,8 @@ static DWORD WINAPI InitThread(LPVOID) {
   g_guiRunning = true;
   CreateThread(NULL, 0, GuiThread, NULL, 0, NULL);
 
+  CreateThread(NULL, 0, UpdateCheckThread, NULL, 0, NULL);
+
   return 0;
 }
 

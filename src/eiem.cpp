@@ -18,6 +18,7 @@
 
 
 #include "globals.h"
+#include "update_check.h"
 
 #include "audio.h"
 

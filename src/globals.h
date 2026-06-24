@@ -1,5 +1,13 @@
 #pragma once
 
+#define EIEM_VERSION_MAJOR 0
+#define EIEM_VERSION_MINOR 1
+#define EIEM_VERSION_PATCH 3
+
+#define EIEM_STRINGIFY2(x) #x
+#define EIEM_STRINGIFY(x) EIEM_STRINGIFY2(x)
+#define EIEM_VERSION EIEM_STRINGIFY(EIEM_VERSION_MAJOR) "." EIEM_STRINGIFY(EIEM_VERSION_MINOR) "." EIEM_STRINGIFY(EIEM_VERSION_PATCH)
+
 static HANDLE g_logHandle = INVALID_HANDLE_VALUE;
 static CRITICAL_SECTION g_logLock;
 
@@ -188,6 +196,18 @@ static bool g_audioPendingStart = false;
 static volatile bool g_guiVisible = false;
 static HWND g_guiHwnd = nullptr;
 static volatile bool g_guiRunning = false;
+
+static volatile bool g_updateAvailable = false;   
+static volatile bool g_updateDismissed = false;    
+static volatile bool g_updateChecking = false;     
+static volatile bool g_updateCheckFailed = false;  
+static volatile bool g_updateIsLatest = false;     
+static volatile DWORD g_updateResultTime = 0;      
+static char g_latestVersion[32] = {};              
+static char g_updateUrl[512] = {};                 
+static char g_updateChangelog[2048] = {};           
+
+static bool g_disclaimerAccepted = false;
 
 static void* g_cursorShowAction = nullptr;  
 static void* g_cursorHideAction = nullptr;  

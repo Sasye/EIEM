@@ -308,7 +308,8 @@ static void DrawMainPanel() {
   ImGui::Begin("EIEM", nullptr,
                ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
                    ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
-                   ImGuiWindowFlags_NoScrollbar);
+                   ImGuiWindowFlags_NoScrollbar |
+                   ImGuiWindowFlags_NoBringToFrontOnFocus);
   ImGui::PopStyleVar();
 
   const float titleH = 36.0f;
@@ -327,8 +328,36 @@ static void DrawMainPanel() {
 
   dl->AddText(ImVec2(winPos.x + 14, winPos.y + 9), IM_COL32(255, 218, 0, 255),
               "EIEM");
-  dl->AddText(ImVec2(winPos.x + 130, winPos.y + 9),
-              IM_COL32(160, 160, 165, 255), u8"\u63a7\u5236\u9762\u677f");
+  if (!g_updateAvailable) {
+    char verBuf[64];
+    snprintf(verBuf, sizeof(verBuf), "v%s", EIEM_VERSION);
+    dl->AddText(ImVec2(winPos.x + 52, winPos.y + 9),
+                IM_COL32(100, 100, 105, 200), verBuf);
+    dl->AddText(ImVec2(winPos.x + 130, winPos.y + 9),
+                IM_COL32(80, 80, 85, 120), "Priestess is watching you");
+  }
+  if (g_updateAvailable) {
+    float hue = fmodf((float)GetTickCount() / 1500.0f, 1.0f); 
+    float s = 0.9f, l = 0.6f;
+    auto hue2rgb = [](float p, float q, float t) -> float {
+      if (t < 0.0f) t += 1.0f;
+      if (t > 1.0f) t -= 1.0f;
+      if (t < 1.0f/6.0f) return p + (q - p) * 6.0f * t;
+      if (t < 1.0f/2.0f) return q;
+      if (t < 2.0f/3.0f) return p + (q - p) * (2.0f/3.0f - t) * 6.0f;
+      return p;
+    };
+    float q = l < 0.5f ? l * (1.0f + s) : l + s - l * s;
+    float p = 2.0f * l - q;
+    float r = hue2rgb(p, q, hue + 1.0f/3.0f);
+    float g = hue2rgb(p, q, hue);
+    float b = hue2rgb(p, q, hue - 1.0f/3.0f);
+    ImU32 rainbowCol = IM_COL32((int)(r*255), (int)(g*255), (int)(b*255), 255);
+
+    char upgBuf[64];
+    snprintf(upgBuf, sizeof(upgBuf), "v%s -> v%s", EIEM_VERSION, g_latestVersion);
+    dl->AddText(ImVec2(winPos.x + 52, winPos.y + 9), rainbowCol, upgBuf);
+  }
 
   ImGui::SetCursorPos(ImVec2(0, 0));
   ImGui::InvisibleButton("##titlebar_drag",
@@ -801,8 +830,211 @@ static void DrawMainPanel() {
 
   ImGui::EndTabBar();
 
+  ImGui::Separator();
+  ImGui::Spacing();
+
+  bool resultExpired = g_updateResultTime &&
+                       (GetTickCount() - g_updateResultTime > 5000);
+  if (resultExpired && !g_updateAvailable) {
+    g_updateIsLatest = false;
+    g_updateCheckFailed = false;
+  }
+
+  ImGui::TextDisabled("v%s", EIEM_VERSION);
+  ImGui::SameLine();
+
+  if (g_updateChecking) {
+    ImGui::TextDisabled(u8"\u68c0\u67e5\u4e2d..."); 
+  } else if (g_updateAvailable) {
+    char updateLabel[128];
+    snprintf(updateLabel, sizeof(updateLabel),
+             u8"\u65b0\u7248\u672c v%s \u53ef\u7528 - \u70b9\u51fb\u4e0b\u8f7d", g_latestVersion); 
+    ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(80, 60, 0, 200));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(120, 90, 0, 255));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(60, 45, 0, 255));
+    ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 200, 50, 255));
+    if (ImGui::SmallButton(updateLabel)) {
+      ShellExecuteA(NULL, "open", g_updateUrl, NULL, NULL, SW_SHOWNORMAL);
+    }
+    ImGui::PopStyleColor(4);
+  } else if (g_updateIsLatest) {
+    ImGui::TextColored(ImVec4(0.3f, 0.85f, 0.4f, 1.0f),
+                       u8"\u5df2\u662f\u6700\u65b0\u7248\u672c"); 
+  } else if (g_updateCheckFailed) {
+    ImGui::TextColored(ImVec4(0.9f, 0.35f, 0.3f, 1.0f),
+                       u8"\u68c0\u67e5\u5931\u8d25"); 
+  } else {
+    ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(50, 53, 65, 200));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(70, 73, 90, 255));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(40, 42, 55, 255));
+    if (ImGui::SmallButton(u8"\u68c0\u67e5\u66f4\u65b0")) { 
+      CreateThread(NULL, 0,
+                   [](LPVOID) -> DWORD { CheckForUpdates(); return 0; },
+                   NULL, 0, NULL);
+    }
+    ImGui::PopStyleColor(3);
+  }
+
   ImGui::EndChild();
   ImGui::End();
+
+  if (!g_disclaimerAccepted) {
+    ImGui::SetNextWindowSize(ImVec2(340, 0), ImGuiCond_Always);
+    ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+    ImGui::SetNextWindowPos(
+        ImVec2(displaySize.x * 0.5f, displaySize.y * 0.5f),
+        ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16, 14));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 6.0f);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, IM_COL32(20, 22, 30, 245));
+    ImGui::PushStyleColor(ImGuiCol_Border, IM_COL32(255, 218, 0, 150));
+
+    ImGui::Begin(u8"##disclaimer_window", nullptr,
+                 ImGuiWindowFlags_AlwaysAutoResize |
+                 ImGuiWindowFlags_NoTitleBar |
+                 ImGuiWindowFlags_NoResize |
+                 ImGuiWindowFlags_NoCollapse |
+                 ImGuiWindowFlags_NoSavedSettings |
+                 ImGuiWindowFlags_NoMove);
+
+    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.0f, 1.0f),
+                       u8"\u7528\u6237\u534f\u8bae\u4e0e\u514d\u8d23\u58f0\u660e"); 
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + 310.0f);
+
+    ImGui::TextColored(ImVec4(0.9f, 0.8f, 0.3f, 1.0f),
+                       u8"1. \u5f00\u6e90\u8bb8\u53ef"); 
+    ImGui::TextDisabled(
+        u8"\u672c\u63d2\u4ef6\u57fa\u4e8e AGPL-3.0 \u5728 GitHub \u5e73\u53f0"
+        u8"\u5b8c\u5168\u5f00\u6e90\u3002\u6700\u7ec8\u7528\u6237\u5728\u4e0d"
+        u8"\u4fee\u6539\u7684\u524d\u63d0\u4e0b\uff0c\u4f7f\u7528\u548c\u5206"
+        u8"\u53d1\u4e0d\u53d7\u9650\u5236\u3002");
+    ImGui::Spacing();
+
+    ImGui::TextColored(ImVec4(0.9f, 0.8f, 0.3f, 1.0f),
+                       u8"2. \u53cd\u6b3a\u8bc8\u58f0\u660e"); 
+    ImGui::TextDisabled(
+        u8"\u60a8\u4e0d\u5f97\u516c\u7136\u552e\u5356\u672c\u63d2\u4ef6\u8f6f"
+        u8"\u4ef6\u672c\u4f53\u4e14\u672a\u63d0\u4f9b GitHub \u4ed3\u5e93\u5730"
+        u8"\u5740\u3002\u672c\u63d2\u4ef6\u5b8c\u5168\u514d\u8d39\u5f00\u6e90\u3002");
+    ImGui::Spacing();
+
+    ImGui::TextColored(ImVec4(0.9f, 0.8f, 0.3f, 1.0f),
+                       u8"3. \u5185\u5bb9\u5408\u89c4"); 
+    ImGui::TextDisabled(
+        u8"\u60a8\u4e0d\u5f97\u5229\u7528\u672c\u63d2\u4ef6\u5236\u4f5c\u3001"
+        u8"\u64ad\u653e\u6216\u4f20\u64ad\u4efb\u4f55\u4e0d\u5408\u9002\u7684"
+        u8"\u5185\u5bb9\uff08\u5305\u62ec\u4f46\u4e0d\u9650\u4e8e\u8272\u60c5"
+        u8"\u3001\u66b4\u529b\u3001\u653f\u6cbb\u654f\u611f\u7b49\uff09\u3002");
+    ImGui::Spacing();
+
+    ImGui::TextColored(ImVec4(0.9f, 0.8f, 0.3f, 1.0f),
+                       u8"4. \u98ce\u9669\u4e0e\u514d\u8d23"); 
+    ImGui::TextDisabled(
+        u8"\u672c\u9879\u76ee\u4ec5\u4f9b\u5b66\u4e60\u4e0e\u6280\u672f\u7814"
+        u8"\u7a76\u3002\u4f7f\u7528\u53ef\u80fd\u8fdd\u53cd\u6e38\u620f\u670d"
+        u8"\u52a1\u6761\u6b3e\uff0c\u5b58\u5728\u8d26\u53f7\u5c01\u7981\u98ce"
+        u8"\u9669\u3002\u672c\u9879\u76ee\u4e0d\u627f\u62c5\u4efb\u4f55\u8d23\u4efb\u3002");
+
+    ImGui::PopTextWrapPos();
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    float btnW = 200.0f;
+    float avail = ImGui::GetContentRegionAvail().x;
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (avail - btnW) * 0.5f);
+
+    ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(255, 218, 0, 255));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(255, 230, 80, 255));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(200, 170, 0, 255));
+    ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(20, 20, 20, 255));
+    if (ImGui::Button(
+            u8"\u6211\u5df2\u9605\u8bfb\u5e76\u540c\u610f", 
+            ImVec2(btnW, 32))) {
+      g_disclaimerAccepted = true;
+    }
+    ImGui::PopStyleColor(4);
+
+    ImGui::End();
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar(2);
+  }
+
+  if (g_disclaimerAccepted && g_updateAvailable && !g_updateDismissed) {
+    ImGui::SetNextWindowSize(ImVec2(280, 0), ImGuiCond_Always);
+    ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+    ImGui::SetNextWindowPos(
+        ImVec2(displaySize.x * 0.5f, displaySize.y * 0.5f),
+        ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16, 12));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 6.0f);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, IM_COL32(30, 32, 40, 240));
+    ImGui::PushStyleColor(ImGuiCol_Border, IM_COL32(255, 218, 0, 120));
+
+    ImGui::Begin(u8"##update_window", nullptr,
+                 ImGuiWindowFlags_AlwaysAutoResize |
+                 ImGuiWindowFlags_NoTitleBar |
+                 ImGuiWindowFlags_NoResize |
+                 ImGuiWindowFlags_NoCollapse |
+                 ImGuiWindowFlags_NoSavedSettings);
+
+    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.0f, 1.0f),
+                       u8"\u53d1\u73b0\u65b0\u7248\u672c"); 
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    ImGui::Text(u8"\u5f53\u524d\u7248\u672c: v%s", EIEM_VERSION);
+    ImGui::TextColored(ImVec4(0.3f, 1.0f, 0.5f, 1.0f),
+                       u8"\u6700\u65b0\u7248\u672c: v%s", g_latestVersion);
+
+    if (g_updateChangelog[0]) {
+      ImGui::Spacing();
+      ImGui::Separator();
+      ImGui::Spacing();
+      ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.75f, 1.0f),
+                         u8"\u66f4\u65b0\u5185\u5bb9:");
+      char clBuf[512];
+      strncpy(clBuf, g_updateChangelog, sizeof(clBuf) - 1);
+      clBuf[sizeof(clBuf) - 1] = '\0';
+      ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + 250.0f);
+      ImGui::TextDisabled("%s", clBuf);
+      ImGui::PopTextWrapPos();
+    }
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(255, 218, 0, 255));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(255, 230, 80, 255));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(200, 170, 0, 255));
+    ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(20, 20, 20, 255));
+    if (ImGui::Button(u8"\u524d\u5f80\u4e0b\u8f7d", ImVec2(120, 0))) {
+      ShellExecuteA(NULL, "open", g_updateUrl, NULL, NULL, SW_SHOWNORMAL);
+      g_updateDismissed = true;
+    }
+    ImGui::PopStyleColor(4);
+
+    ImGui::SameLine();
+
+    ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(55, 58, 70, 255));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(80, 83, 95, 255));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(40, 42, 55, 255));
+    if (ImGui::Button(u8"\u7a0d\u540e\u518d\u8bf4", ImVec2(120, 0))) {
+      g_updateDismissed = true;
+    }
+    ImGui::PopStyleColor(3);
+
+    ImGui::End();
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar(2);
+  }
 }
 
 static DWORD WINAPI GuiThread(LPVOID) {
