@@ -550,7 +550,7 @@ static void DrawMainPanel() {
   }
 
   ImGui::SetNextItemWidth(-1);
-  ImGui::SliderFloat(u8"\u97f3\u9891\u504f\u79fb##offset", &g_audioOffset, -30.0f, 30.0f, u8"%.1f \u79d2");
+  ImGui::SliderFloat(u8"\u97f3\u9891\u504f\u79fb##offset", &g_audioOffset, -10.0f, 10.0f, u8"%.1f \u79d2");
   ImGui::TextDisabled(u8"\u6b63 = \u8df3\u8fc7\u97f3\u9891\u524d\u594f\uff0c\u8d1f = \u5ef6\u8fdf\u97f3\u9891");
   {
     int volPercent = g_audioVolume / 10;
@@ -828,6 +828,127 @@ static void DrawMainPanel() {
     ImGui::EndTabItem();
   }
 
+  ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
+  bool tabOffset = ImGui::BeginTabItem(u8"\u504f\u79fb");
+  ImGui::PopStyleColor();
+  if (tabOffset) {
+    ImGui::Spacing();
+
+    ImGui::TextColored(ImVec4(0.90f, 0.75f, 0.20f, 1.0f),
+                       u8"\u4f4d\u7f6e\u504f\u79fb");
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    ImGui::SetNextItemWidth(-60);
+    ImGui::SliderFloat("X##pos", &g_posOffsetX, -10.0f, 10.0f, "%.2f");
+    ImGui::SetNextItemWidth(-60);
+    ImGui::SliderFloat("Y##pos", &g_posOffsetY, -10.0f, 10.0f, "%.2f");
+    ImGui::SetNextItemWidth(-60);
+    ImGui::SliderFloat("Z##pos", &g_posOffsetZ, -10.0f, 10.0f, "%.2f");
+
+    ImGui::SameLine();
+    if (ImGui::SmallButton(u8"\u91cd\u7f6e##pos")) {
+      g_posOffsetX = 0.0f;
+      g_posOffsetY = 0.0f;
+      g_posOffsetZ = 0.0f;
+    }
+
+    ImGui::Spacing();
+    ImGui::Spacing();
+
+    ImGui::TextColored(ImVec4(0.90f, 0.75f, 0.20f, 1.0f),
+                       u8"\u65cb\u8f6c\u504f\u79fb");
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    ImGui::SetNextItemWidth(-60);
+    ImGui::SliderFloat(u8"Yaw (\u00b0)##yaw", &g_yawOffsetDeg,
+                       -180.0f, 180.0f, u8"%.1f\u00b0");
+    ImGui::SameLine();
+    if (ImGui::SmallButton(u8"\u91cd\u7f6e##yaw")) {
+      g_yawOffsetDeg = 0.0f;
+    }
+
+    ImGui::Spacing();
+    ImGui::Spacing();
+
+    ImGui::TextColored(ImVec4(0.90f, 0.75f, 0.20f, 1.0f),
+                       u8"\u955c\u5934\u9ad8\u5ea6\u8865\u507f");
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    ImGui::TextDisabled(u8"\u81ea\u52a8: %.3f  \u89d2\u8272\u8eab\u9ad8: %.3fm",
+                        g_camHeightScale, g_charHeight);
+    ImGui::SetNextItemWidth(-60);
+    ImGui::SliderFloat(u8"\u8865\u507f##hb", &g_camHeightBias,
+                       -0.5f, 0.5f, "%.3f");
+    ImGui::SameLine();
+    if (ImGui::SmallButton(u8"\u91cd\u7f6e##hb")) {
+      g_camHeightBias = 0.0f;
+    }
+
+    ImGui::Spacing();
+    ImGui::Spacing();
+
+    ImGui::TextColored(ImVec4(0.90f, 0.75f, 0.20f, 1.0f),
+                       u8"\u52a8\u4f5c\u5e45\u5ea6");
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    ImGui::SetNextItemWidth(-60);
+    ImGui::SliderFloat(u8"\u6574\u4f53##scale", &g_motionScale,
+                       0.10f, 2.00f, "%.2f");
+    ImGui::SameLine();
+    if (ImGui::SmallButton(u8"\u91cd\u7f6e##scale")) {
+      g_motionScale = 1.0f;
+    }
+
+    ImGui::Spacing();
+    ImGui::TextDisabled(u8"\u90e8\u4f4d\u7f29\u653e (\u00d7 \u6574\u4f53)");
+
+    ImGui::SetNextItemWidth(-60);
+    ImGui::SliderFloat(u8"\u8eaf\u5e72##sp", &g_scaleSpine, 0.0f, 2.0f, "%.2f");
+    ImGui::SetNextItemWidth(-60);
+    ImGui::SliderFloat(u8"\u5934\u90e8##hd", &g_scaleHead, 0.0f, 2.0f, "%.2f");
+    ImGui::SetNextItemWidth(-60);
+    ImGui::SliderFloat(u8"\u5de6\u81c2##la", &g_scaleLArm, 0.0f, 2.0f, "%.2f");
+    ImGui::SetNextItemWidth(-60);
+    ImGui::SliderFloat(u8"\u53f3\u81c2##ra", &g_scaleRArm, 0.0f, 2.0f, "%.2f");
+    ImGui::SetNextItemWidth(-60);
+    ImGui::SliderFloat(u8"\u817f\u90e8##lg", &g_scaleLegs, 0.0f, 2.0f, "%.2f");
+    ImGui::SetNextItemWidth(-60);
+    ImGui::SliderFloat(u8"\u624b\u6307##fg", &g_scaleFingers, 0.0f, 2.0f, "%.2f");
+    ImGui::SetNextItemWidth(-60);
+    ImGui::SliderFloat(u8"\u624b\u6307\u95f4\u8ddd##sp", &g_splayBlend, 0.0f, 1.0f, "%.2f");
+
+    ImGui::SameLine();
+    if (ImGui::SmallButton(u8"\u91cd\u7f6e##parts")) {
+      g_scaleSpine = 1.0f; g_scaleHead = 1.0f;
+      g_scaleLArm = 1.0f; g_scaleRArm = 1.0f;
+      g_scaleLegs = 1.0f; g_scaleFingers = 1.0f;
+      g_splayBlend = 0.7f;
+    }
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    if (ImGui::Button(u8"\u5168\u90e8\u91cd\u7f6e", ImVec2(-1, 0))) {
+      g_posOffsetX = 0.0f;
+      g_posOffsetY = 0.0f;
+      g_posOffsetZ = 0.0f;
+      g_yawOffsetDeg = 0.0f;
+      g_camHeightBias = 0.0f;
+      g_motionScale = 1.0f;
+      g_scaleSpine = 1.0f; g_scaleHead = 1.0f;
+      g_scaleLArm = 1.0f; g_scaleRArm = 1.0f;
+      g_scaleLegs = 1.0f; g_scaleFingers = 1.0f;
+      g_splayBlend = 0.7f;
+    }
+
+    ImGui::EndTabItem();
+  }
+
   ImGui::EndTabBar();
 
   ImGui::Separator();
@@ -899,47 +1020,91 @@ static void DrawMainPanel() {
                  ImGuiWindowFlags_NoMove);
 
     ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.0f, 1.0f),
-                       u8"\u7528\u6237\u534f\u8bae\u4e0e\u514d\u8d23\u58f0\u660e"); 
+                       u8"\u7528\u6237\u534f\u8bae\u4e0e\u514d\u8d23\u58f0\u660e");
     ImGui::Separator();
     ImGui::Spacing();
 
     ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + 310.0f);
-
-    ImGui::TextColored(ImVec4(0.9f, 0.8f, 0.3f, 1.0f),
-                       u8"1. \u5f00\u6e90\u8bb8\u53ef"); 
-    ImGui::TextDisabled(
-        u8"\u672c\u63d2\u4ef6\u57fa\u4e8e AGPL-3.0 \u5728 GitHub \u5e73\u53f0"
-        u8"\u5b8c\u5168\u5f00\u6e90\u3002\u6700\u7ec8\u7528\u6237\u5728\u4e0d"
-        u8"\u4fee\u6539\u7684\u524d\u63d0\u4e0b\uff0c\u4f7f\u7528\u548c\u5206"
-        u8"\u53d1\u4e0d\u53d7\u9650\u5236\u3002");
-    ImGui::Spacing();
-
-    ImGui::TextColored(ImVec4(0.9f, 0.8f, 0.3f, 1.0f),
-                       u8"2. \u53cd\u6b3a\u8bc8\u58f0\u660e"); 
-    ImGui::TextDisabled(
-        u8"\u60a8\u4e0d\u5f97\u516c\u7136\u552e\u5356\u672c\u63d2\u4ef6\u8f6f"
-        u8"\u4ef6\u672c\u4f53\u4e14\u672a\u63d0\u4f9b GitHub \u4ed3\u5e93\u5730"
-        u8"\u5740\u3002\u672c\u63d2\u4ef6\u5b8c\u5168\u514d\u8d39\u5f00\u6e90\u3002");
-    ImGui::Spacing();
-
-    ImGui::TextColored(ImVec4(0.9f, 0.8f, 0.3f, 1.0f),
-                       u8"3. \u5185\u5bb9\u5408\u89c4"); 
-    ImGui::TextDisabled(
-        u8"\u60a8\u4e0d\u5f97\u5229\u7528\u672c\u63d2\u4ef6\u5236\u4f5c\u3001"
-        u8"\u64ad\u653e\u6216\u4f20\u64ad\u4efb\u4f55\u4e0d\u5408\u9002\u7684"
-        u8"\u5185\u5bb9\uff08\u5305\u62ec\u4f46\u4e0d\u9650\u4e8e\u8272\u60c5"
-        u8"\u3001\u66b4\u529b\u3001\u653f\u6cbb\u654f\u611f\u7b49\uff09\u3002");
-    ImGui::Spacing();
-
-    ImGui::TextColored(ImVec4(0.9f, 0.8f, 0.3f, 1.0f),
-                       u8"4. \u98ce\u9669\u4e0e\u514d\u8d23"); 
-    ImGui::TextDisabled(
-        u8"\u672c\u9879\u76ee\u4ec5\u4f9b\u5b66\u4e60\u4e0e\u6280\u672f\u7814"
-        u8"\u7a76\u3002\u4f7f\u7528\u53ef\u80fd\u8fdd\u53cd\u6e38\u620f\u670d"
-        u8"\u52a1\u6761\u6b3e\uff0c\u5b58\u5728\u8d26\u53f7\u5c01\u7981\u98ce"
-        u8"\u9669\u3002\u672c\u9879\u76ee\u4e0d\u627f\u62c5\u4efb\u4f55\u8d23\u4efb\u3002");
-
+    ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+    ImGui::TextWrapped(
+        u8"\u5728\u4e0b\u8f7d\u3001\u5b89\u88c5\u6216\u4f7f\u7528\u672c\u63d2\u4ef6\uff08EIEM\uff09"
+        u8"\u4e4b\u524d\uff0c\u8bf7\u60a8\u4ed4\u7ec6\u9605\u8bfb\u672c\u534f\u8bae\u3002"
+        u8"\u4f7f\u7528\u672c\u63d2\u4ef6\u5373\u4ee3\u8868\u60a8\u5df2\u5b8c\u6574\u9605\u8bfb\u3001"
+        u8"\u5145\u5206\u7406\u89e3\u5e76\u540c\u610f\u9075\u5b88\u4ee5\u4e0b\u6240\u6709\u6761\u6b3e\u3002");
+    ImGui::PopStyleColor();
     ImGui::PopTextWrapPos();
+    ImGui::Spacing();
+
+    ImGui::BeginChild("##tos_scroll", ImVec2(0, 280), true);
+    ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+
+    ImGui::TextColored(ImVec4(0.9f, 0.8f, 0.3f, 1.0f),
+                       u8"1. \u5f00\u6e90\u8bb8\u53ef\u4e0e\u6700\u7ec8\u7528\u6237\u6743\u5229");
+    ImGui::TextWrapped(
+        u8"\u2022 \u672c\u63d2\u4ef6\u57fa\u4e8e AGPL-3.0 \u8bb8\u53ef\u8bc1\u5728 GitHub "
+        u8"\u5e73\u53f0\u5b8c\u5168\u5f00\u6e90\u3002\u7528\u6237\u53ef\u5728\u9075\u5b88"
+        u8"\u8be5\u8bb8\u53ef\u8bc1\u7684\u524d\u63d0\u4e0b\u81ea\u7531\u4f7f\u7528\u3001"
+        u8"\u4fee\u6539\u548c\u5206\u53d1\u672c\u63d2\u4ef6\u7684\u6e90\u4ee3\u7801\u3002");
+    ImGui::TextWrapped(
+        u8"\u2022 \u6700\u7ec8\u7528\u6237\uff08End User\uff09\u5728\u4e0d\u5bf9\u672c"
+        u8"\u63d2\u4ef6\u8fdb\u884c\u4fee\u6539\u7684\u524d\u63d0\u4e0b\uff0c\u4f7f\u7528"
+        u8"\u548c\u5206\u53d1\u672c\u63d2\u4ef6\u4e0d\u53d7\u4efb\u4f55\u9650\u5236\u3002"
+        u8"\u6b64\u6743\u5229\u4e0d\u56e0\u7528\u6237\u662f\u5426\u8fdd\u53cd\u672c\u534f"
+        u8"\u8bae\u800c\u6539\u53d8\u3002");
+    ImGui::Spacing();
+
+    ImGui::TextColored(ImVec4(0.9f, 0.8f, 0.3f, 1.0f),
+                       u8"2. \u53cd\u6b3a\u8bc8\u58f0\u660e");
+    ImGui::TextWrapped(
+        u8"\u2022 \u60a8\u4e0d\u5f97\u5728\u7f51\u7edc\u9500\u552e\u5e73\u53f0\u516c\u7136"
+        u8"\u552e\u5356\u672c\u63d2\u4ef6\u8f6f\u4ef6\u672c\u4f53\u4e14\u672a\u63d0\u4f9b "
+        u8"GitHub \u4ed3\u5e93\u5730\u5740\u4e0e\u552e\u540e\u670d\u52a1\u3002");
+    ImGui::TextWrapped(
+        u8"\u2022 \u672c\u63d2\u4ef6\u5728 GitHub \u5e73\u53f0\u5b8c\u5168\u514d\u8d39"
+        u8"\u5f00\u6e90\uff0c\u5982\u679c\u60a8\u662f\u4ed8\u8d39\u8d2d\u4e70\u83b7\u53d6"
+        u8"\u7684\uff0c\u8bf7\u77e5\u6089\u672c\u63d2\u4ef6\u53ef\u4ece GitHub \u514d\u8d39"
+        u8"\u83b7\u53d6\u3002");
+    ImGui::Spacing();
+
+    ImGui::TextColored(ImVec4(0.9f, 0.8f, 0.3f, 1.0f),
+                       u8"3. \u5185\u5bb9\u5408\u89c4\u4e0e\u884c\u4e3a\u7ea6\u675f");
+    ImGui::TextWrapped(
+        u8"\u2022 \u672c\u63d2\u4ef6\u672c\u8eab\u4e0d\u5305\u542b\u4efb\u4f55\u6e38\u620f"
+        u8"\u7f8e\u672f\u8d44\u4ea7\u3002\u7528\u6237\u77e5\u6089\u5e76\u540c\u610f\uff0c"
+        u8"\u300a\u660e\u65e5\u65b9\u821f\uff1a\u7ec8\u672b\u5730\u300b\u6e38\u620f\u5185"
+        u8"\u7f6e\u7684\u5b98\u65b9\u52a8\u753b\u3001\u573a\u666f\u3001\u6a21\u578b\u7b49"
+        u8"\u8d44\u4ea7\u5176\u7248\u6743\u5b8c\u5168\u96b6\u5c5e\u4e8e\u9e70\u89d2\u7f51"
+        u8"\u7edc\uff0c\u5e76\u4e0d\u9002\u7528 AGPL-3.0 \u534f\u8bae\u3002");
+    ImGui::TextWrapped(
+        u8"\u2022 \u60a8\u4e0d\u5e94\u8be5\u4e14\u4e0d\u5f97\u5229\u7528\u672c\u63d2\u4ef6"
+        u8"\uff0c\u6216\u5229\u7528\u6e38\u620f\u5185\u7f6e\u7684\u5b98\u65b9\u52a8\u753b"
+        u8"\u3001\u573a\u666f\u3001\u6a21\u578b\u7b49\u6e38\u620f\u8d44\u4ea7\uff0c\u5236"
+        u8"\u4f5c\u3001\u64ad\u653e\u6216\u4f20\u64ad\u4efb\u4f55\u4e0d\u5408\u9002\u7684"
+        u8"\u52a8\u4f5c/\u52a8\u753b\uff08\u5305\u62ec\u4f46\u4e0d\u9650\u4e8e\u8272\u60c5"
+        u8"\u3001\u66b4\u529b\u3001\u653f\u6cbb\u654f\u611f\u7b49\u8fdd\u53cd\u6cd5\u5f8b"
+        u8"\u6cd5\u89c4\u6216\u5f15\u8d77\u793e\u533a\u4e0d\u9002\u7684\u5185\u5bb9\uff09\u3002");
+    ImGui::Spacing();
+
+    ImGui::TextColored(ImVec4(0.9f, 0.8f, 0.3f, 1.0f),
+                       u8"4. \u98ce\u9669\u4e0e\u514d\u8d23\u58f0\u660e");
+    ImGui::TextWrapped(
+        u8"\u2022 \u672c\u9879\u76ee\u4ec5\u4f9b\u5b66\u4e60\u3001\u6280\u672f\u7814\u7a76"
+        u8"\u548c\u4ea4\u6d41\u76ee\u7684\u3002\u672c\u63d2\u4ef6\u4e2d\u4f7f\u7528\u7684"
+        u8"\u660e\u65e5\u65b9\u821f\u6e38\u620f\u6570\u636e\u8d44\u4ea7\u7248\u6743\u5747"
+        u8"\u96b6\u5c5e\u4e8e\u9e70\u89d2\u7f51\u7edc\u3002");
+    ImGui::TextWrapped(
+        u8"\u2022 \u4f7f\u7528\u672c\u5de5\u5177\u53ef\u80fd\u8fdd\u53cd\u6e38\u620f\u670d"
+        u8"\u52a1\u6761\u6b3e\uff0c\u5b58\u5728\u8d26\u53f7\u5c01\u7981\u7684\u98ce\u9669"
+        u8"\u3002\u56e0\u4f7f\u7528\u672c\u63d2\u4ef6\u800c\u76f4\u63a5\u6216\u95f4\u63a5"
+        u8"\u5bfc\u81f4\u7684\u4efb\u4f55\u635f\u5931\uff08\u5305\u62ec\u4f46\u4e0d\u9650"
+        u8"\u4e8e\u8d26\u53f7\u5c01\u7981\u3001\u6e38\u620f\u6570\u636e\u635f\u574f\u7b49"
+        u8"\uff09\uff0c\u672c\u9879\u76ee\u4e0d\u627f\u62c5\u4efb\u4f55\u6cd5\u5f8b\u6216"
+        u8"\u7ecf\u6d4e\u8d23\u4efb\u3002\u7528\u6237\u9700\u81ea\u884c\u627f\u62c5\u6240"
+        u8"\u6709\u98ce\u9669\uff0c\u5f3a\u70c8\u5efa\u8bae\u60a8\u5728\u6d4b\u8bd5\u8d26"
+        u8"\u53f7\u4e0a\u8fd0\u884c\u3002");
+
+    ImGui::PopStyleColor();
+    ImGui::EndChild();
 
     ImGui::Spacing();
     ImGui::Separator();
@@ -954,7 +1119,7 @@ static void DrawMainPanel() {
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(200, 170, 0, 255));
     ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(20, 20, 20, 255));
     if (ImGui::Button(
-            u8"\u6211\u5df2\u9605\u8bfb\u5e76\u540c\u610f", 
+            u8"\u6211\u5df2\u9605\u8bfb\u5e76\u540c\u610f",
             ImVec2(btnW, 32))) {
       g_disclaimerAccepted = true;
     }
@@ -1312,9 +1477,23 @@ static void ToggleGui() {
   if (!g_guiHwnd) return;
   g_guiVisible = !g_guiVisible;
   if (g_guiVisible) {
+    static bool s_firstShow = true;
+    if (s_firstShow && g_gameHwnd) {
+      RECT gr;
+      GetWindowRect(g_gameHwnd, &gr);
+      RECT wr;
+      GetWindowRect(g_guiHwnd, &wr);
+      int pw = wr.right - wr.left;
+      int posX = gr.right - pw - 20;
+      int posY = gr.top + 40;
+      SetWindowPos(g_guiHwnd, HWND_TOPMOST, posX, posY, 0, 0,
+                   SWP_NOSIZE | SWP_NOACTIVATE);
+      s_firstShow = false;
+    } else {
+      SetWindowPos(g_guiHwnd, HWND_TOPMOST, 0, 0, 0, 0,
+                   SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
     ShowWindow(g_guiHwnd, SW_SHOW);
-    SetWindowPos(g_guiHwnd, HWND_TOPMOST, 0, 0, 0, 0,
-                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     SetForegroundWindow(g_guiHwnd);
     ReleaseCursorToGui();
   } else {

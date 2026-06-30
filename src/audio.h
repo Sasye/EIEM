@@ -178,16 +178,16 @@ struct AudioPlayer {
     }
 
     MCI_OPEN_PARMSW openParms = {};
+    openParms.lpstrDeviceType = L"mpegvideo";
     openParms.lpstrElementName = mciPath;
 
-    DWORD flags = MCI_OPEN_ELEMENT | MCI_WAIT;
+    DWORD flags = MCI_OPEN_TYPE | MCI_OPEN_ELEMENT | MCI_WAIT;
     MCIERROR err = mciSendCommandW(0, MCI_OPEN, flags, (DWORD_PTR)&openParms);
 
     if (err != 0) {
       memset(&openParms, 0, sizeof(openParms));
-      openParms.lpstrDeviceType = L"mpegvideo";
       openParms.lpstrElementName = mciPath;
-      flags = MCI_OPEN_TYPE | MCI_OPEN_ELEMENT | MCI_WAIT;
+      flags = MCI_OPEN_ELEMENT | MCI_WAIT;
       err = mciSendCommandW(0, MCI_OPEN, flags, (DWORD_PTR)&openParms);
     }
 
@@ -318,8 +318,19 @@ struct AudioPlayer {
     MCI_DGV_SETAUDIO_PARMSW audioParms = {};
     audioParms.dwItem = MCI_DGV_SETAUDIO_VOLUME;
     audioParms.dwValue = (DWORD)vol;
-    mciSendCommandW(devId, MCI_SETAUDIO,
+    MCIERROR err = mciSendCommandW(devId, MCI_SETAUDIO,
                      MCI_DGV_SETAUDIO_ITEM | MCI_DGV_SETAUDIO_VALUE,
                      (DWORD_PTR)&audioParms);
+    if (err != 0) {
+      static int s_volErrCount = 0;
+      if (s_volErrCount < 3) {
+        wchar_t errBuf[256] = {};
+        mciGetErrorStringW(err, errBuf, 256);
+        char narrow[256] = {};
+        WideCharToMultiByte(CP_UTF8, 0, errBuf, -1, narrow, sizeof(narrow), nullptr, nullptr);
+        Log("[AUDIO] SetVolume(%d) failed: %s", vol, narrow);
+        s_volErrCount++;
+      }
+    }
   }
 };

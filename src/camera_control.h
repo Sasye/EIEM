@@ -237,7 +237,7 @@ static void ApplyCameraFrame(float timeSec) {
   Vec3 charDisp = SampleCharDisplacement(timeSec);
 
   float camScale = g_cameraPlayer.scale;
-  float hs = g_camHeightScale;
+  float hs = g_camHeightScale + g_camHeightBias;
   float px = (cs.position.x - charDisp.x * camScale) * hs;
   float py = cs.position.y * hs;
   float pz = (cs.position.z - charDisp.z * camScale) * hs;

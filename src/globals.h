@@ -2,7 +2,7 @@
 
 #define EIEM_VERSION_MAJOR 0
 #define EIEM_VERSION_MINOR 1
-#define EIEM_VERSION_PATCH 3
+#define EIEM_VERSION_PATCH 4
 
 #define EIEM_STRINGIFY2(x) #x
 #define EIEM_STRINGIFY(x) EIEM_STRINGIFY2(x)
@@ -126,6 +126,31 @@ static bool g_camTestMode = false;
 static float g_charHeight = 0.0f;           
 static float g_camRefHeight = 0.0f;         
 static float g_camHeightScale = 1.0f;       
+
+static float g_posOffsetX = 0.0f;     
+static float g_posOffsetY = 0.0f;     
+static float g_posOffsetZ = 0.0f;     
+static float g_yawOffsetDeg = 0.0f;   
+static float g_camHeightBias = 0.0f;  
+static float g_motionScale = 1.0f;    
+
+static float g_scaleSpine = 1.0f;
+static float g_scaleHead  = 1.0f;
+static float g_scaleLArm  = 1.0f;
+static float g_scaleRArm  = 1.0f;
+static float g_scaleLegs  = 1.0f;
+static float g_scaleFingers = 1.0f;  
+static float g_splayBlend = 0.7f;    
+
+static float GetMuscleScale(int stdIdx) {
+  float part = 1.0f;
+  if (stdIdx <= 8)                     part = g_scaleSpine;
+  else if (stdIdx <= 14)               part = g_scaleHead;
+  else if (stdIdx >= 21 && stdIdx <= 36) part = g_scaleLegs;
+  else if (stdIdx >= 37 && stdIdx <= 44) part = g_scaleLArm;
+  else if (stdIdx >= 45 && stdIdx <= 52) part = g_scaleRArm;
+  return g_motionScale * part;
+}
 
 static void CaptureAndDisableCinemachine();
 

@@ -835,20 +835,39 @@ static void ApplyMmdPoseOnMainThread() {
       break; 
     }
 
+    float partScale = GetMuscleScale(stdIdx);
+    if (partScale != 1.0f) {
+      float restVal = s_savedIdleMuscles[gameIdx];
+      mmdCur = restVal + (mmdCur - restVal) * partScale;
+    }
+
     s_musclePtr[gameIdx] = mmdCur;
   }
 
-  s_cachedPose.bodyPosX =
-      g_restBodyPos[0] + (g_mmdBodyPos[0] - s_mmdFirstBodyPos[0]);
-  s_cachedPose.bodyPosY =
-      g_restBodyPos[1] + (g_mmdBodyPos[1] - s_mmdFirstBodyPos[1]);
-  s_cachedPose.bodyPosZ =
-      g_restBodyPos[2] + (g_mmdBodyPos[2] - s_mmdFirstBodyPos[2]);
+  float motDx = (g_mmdBodyPos[0] - s_mmdFirstBodyPos[0]) * g_motionScale;
+  float motDy = (g_mmdBodyPos[1] - s_mmdFirstBodyPos[1]) * g_motionScale;
+  float motDz = (g_mmdBodyPos[2] - s_mmdFirstBodyPos[2]) * g_motionScale;
+  s_cachedPose.bodyPosX = g_restBodyPos[0] + motDx + g_posOffsetX;
+  s_cachedPose.bodyPosY = g_restBodyPos[1] + motDy + g_posOffsetY;
+  s_cachedPose.bodyPosZ = g_restBodyPos[2] + motDz + g_posOffsetZ;
 
   s_cachedPose.bodyRotX = g_mmdBodyRot[0];
   s_cachedPose.bodyRotY = g_mmdBodyRot[1];
   s_cachedPose.bodyRotZ = g_mmdBodyRot[2];
   s_cachedPose.bodyRotW = g_mmdBodyRot[3];
+
+  if (g_yawOffsetDeg != 0.0f) {
+    float yawRad = g_yawOffsetDeg * 3.14159265f / 180.0f;
+    float halfYaw = yawRad * 0.5f;
+    float yqy = sinf(halfYaw), yqw = cosf(halfYaw);
+    float bx = s_cachedPose.bodyRotX, by = s_cachedPose.bodyRotY;
+    float bz = s_cachedPose.bodyRotZ, bw = s_cachedPose.bodyRotW;
+    s_cachedPose.bodyRotX = yqw*bx + yqy*bz;
+    s_cachedPose.bodyRotY = yqw*by + yqy*bw;
+    s_cachedPose.bodyRotZ = yqw*bz - yqy*bx;
+    s_cachedPose.bodyRotW = yqw*bw - yqy*by;
+  }
+
   float qlen = sqrtf(s_cachedPose.bodyRotX * s_cachedPose.bodyRotX +
                      s_cachedPose.bodyRotY * s_cachedPose.bodyRotY +
                      s_cachedPose.bodyRotZ * s_cachedPose.bodyRotZ +
@@ -1227,55 +1246,86 @@ static void ApplyMmdPoseOnMainThread() {
       }
     }
 
+    static int s_fingerDiag = 0;
     for (int i = 0; i < FINGER_BONE_COUNT; i++) {
       if (!g_fingerTransforms[i])
         continue;
       float *mmdCur = (float *)&g_mmdFingerBoneRots[i * 4];
       float *mmdRest = &g_muscleAnim->fingerRestRots[i * 4];
 
-      float invR[4] = {-mmdRest[0], -mmdRest[1], -mmdRest[2], mmdRest[3]};
-      float dx = invR[3] * mmdCur[0] + invR[0] * mmdCur[3] +
-                 invR[1] * mmdCur[2] - invR[2] * mmdCur[1];
-      float dy = invR[3] * mmdCur[1] - invR[0] * mmdCur[2] +
-                 invR[1] * mmdCur[3] + invR[2] * mmdCur[0];
-      float dz = invR[3] * mmdCur[2] + invR[0] * mmdCur[1] -
-                 invR[1] * mmdCur[0] + invR[2] * mmdCur[3];
-      float dw = invR[3] * mmdCur[3] - invR[0] * mmdCur[0] -
-                 invR[1] * mmdCur[1] - invR[2] * mmdCur[2];
-
+      float cx = mmdCur[0], cy = mmdCur[1], cz = mmdCur[2], cw = mmdCur[3];
+      float bx = mmdRest[0], by = mmdRest[1], bz = mmdRest[2], bw = mmdRest[3];
       if (i < 15) {
-        dx = -dx; dy = -dy; dz = -dz;
+        cx = -cx; cz = -cz;
+        bx = -bx; bz = -bz;
       }
 
-      float dot = dw; 
-      if (dot < 0) { dx = -dx; dy = -dy; dz = -dz; dw = -dw; dot = -dot; }
-      float t = 0.75f;
-      float sx, sy;
+      float ir[4] = {-bx, -by, -bz, bw};
+      float dx = ir[3]*cx + ir[0]*cw + ir[1]*cz - ir[2]*cy;
+      float dy = ir[3]*cy - ir[0]*cz + ir[1]*cw + ir[2]*cx;
+      float dz = ir[3]*cz + ir[0]*cy - ir[1]*cx + ir[2]*cw;
+      float dw = ir[3]*cw - ir[0]*cx - ir[1]*cy - ir[2]*cz;
+
+      float t = g_scaleFingers;
+      float dot = dw;
+      if (dot < 0) { dx=-dx; dy=-dy; dz=-dz; dw=-dw; dot=-dot; }
+      float s0, s1;
       if (dot > 0.9995f) {
-        sx = 1.0f - t;
-        sy = t;
+        s0 = 1.0f - t; s1 = t;
       } else {
         float theta = acosf(dot);
         float sinT = sinf(theta);
-        sx = sinf((1.0f - t) * theta) / sinT;
-        sy = sinf(t * theta) / sinT;
+        s0 = sinf((1.0f-t)*theta)/sinT;
+        s1 = sinf(t*theta)/sinT;
       }
-      float sdx = sy * dx;
-      float sdy = sy * dy;
-      float sdz = sy * dz;
-      float sdw = sx + sy * dw;
+      float ax = s1*dx, ay = s1*dy, az = s1*dz, aw = s0 + s1*dw;
 
-      float *gr = &g_gameFingerRest[i * 4];
-      float rx = gr[3] * sdx + gr[0] * sdw + gr[1] * sdz - gr[2] * sdy;
-      float ry = gr[3] * sdy - gr[0] * sdz + gr[1] * sdw + gr[2] * sdx;
-      float rz = gr[3] * sdz + gr[0] * sdy - gr[1] * sdx + gr[2] * sdw;
-      float rw = gr[3] * sdw - gr[0] * sdx - gr[1] * sdy - gr[2] * sdz;
+      float rx, ry, rz, rw;
+      bool isProximal = (i % 3 == 0); 
 
-      float len = sqrtf(rx * rx + ry * ry + rz * rz + rw * rw);
-      if (len > 0.001f) { rx /= len; ry /= len; rz /= len; rw /= len; }
+      if (isProximal) {
+
+        float *gr = &g_gameFingerRest[i * 4];
+        float gx = gr[3]*ax + gr[0]*aw + gr[1]*az - gr[2]*ay;
+        float gy = gr[3]*ay - gr[0]*az + gr[1]*aw + gr[2]*ax;
+        float gz = gr[3]*az + gr[0]*ay - gr[1]*ax + gr[2]*aw;
+        float gw = gr[3]*aw - gr[0]*ax - gr[1]*ay - gr[2]*az;
+
+        float mx = bw*ax + bx*aw + by*az - bz*ay;
+        float my = bw*ay - bx*az + by*aw + bz*ax;
+        float mz = bw*az + bx*ay - by*ax + bz*aw;
+        float mw = bw*aw - bx*ax - by*ay - bz*az;
+
+        float bd = gx*mx + gy*my + gz*mz + gw*mw;
+        if (bd < 0) { mx=-mx; my=-my; mz=-mz; mw=-mw; bd=-bd; }
+        float sb = g_splayBlend, sa = 1.0f - sb;
+        if (bd > 0.9995f) {
+          rx = sa*gx + sb*mx;
+          ry = sa*gy + sb*my;
+          rz = sa*gz + sb*mz;
+          rw = sa*gw + sb*mw;
+        } else {
+          float th = acosf(bd);
+          float sn = sinf(th);
+          float c0 = sinf(sa*th)/sn, c1 = sinf(sb*th)/sn;
+          rx = c0*gx + c1*mx;
+          ry = c0*gy + c1*my;
+          rz = c0*gz + c1*mz;
+          rw = c0*gw + c1*mw;
+        }
+      } else {
+        rx = bw*ax + bx*aw + by*az - bz*ay;
+        ry = bw*ay - bx*az + by*aw + bz*ax;
+        rz = bw*az + bx*ay - by*ax + bz*aw;
+        rw = bw*aw - bx*ax - by*ay - bz*az;
+      }
+
+      float len = sqrtf(rx*rx + ry*ry + rz*rz + rw*rw);
+      if (len > 0.001f) { rx/=len; ry/=len; rz/=len; rw/=len; }
 
       SafeSetLocalRotation(g_fingerTransforms[i], {rx, ry, rz, rw});
     }
+    s_fingerDiag++;
   }
 
   }
