@@ -708,18 +708,14 @@ static bool InitMusclePoseHandler() {
       if (exc) {
         Log("[MUSCLE] GetHumanPose exception");
       } else {
-        g_restBodyPos[0] = testPose.bodyPosX;
+        g_restBodyPos[0] = 0.0f;
         g_restBodyPos[1] = testPose.bodyPosY;
-        g_restBodyPos[2] = testPose.bodyPosZ;
-        g_restBodyRot[0] = testPose.bodyRotX;
-        g_restBodyRot[1] = testPose.bodyRotY;
-        g_restBodyRot[2] = testPose.bodyRotZ;
-        g_restBodyRot[3] = testPose.bodyRotW;
-        Log("[MUSCLE] GetHumanPose OK: pos(%.3f,%.3f,%.3f) "
-            "rot(%.3f,%.3f,%.3f,%.3f)",
-            testPose.bodyPosX, testPose.bodyPosY, testPose.bodyPosZ,
-            testPose.bodyRotX, testPose.bodyRotY, testPose.bodyRotZ,
-            testPose.bodyRotW);
+        g_restBodyPos[2] = 0.0f;
+        g_restBodyRot[0] = 0.0f;
+        g_restBodyRot[1] = 0.0f;
+        g_restBodyRot[2] = 0.0f;
+        g_restBodyRot[3] = 1.0f;
+        Log("[MUSCLE] Canonical Reference Pose: hipsY=%.3f", testPose.bodyPosY);
 
         if (g_animator_GetBoneTransform && g_cachedAnimator) {
           void *rootT = SafeGetComponentTransform(g_cachedAnimator);

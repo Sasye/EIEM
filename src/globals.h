@@ -269,7 +269,6 @@ struct AudioPlayer;
 static AudioPlayer *g_audioPlayer = nullptr;
 static char g_audioPath[512] = "";          
 static wchar_t g_audioPathW[512] = L"";     
-static const wchar_t *g_audioDefaultPathW = L"plugin\\bgm.wav";
 static bool g_audioEnabled = true;
 static bool g_audioIsClock = false;
 static float g_audioOffset = 0.0f;

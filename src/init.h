@@ -172,7 +172,16 @@ static DWORD WINAPI HotkeyThread(LPVOID) {
       ApplyCameraFrame(0.0f);
     }
 
-    Sleep((g_musclePlayer && g_musclePlayer->playing) || g_camTestMode ? 0 : 50);
+    bool activelyPlaying = (g_trojanActive && g_musclePlayer && g_musclePlayer->playing);
+    bool holdingPausedOrEndedPose = (g_trojanActive && g_musclePlayer && (g_musclePlayer->currentTime > 0.0f || g_musclePlayer->ended));
+
+    if (activelyPlaying || g_camTestMode) {
+      Sleep(1);
+    } else if (holdingPausedOrEndedPose) {
+      Sleep(2);
+    } else {
+      Sleep(50);
+    }
   }
 
   Log("[INFO] Game window closed, hotkey thread exiting");
@@ -984,18 +993,18 @@ static DWORD WINAPI InitThread(LPVOID) {
 
     void *setMainChar = FindMethod(pcClass, "SetMainCharacter", 2);
     if (setMainChar) {
-      typedef void (*SetMainCharacter_t)(void *self, void *entity, bool flag);
+      typedef void (__fastcall *SetMainCharacter_t)(void *self, void *entity, int32_t reason, void *methodInfo);
       static SetMainCharacter_t orig_SetMainCharacter = nullptr;
 
       struct SetMainCharHook {
-        static void Hooked(void *self, void *entity, bool flag) {
+        static void __fastcall Hooked(void *self, void *entity, int32_t reason, void *methodInfo) {
           if (self && !g_playerController) {
             g_playerController = self;
             Log("[HOOK] Captured PlayerController: %p", self);
           }
           if (entity) {
             g_mainCharEntity = entity;
-            Log("[HOOK] SetMainCharacter: Entity=%p", entity);
+            Log("[HOOK] SetMainCharacter: Entity=%p reason=%d", entity, reason);
 
             if (OFF_entityComplexAnim < 0) {
               __try {
@@ -1066,7 +1075,13 @@ static DWORD WINAPI InitThread(LPVOID) {
             } __except (1) {
             }
           }
-          orig_SetMainCharacter(self, entity, flag);
+
+          ClearActiveFootIKSolverWeights();
+          ResetFootIKRuntimeState();
+
+          if (orig_SetMainCharacter) {
+            orig_SetMainCharacter(self, entity, reason, methodInfo);
+          }
 
           s_ikDisabled = false;
           memset(s_bipedIK, 0, sizeof(s_bipedIK));
@@ -1083,21 +1098,7 @@ static DWORD WINAPI InitThread(LPVOID) {
 
           s_cachedMovementComp = nullptr;
           s_cachedEntity = nullptr;
-          s_footIKFirstCaptured = false;
-          s_footIKCalibrated = false;
-          s_footPosBaseCaptured = false;
           s_initialRootCaptured = false;
-          s_baseGroundCaptured = false;
-          s_baseGroundY = 0.0f;
-          s_smoothedGroundDelta = 0.0f;
-          s_lfBaseCaptured = false;
-          s_lfBaseGround = 0.0f;
-          s_rfBaseCaptured = false;
-          s_rfBaseGround = 0.0f;
-          g_groundDeltaY = 0.0f;
-          g_activeLfSolver = nullptr;
-          g_activeRfSolver = nullptr;
-          g_mmdIKActive = false;
 
           g_fingerTransformsResolved = false;
           g_fingerRestCaptured = false;

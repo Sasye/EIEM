@@ -208,7 +208,7 @@ static Vec3 SampleCharDisplacement(float timeSec) {
   if (!vmd || !vmd->loaded) return disp;
   auto it = vmd->boneTimelines.find(
       "\xe3\x82\xbb\xe3\x83\xb3\xe3\x82\xbf\xe3\x83\xbc"); 
-  if (it != g_vmd->boneTimelines.end()) {
+  if (it != vmd->boneTimelines.end()) {
     float frameF = timeSec * 30.0f;
     InterpResult ir = InterpolateBone(it->second.keys, frameF, true);
     disp = ir.position;

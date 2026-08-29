@@ -202,6 +202,7 @@ static InterpResult InterpolateBone(
 struct MmdPlayer {
   bool playing;
   bool loop;
+  bool ended;
   float currentTime;    
   float speed;          
   float totalDuration;  
@@ -209,7 +210,7 @@ struct MmdPlayer {
   LARGE_INTEGER lastTick;
   LARGE_INTEGER freq;
 
-  MmdPlayer() : playing(false), loop(false), currentTime(0),
+  MmdPlayer() : playing(false), loop(false), ended(false), currentTime(0),
                 speed(1.0f), totalDuration(0) {
     QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&lastTick);
@@ -219,19 +220,23 @@ struct MmdPlayer {
     totalDuration = duration;
     currentTime = 0;
     playing = true;
+    ended = false;
     QueryPerformanceCounter(&lastTick);
   }
 
   void Stop() {
     playing = false;
+    ended = false;
     currentTime = 0;
   }
 
   void TogglePause() {
     if (playing) {
       playing = false;
+      ended = false;
     } else {
       playing = true;
+      ended = false;
       QueryPerformanceCounter(&lastTick); 
     }
   }
@@ -249,8 +254,11 @@ struct MmdPlayer {
     if (currentTime >= totalDuration) {
       if (loop) {
         currentTime = fmodf(currentTime, totalDuration);
+        ended = false;
       } else {
         currentTime = totalDuration;
+        playing = false;
+        ended = true; 
       }
     }
 

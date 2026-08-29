@@ -24,6 +24,14 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(
 #define WM_MMD_GUI_LOAD_AUDIO (WM_USER + 107)
 #define WM_MMD_GUI_SEEK_AUDIO (WM_USER + 108) 
 #define WM_MMD_GUI_SET_VOLUME (WM_USER + 109) 
+#define WM_MMD_GUI_UNLOAD_ANIM   (WM_USER + 110)
+#define WM_MMD_GUI_UNLOAD_CAMERA (WM_USER + 111)
+#define WM_MMD_GUI_UNLOAD_FOOTIK (WM_USER + 112)
+#define WM_MMD_GUI_UNLOAD_MORPH  (WM_USER + 113)
+#define WM_MMD_GUI_UNLOAD_AUDIO  (WM_USER + 114)
+#define WM_MMD_GUI_LOAD_CAMERA   (WM_USER + 115)
+#define WM_MMD_GUI_LOAD_FOOTIK   (WM_USER + 116)
+#define WM_MMD_GUI_LOAD_MORPH    (WM_USER + 117)
 
 
 
@@ -636,6 +644,10 @@ static void DrawMainPanel() {
     ImGui::Spacing();
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 14.0f);
 
+    float availW = ImGui::GetContentRegionAvail().x;
+    float itemSpacing = ImGui::GetStyle().ItemSpacing.x;
+    float btnW2 = (availW - itemSpacing) * 0.5f;
+
     ImGui::TextColored(ImVec4(0.20f, 0.20f, 0.24f, 1.0f), u8"\u52a8\u4f5c\u6587\u4ef6 (.bin)");
     ImGui::SetNextItemWidth(-1);
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);
@@ -644,8 +656,7 @@ static void DrawMainPanel() {
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
-    if (ImGui::Button(u8"\u6d4f\u89c8##anim", ImVec2(80, 0))) {
-      ImGui::PopStyleColor();
+    if (ImGui::Button(u8"\u6d4f\u89c8##anim", ImVec2(btnW2, 0))) {
       OPENFILENAMEA ofn = {};
       char filePath[512] = "";
       ofn.lStructSize = sizeof(ofn);
@@ -659,7 +670,7 @@ static void DrawMainPanel() {
         g_muscleAnimPath[sizeof(g_muscleAnimPath) - 1] = '\0';
         Log("[GUI] Anim selected: %s", g_muscleAnimPath);
         if (g_muscleAnim) g_muscleAnim->loaded = false;
-        if (g_vmd) { g_vmd = nullptr; g_bsIndicesResolved = false; }
+        if (g_vmd) { FreeVmd(g_vmd); g_vmd = nullptr; g_bsIndicesResolved = false; }
         if (g_footIkVmd) { FreeVmd(g_footIkVmd); g_footIkVmd = nullptr; }
         g_footIkResolved = false;
         if (g_cameraActive) RestoreCinemachine();
@@ -669,11 +680,11 @@ static void DrawMainPanel() {
           g_musclePlayer->currentTime = 0;
         }
       }
-    } else { ImGui::PopStyleColor(); }
+    }
     ImGui::SameLine();
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
-    if (ImGui::Button(u8"\u52a0\u8f7d##anim", ImVec2(-1, 0))) {
-      PostMessageW(g_gameHwnd, WM_MMD_GUI_LOAD, 0, 0);
+    if (ImGui::Button(u8"\u6e05\u9664##anim", ImVec2(btnW2, 0))) {
+      g_muscleAnimPath[0] = '\0';
+      PostMessageW(g_gameHwnd, WM_MMD_GUI_UNLOAD_ANIM, 0, 0);
     }
     ImGui::PopStyleColor();
 
@@ -682,7 +693,11 @@ static void DrawMainPanel() {
                          u8"%d \u5e27 / %.1f \u79d2",
                          g_muscleAnim->frameCount, g_muscleAnim->Duration());
     } else {
-      ImGui::TextDisabled(u8"\u672a\u52a0\u8f7d");
+      if (g_muscleAnimPath[0] == '\0') {
+        ImGui::TextDisabled(u8"\u5df2\u6e05\u9664");
+      } else {
+        ImGui::TextDisabled(u8"\u672a\u52a0\u8f7d (\u64ad\u653e\u65f6\u81ea\u52a8\u52a0\u8f7d)");
+      }
     }
 
     ImGui::Spacing();
@@ -697,8 +712,7 @@ static void DrawMainPanel() {
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
-    if (ImGui::Button(u8"\u6d4f\u89c8##vmd", ImVec2(80, 0))) {
-      ImGui::PopStyleColor();
+    if (ImGui::Button(u8"\u6d4f\u89c8##vmd", ImVec2(btnW2, 0))) {
       OPENFILENAMEA ofn = {};
       char filePath[512] = "";
       ofn.lStructSize = sizeof(ofn);
@@ -711,7 +725,7 @@ static void DrawMainPanel() {
         strncpy(g_cameraVmdPath, filePath, sizeof(g_cameraVmdPath) - 1);
         g_cameraVmdPath[sizeof(g_cameraVmdPath) - 1] = '\0';
         Log("[GUI] VMD selected: %s", g_cameraVmdPath);
-        g_cameraVmd = nullptr;
+        if (g_cameraVmd) { FreeVmd(g_cameraVmd); g_cameraVmd = nullptr; }
         if (g_cameraActive) RestoreCinemachine();
         ResetCameraState();
         if (g_musclePlayer) {
@@ -719,16 +733,24 @@ static void DrawMainPanel() {
           g_musclePlayer->currentTime = 0;
         }
       }
-    } else { ImGui::PopStyleColor(); }
+    }
     ImGui::SameLine();
-    ImGui::TextDisabled(u8"\u64ad\u653e\u65f6\u81ea\u52a8\u52a0\u8f7d");
+    if (ImGui::Button(u8"\u6e05\u9664##vmd", ImVec2(btnW2, 0))) {
+      g_cameraVmdPath[0] = '\0';
+      PostMessageW(g_gameHwnd, WM_MMD_GUI_UNLOAD_CAMERA, 0, 0);
+    }
+    ImGui::PopStyleColor();
 
     if (g_cameraVmd && g_cameraVmd->loaded && !g_cameraVmd->cameraKeys.empty()) {
       ImGui::TextColored(ImVec4(0.10f, 0.55f, 0.25f, 1.0f),
                          u8"%zu \u5173\u952e\u5e27",
                          g_cameraVmd->cameraKeys.size());
     } else {
-      ImGui::TextDisabled(u8"\u672a\u52a0\u8f7d");
+      if (g_cameraVmdPath[0] == '\0') {
+        ImGui::TextDisabled(u8"\u5df2\u6e05\u9664");
+      } else {
+        ImGui::TextDisabled(u8"\u672a\u52a0\u8f7d (\u64ad\u653e\u65f6\u81ea\u52a8\u52a0\u8f7d)");
+      }
     }
 
     ImGui::Spacing();
@@ -741,8 +763,7 @@ static void DrawMainPanel() {
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
-    if (ImGui::Button(u8"\u6d4f\u89c8##footik", ImVec2(80, 0))) {
-      ImGui::PopStyleColor();
+    if (ImGui::Button(u8"\u6d4f\u89c8##footik", ImVec2(btnW2, 0))) {
       OPENFILENAMEA ofn = {};
       char filePath[512] = "";
       ofn.lStructSize = sizeof(ofn);
@@ -761,13 +782,13 @@ static void DrawMainPanel() {
         s_initialRootCaptured = false;
         s_footIKCalibrated = false;
       }
-    } else { ImGui::PopStyleColor(); }
-    ImGui::SameLine();
-    if (g_footIkVmdPath[0] == '\0') {
-      ImGui::TextDisabled(u8"\u7a7a = \u81ea\u52a8\u626b\u63cf");
-    } else {
-      ImGui::TextDisabled(u8"\u64ad\u653e\u65f6\u52a0\u8f7d");
     }
+    ImGui::SameLine();
+    if (ImGui::Button(u8"\u6e05\u9664##footik", ImVec2(btnW2, 0))) {
+      g_footIkVmdPath[0] = '\0';
+      PostMessageW(g_gameHwnd, WM_MMD_GUI_UNLOAD_FOOTIK, 0, 0);
+    }
+    ImGui::PopStyleColor();
 
     VmdFile *curFootVmd = g_footIkVmd ? g_footIkVmd : g_vmd;
     if (curFootVmd && curFootVmd->loaded && !curFootVmd->boneTimelines.empty()) {
@@ -775,7 +796,11 @@ static void DrawMainPanel() {
                          u8"%zu \u9aa8\u9abc\u8f68\u9053 (\u542b\u8db3IK/\u4e2d\u5fc3)",
                          curFootVmd->boneTimelines.size());
     } else {
-      ImGui::TextDisabled(u8"\u672a\u52a0\u8f7d");
+      if (g_footIkVmdPath[0] == '\0') {
+        ImGui::TextDisabled(u8"\u672a\u52a0\u8f7d");
+      } else {
+        ImGui::TextDisabled(u8"\u672a\u52a0\u8f7d (\u64ad\u653e\u65f6\u52a0\u8f7d)");
+      }
     }
 
     ImGui::Spacing();
@@ -790,8 +815,7 @@ static void DrawMainPanel() {
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
-    if (ImGui::Button(u8"\u6d4f\u89c8##morph", ImVec2(80, 0))) {
-      ImGui::PopStyleColor();
+    if (ImGui::Button(u8"\u6d4f\u89c8##morph", ImVec2(btnW2, 0))) {
       OPENFILENAMEA ofn = {};
       char filePath[512] = "";
       ofn.lStructSize = sizeof(ofn);
@@ -804,22 +828,27 @@ static void DrawMainPanel() {
         strncpy(g_morphVmdPath, filePath, sizeof(g_morphVmdPath) - 1);
         g_morphVmdPath[sizeof(g_morphVmdPath) - 1] = '\0';
         Log("[GUI] Morph VMD selected: %s", g_morphVmdPath);
-        if (g_vmd) { g_vmd = nullptr; g_bsIndicesResolved = false; }
+        if (g_vmd) { FreeVmd(g_vmd); g_vmd = nullptr; }
+        g_bsIndicesResolved = false;
       }
-    } else { ImGui::PopStyleColor(); }
-    ImGui::SameLine();
-    if (g_morphVmdPath[0] == '\0') {
-      ImGui::TextDisabled(u8"\u7a7a = \u81ea\u52a8\u626b\u63cf");
-    } else {
-      ImGui::TextDisabled(u8"\u64ad\u653e\u65f6\u52a0\u8f7d");
     }
+    ImGui::SameLine();
+    if (ImGui::Button(u8"\u6e05\u9664##morph", ImVec2(btnW2, 0))) {
+      g_morphVmdPath[0] = '\0';
+      PostMessageW(g_gameHwnd, WM_MMD_GUI_UNLOAD_MORPH, 0, 0);
+    }
+    ImGui::PopStyleColor();
 
     if (g_vmd && g_vmd->loaded && !g_vmd->morphTimelines.empty()) {
       ImGui::TextColored(ImVec4(0.10f, 0.55f, 0.25f, 1.0f),
                          u8"%d \u8868\u60c5\u8f68\u9053",
                          (int)g_vmd->morphTimelines.size());
     } else {
-      ImGui::TextDisabled(u8"\u672a\u52a0\u8f7d");
+      if (g_morphVmdPath[0] == '\0') {
+        ImGui::TextDisabled(u8"\u672a\u52a0\u8f7d");
+      } else {
+        ImGui::TextDisabled(u8"\u672a\u52a0\u8f7d (\u64ad\u653e\u65f6\u52a0\u8f7d)");
+      }
     }
 
     ImGui::Spacing();
@@ -834,8 +863,7 @@ static void DrawMainPanel() {
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
-    if (ImGui::Button(u8"\u6d4f\u89c8##audio", ImVec2(80, 0))) {
-      ImGui::PopStyleColor();
+    if (ImGui::Button(u8"\u6d4f\u89c8##audio", ImVec2(btnW2, 0))) {
       OPENFILENAMEW ofn = {};
       wchar_t filePath[512] = L"";
       ofn.lStructSize = sizeof(ofn);
@@ -852,11 +880,12 @@ static void DrawMainPanel() {
         Log("[GUI] Audio selected: %s", g_audioPath);
         PostMessageW(g_gameHwnd, WM_MMD_GUI_LOAD_AUDIO, 0, 0);
       }
-    } else { ImGui::PopStyleColor(); }
+    }
     ImGui::SameLine();
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
-    if (ImGui::Button(u8"\u52a0\u8f7d##audio", ImVec2(-1, 0))) {
-      PostMessageW(g_gameHwnd, WM_MMD_GUI_LOAD_AUDIO, 0, 0);
+    if (ImGui::Button(u8"\u6e05\u9664##audio", ImVec2(btnW2, 0))) {
+      g_audioPath[0] = '\0';
+      g_audioPathW[0] = L'\0';
+      PostMessageW(g_gameHwnd, WM_MMD_GUI_UNLOAD_AUDIO, 0, 0);
     }
     ImGui::PopStyleColor();
 
@@ -865,18 +894,21 @@ static void DrawMainPanel() {
     ImGui::PopStyleColor();
     ImGui::SameLine();
     if (g_audioPath[0] == '\0') {
-      ImGui::TextDisabled(u8"\u7a7a = \u9ed8\u8ba4 bgm.wav");
+      ImGui::TextDisabled(u8"\u672a\u9009\u62e9\u97f3\u9891");
     } else {
       ImGui::TextDisabled(u8"\u53d8\u901f\u65f6\u81ea\u52a8\u5173\u95ed");
     }
-
 
     if (g_audioPlayer && g_audioPlayer->loaded) {
       ImGui::TextColored(ImVec4(0.10f, 0.55f, 0.25f, 1.0f),
                          u8"\u5df2\u52a0\u8f7d: %.1f \u79d2",
                          g_audioPlayer->GetLengthMs() / 1000.0f);
     } else {
-      ImGui::TextDisabled(u8"\u672a\u52a0\u8f7d");
+      if (g_audioPath[0] == '\0') {
+        ImGui::TextDisabled(u8"\u672a\u52a0\u8f7d");
+      } else {
+        ImGui::TextDisabled(u8"\u672a\u52a0\u8f7d");
+      }
     }
 
     ImGui::PopStyleVar(); 

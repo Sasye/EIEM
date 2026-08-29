@@ -68,7 +68,7 @@ bin/d3dcompiler_47.dll   → game_dir/d3dcompiler_47.dll
 
 ## Preparing Resource Files
 
-Auto-scans `game_dir/plugin/` or manually specify the following files:
+Specify the following files:
 
 | File | Description | Required |
 |------|-------------|----------|
