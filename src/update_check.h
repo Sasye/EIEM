@@ -119,7 +119,7 @@ static std::string JsonExtractString(const std::string &json, const char *key) {
 
   pos = json.find('"', pos + 1);
   if (pos == std::string::npos) return "";
-  pos++; 
+  pos++;
 
   std::string value;
   for (size_t i = pos; i < json.size(); i++) {
@@ -132,7 +132,7 @@ static std::string JsonExtractString(const std::string &json, const char *key) {
       else if (next == '\\') { value += '\\'; i++; }
       else { value += json[i]; }
     } else if (json[i] == '"') {
-      break; 
+      break;
     } else {
       value += json[i];
     }
@@ -219,7 +219,7 @@ static void CheckForUpdates() {
 
     MemoryBarrier();
     g_updateAvailable = true;
-    g_updateDismissed = false; 
+    g_updateDismissed = false;
 
     Log("[UPDATE] New version available: v%s -> v%s", EIEM_VERSION, g_latestVersion);
     Log("[UPDATE] URL: %s", g_updateUrl);
@@ -237,8 +237,8 @@ static void CheckForUpdates() {
 
 static DWORD WINAPI UpdateCheckThread(LPVOID) {
   for (int i = 0; i < 40 && !g_cursorShowAction; i++)
-    Sleep(500);  
-  Sleep(10000);  
+    Sleep(500);
+  Sleep(10000);
   CheckForUpdates();
   return 0;
 }

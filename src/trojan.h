@@ -1,14 +1,19 @@
 #pragma once
 
+static void DirectVmdCamera_UpdateMainThread(int frame);
+static void DirectVmdCamera_ResetMainThread(const char *reason);
+static void DirectVmdAudio_UpdateMainThread(int frame);
+static void DirectVmdAudio_ResetMainThread(const char *reason,
+                                           bool closeResource = false);
 
 static bool s_poseReady;
 static Il2CppHumanPose s_cachedPose;
 static float *s_musclePtr;
 static float s_savedIdleMuscles[128] =
-    {}; 
+    {};
 static float s_savedIdleBodyPos[3] = {};
 static float s_savedIdleBodyRot[4] = {0, 0, 0, 1};
-static int s_actualMuscleCount = 95; 
+static int s_actualMuscleCount = 95;
 
 static int g_stdToGameMap[95];
 static bool g_dynamicMapReady = false;
@@ -25,101 +30,101 @@ static void InitHardcodedMuscleMap() {
 }
 
 static const char *g_muscleNames[] = {
-    "Spine Front-Back",      
-    "Spine Left-Right",      
-    "Spine Twist L-R",       
-    "Chest Front-Back",      
-    "Chest Left-Right",      
-    "Chest Twist L-R",       
-    "UpperChest Front-Back", 
-    "UpperChest Left-Right", 
-    "UpperChest Twist L-R",  
-    "Neck Nod Down-Up",      
-    "Neck Tilt L-R",         
-    "Neck Turn L-R",         
-    "Head Nod Down-Up",      
-    "Head Tilt L-R",         
-    "Head Turn L-R",         
-    "Left Eye Down-Up",      
-    "Left Eye In-Out",       
-    "Right Eye Down-Up",     
-    "Right Eye In-Out",      
-    "Jaw Close",             
-    "Jaw Left-Right",        
-    "L UpperLeg Front-Back", 
-    "L UpperLeg In-Out",     
-    "L UpperLeg Twist",      
-    "L LowerLeg Stretch",    
-    "L LowerLeg Twist",      
-    "L Foot Up-Down",        
-    "L Foot Twist",          
-    "L Toes Up-Down",        
-    "R UpperLeg Front-Back", 
-    "R UpperLeg In-Out",     
-    "R UpperLeg Twist",      
-    "R LowerLeg Stretch",    
-    "R LowerLeg Twist",      
-    "R Foot Up-Down",        
-    "R Foot Twist",          
-    "R Toes Up-Down",        
-    "L Shoulder Down-Up",    
-    "L Shoulder Front-Back", 
-    "L Arm Down-Up",         
-    "L Arm Front-Back",      
-    "L Arm Twist",           
-    "L Forearm Stretch",     
-    "L Forearm Twist",       
-    "L Hand Down-Up",        
-    "L Hand In-Out",         
-    "R Shoulder Down-Up",    
-    "R Shoulder Front-Back", 
-    "R Arm Down-Up",         
-    "R Arm Front-Back",      
-    "R Arm Twist",           
-    "R Forearm Stretch",     
-    "R Forearm Twist",       
-    "R Hand Down-Up",        
-    "R Hand In-Out",         
-    "LF Thumb1 Stretch",     
-    "LF Thumb Spread",       
-    "LF Thumb2 Stretch",     
-    "LF Thumb3 Stretch",     
-    "LF Index1 Stretch",     
-    "LF Index Spread",       
-    "LF Index2 Stretch",     
-    "LF Index3 Stretch",     
-    "LF Middle1 Stretch",    
-    "LF Middle Spread",      
-    "LF Middle2 Stretch",    
-    "LF Middle3 Stretch",    
-    "LF Ring1 Stretch",      
-    "LF Ring Spread",        
-    "LF Ring2 Stretch",      
-    "LF Ring3 Stretch",      
-    "LF Little1 Stretch",    
-    "LF Little Spread",      
-    "LF Little2 Stretch",    
-    "LF Little3 Stretch",    
-    "RF Thumb1 Stretch",     
-    "RF Thumb Spread",       
-    "RF Thumb2 Stretch",     
-    "RF Thumb3 Stretch",     
-    "RF Index1 Stretch",     
-    "RF Index Spread",       
-    "RF Index2 Stretch",     
-    "RF Index3 Stretch",     
-    "RF Middle1 Stretch",    
-    "RF Middle Spread",      
-    "RF Middle2 Stretch",    
-    "RF Middle3 Stretch",    
-    "RF Ring1 Stretch",      
-    "RF Ring Spread",        
-    "RF Ring2 Stretch",      
-    "RF Ring3 Stretch",      
-    "RF Little1 Stretch",    
-    "RF Little Spread",      
-    "RF Little2 Stretch",    
-    "RF Little3 Stretch",    
+    "Spine Front-Back",
+    "Spine Left-Right",
+    "Spine Twist L-R",
+    "Chest Front-Back",
+    "Chest Left-Right",
+    "Chest Twist L-R",
+    "UpperChest Front-Back",
+    "UpperChest Left-Right",
+    "UpperChest Twist L-R",
+    "Neck Nod Down-Up",
+    "Neck Tilt L-R",
+    "Neck Turn L-R",
+    "Head Nod Down-Up",
+    "Head Tilt L-R",
+    "Head Turn L-R",
+    "Left Eye Down-Up",
+    "Left Eye In-Out",
+    "Right Eye Down-Up",
+    "Right Eye In-Out",
+    "Jaw Close",
+    "Jaw Left-Right",
+    "L UpperLeg Front-Back",
+    "L UpperLeg In-Out",
+    "L UpperLeg Twist",
+    "L LowerLeg Stretch",
+    "L LowerLeg Twist",
+    "L Foot Up-Down",
+    "L Foot Twist",
+    "L Toes Up-Down",
+    "R UpperLeg Front-Back",
+    "R UpperLeg In-Out",
+    "R UpperLeg Twist",
+    "R LowerLeg Stretch",
+    "R LowerLeg Twist",
+    "R Foot Up-Down",
+    "R Foot Twist",
+    "R Toes Up-Down",
+    "L Shoulder Down-Up",
+    "L Shoulder Front-Back",
+    "L Arm Down-Up",
+    "L Arm Front-Back",
+    "L Arm Twist",
+    "L Forearm Stretch",
+    "L Forearm Twist",
+    "L Hand Down-Up",
+    "L Hand In-Out",
+    "R Shoulder Down-Up",
+    "R Shoulder Front-Back",
+    "R Arm Down-Up",
+    "R Arm Front-Back",
+    "R Arm Twist",
+    "R Forearm Stretch",
+    "R Forearm Twist",
+    "R Hand Down-Up",
+    "R Hand In-Out",
+    "LF Thumb1 Stretch",
+    "LF Thumb Spread",
+    "LF Thumb2 Stretch",
+    "LF Thumb3 Stretch",
+    "LF Index1 Stretch",
+    "LF Index Spread",
+    "LF Index2 Stretch",
+    "LF Index3 Stretch",
+    "LF Middle1 Stretch",
+    "LF Middle Spread",
+    "LF Middle2 Stretch",
+    "LF Middle3 Stretch",
+    "LF Ring1 Stretch",
+    "LF Ring Spread",
+    "LF Ring2 Stretch",
+    "LF Ring3 Stretch",
+    "LF Little1 Stretch",
+    "LF Little Spread",
+    "LF Little2 Stretch",
+    "LF Little3 Stretch",
+    "RF Thumb1 Stretch",
+    "RF Thumb Spread",
+    "RF Thumb2 Stretch",
+    "RF Thumb3 Stretch",
+    "RF Index1 Stretch",
+    "RF Index Spread",
+    "RF Index2 Stretch",
+    "RF Index3 Stretch",
+    "RF Middle1 Stretch",
+    "RF Middle Spread",
+    "RF Middle2 Stretch",
+    "RF Middle3 Stretch",
+    "RF Ring1 Stretch",
+    "RF Ring Spread",
+    "RF Ring2 Stretch",
+    "RF Ring3 Stretch",
+    "RF Little1 Stretch",
+    "RF Little Spread",
+    "RF Little2 Stretch",
+    "RF Little3 Stretch",
 };
 
 static void BuildDynamicMuscleMap() {
@@ -303,11 +308,11 @@ static void BuildDynamicMuscleMap() {
 
 static volatile bool g_trojanReentrant = false;
 static void *g_gameNativePtr =
-    nullptr; 
+    nullptr;
 
 static void ResetFaceCache() {
   g_faceBonesCaptured = false;
-  g_faceBoneRefs = nullptr; 
+  g_faceBoneRefs = nullptr;
   g_mouthShapesResolved = false;
   g_extraMorphsResolved = false;
   g_bigListCaptured = false;
@@ -363,7 +368,8 @@ static void __cdecl Hooked_GetInternalAvatarPose(void *nativePtr, void *array,
     orig_GetInternalAvatarPose(nativePtr, array, count);
   }
 
-  if (!g_trojanActive || !g_mmdHasMuscles)
+  if (!g_motionBackend.Is(MotionBackend::Muscle) ||
+      !g_trojanActive || !g_mmdHasMuscles)
     return;
   if (g_trojanReentrant)
     return;
@@ -458,7 +464,7 @@ static void __cdecl Hooked_GetInternalAvatarPose(void *nativePtr, void *array,
                      invMR[1] * mmdCur[1] - invMR[2] * mmdCur[2];
 
           float *gr =
-              &avatarData[offset]; 
+              &avatarData[offset];
           static float s_origArm[ARM_BONE_COUNT * 4] = {};
           static bool s_origSaved = false;
           if (!s_origSaved && s_logCount == 1) {
@@ -521,7 +527,7 @@ static fn_SetHP_icall s_directSetHP = nullptr;
 
 static void InitMmdPoseOnMainThread() {
   if (s_poseReady)
-    return; 
+    return;
   if (!g_muscleAnim || !g_muscleAnim->loaded)
     return;
   if (!g_poseHandleGC)
@@ -684,22 +690,22 @@ static void ApplyMmdPoseDirect() {
 
 #define MAX_HUMAN_BONES 55
 struct CachedBoneState {
-  void *transform; 
-  Quat rotation;   
+  void *transform;
+  Quat rotation;
   bool valid;
 };
 static CachedBoneState g_cachedBones[MAX_HUMAN_BONES] = {};
 static Vec3 g_cachedHipsPos = {};
 static void *g_hipsTransform = nullptr;
-static volatile bool g_bonesReady = false; 
-static volatile int g_boneGeneration = 0;  
+static volatile bool g_bonesReady = false;
+static volatile int g_boneGeneration = 0;
 
-static volatile int g_debugMuscleIdx = 0;      
-static volatile float g_debugMuscleVal = 0.0f; 
+static volatile int g_debugMuscleIdx = 0;
+static volatile float g_debugMuscleVal = 0.0f;
 static volatile bool g_debugMode = false;
-static volatile bool g_debugDirty = true; 
+static volatile bool g_debugDirty = true;
 static volatile int g_debugMaxIdx =
-    95; 
+    95;
 
 
 static int StandardToGame(int stdIdx) {
@@ -715,8 +721,8 @@ static bool s_firstFrame = true;
 
 static float s_initialRootPos[3] = {};
 static bool s_initialRootCaptured = false;
-static float g_initialRootQuat[4] = {0, 0, 0, 1};  
-static Vec3 s_firstCenterDisp = {0, 0, 0}; 
+static float g_initialRootQuat[4] = {0, 0, 0, 1};
+static Vec3 s_firstCenterDisp = {0, 0, 0};
 
 
 static float s_firstLeftFootIK[3] = {};
@@ -726,15 +732,15 @@ static Quat s_firstRightFootIKRot = {0, 0, 0, 1};
 static bool s_footIKFirstCaptured = false;
 static float s_gameFootInitL[3] = {}, s_gameFootInitR[3] = {};
 static bool s_footIKCalibrated = false;
-static float g_ikCenterWorldDelta[3] = {};  
-static Vec3 s_curVmdCenter = {0, 0, 0};  
-static bool s_vmdCenterSampled = false;   
-static float s_bodyMotDelta[3] = {};      
+static float g_ikCenterWorldDelta[3] = {};
+static Vec3 s_curVmdCenter = {0, 0, 0};
+static bool s_vmdCenterSampled = false;
+static float s_bodyMotDelta[3] = {};
 
 struct FootIKSample {
   Vec3 leftPos, rightPos;
   Quat leftRot, rightRot;
-  Vec3 centerPos;  
+  Vec3 centerPos;
   bool valid;
 };
 
@@ -765,13 +771,13 @@ static FootIKSample SampleFootIK(float timeSec) {
 
   result.centerPos = {0, 0, 0};
   auto itC = vmd->boneTimelines.find(
-      "\xe3\x82\xbb\xe3\x83\xb3\xe3\x82\xbf\xe3\x83\xbc"); 
+      "\xe3\x82\xbb\xe3\x83\xb3\xe3\x82\xbf\xe3\x83\xbc");
   if (itC != vmd->boneTimelines.end()) {
     InterpResult irC = InterpolateBone(itC->second.keys, frameF, true);
     result.centerPos = irC.position;
   }
   auto itG = vmd->boneTimelines.find(
-      "\xe3\x82\xb0\xe3\x83\xab\xe3\x83\xbc\xe3\x83\x96"); 
+      "\xe3\x82\xb0\xe3\x83\xab\xe3\x83\xbc\xe3\x83\x96");
   if (itG != vmd->boneTimelines.end()) {
     InterpResult irG = InterpolateBone(itG->second.keys, frameF, true);
     result.centerPos.x += irG.position.x;
@@ -788,7 +794,7 @@ static float g_ikDeltaRf[3] = {};
 
 static void *g_activeLfSolver = nullptr;
 static void *g_activeRfSolver = nullptr;
-static bool g_mmdIKActive = false;  
+static bool g_mmdIKActive = false;
 
 static float s_baseGroundY = 0.0f;
 static bool s_baseGroundCaptured = false;
@@ -814,12 +820,12 @@ static float s_legMaxL = 0.0f;
 static float s_legMaxR = 0.0f;
 static bool s_legLengthCaptured = false;
 
-static const float FOOT_ANKLE_REF_HEIGHT = 0.065f; 
+static const float FOOT_ANKLE_REF_HEIGHT = 0.065f;
 static float s_baseAnkleHeightL = FOOT_ANKLE_REF_HEIGHT;
 static float s_baseAnkleHeightR = FOOT_ANKLE_REF_HEIGHT;
 static bool s_ankleHeightCaptured = false;
-static const float GROUND_SMOOTH_TAU_ROOT = 0.08f; 
-static const float GROUND_SMOOTH_TAU_FOOT = 0.03f; 
+static const float GROUND_SMOOTH_TAU_ROOT = 0.08f;
+static const float GROUND_SMOOTH_TAU_FOOT = 0.03f;
 
 static bool s_groundSmoothingInitialized = false;
 static float s_smoothedFootGroundDeltaL = 0.0f;
@@ -932,13 +938,184 @@ static void *s_origMoveTick = nullptr;
 static void *s_cachedMovementComp = nullptr;
 static void *s_cachedEntity = nullptr;
 
+static void *GhostRig_GetOwnerGrounderBipedIK(
+    uintptr_t ownerCharacter, void *bipedIK) {
+  if (!GhostRig_RequireMainThread("GrounderBipedIK.ResolveOwner", false) ||
+      !ownerCharacter ||
+      reinterpret_cast<uintptr_t>(g_mainCharEntity) != ownerCharacter ||
+      reinterpret_cast<uintptr_t>(s_cachedEntity) != ownerCharacter ||
+      !s_cachedMovementComp || g_offMovementGrounder < 0)
+    return nullptr;
+  void *grounder = nullptr;
+  void *linkedBiped = nullptr;
+  __try {
+    grounder = *reinterpret_cast<void **>(
+        (char *)s_cachedMovementComp + g_offMovementGrounder);
+    if (!grounder || reinterpret_cast<uintptr_t>(grounder) < 0x10000)
+      return nullptr;
+    void *klass = il2cpp_object_get_class
+        ? il2cpp_object_get_class(grounder)
+        : nullptr;
+    const char *name = klass && il2cpp_class_get_name
+        ? il2cpp_class_get_name(klass)
+        : nullptr;
+    const char *nameSpace = klass && il2cpp_class_get_namespace
+        ? il2cpp_class_get_namespace(klass)
+        : nullptr;
+    if (!name || !nameSpace || strcmp(name, "GrounderBipedIK") != 0 ||
+        strcmp(nameSpace, "RootMotion.FinalIK") != 0)
+      return nullptr;
+    linkedBiped = *reinterpret_cast<void **>(
+        (char *)grounder + OFF_GROUNDER_BIPED_IK);
+  } __except (EXCEPTION_EXECUTE_HANDLER) {
+    return nullptr;
+  }
+  return (!bipedIK || linkedBiped == bipedIK) ? grounder : nullptr;
+}
+
 typedef void (__fastcall *FindFloorNative_t)(
   void *self, float *position, void *outResult, float stepDown, void *methodInfo);
 static FindFloorNative_t s_findFloorNativeFn = nullptr;
 
+typedef void (__fastcall *ComputeFloorDistNative_t)(
+  void *self, float *position, float sweepDistance, void *outResult,
+  float sweepRadius, bool forceWalkable, float stepDownOffset,
+  bool checkClimbable, void *methodInfo);
+static ComputeFloorDistNative_t s_computeFloorDistNativeFn = nullptr;
+
+static bool GhostRig_QueryFindFloorSample(
+    uintptr_t ownerCharacter, VmdVec3 queryPosition, float stepDown,
+    DirectVmdTerrainProbeHit *sample) {
+  static int s_lastUnavailableFrame = INT_MIN;
+  static int s_lastRejectedFrame = INT_MIN;
+  static bool s_layoutLogged = false;
+  static bool s_sehLogged = false;
+  if (!sample)
+    return false;
+  *sample = DirectVmdTerrainProbeHit();
+  if (!GhostRig_RequireMainThread("FindFloor.DirectVmd", false))
+    return false;
+  const bool ownerMatches = ownerCharacter &&
+      reinterpret_cast<uintptr_t>(g_mainCharEntity) == ownerCharacter &&
+      reinterpret_cast<uintptr_t>(s_cachedEntity) == ownerCharacter;
+  if (!ownerMatches || !s_cachedMovementComp ||
+      !g_computeFloorDistMethod) {
+    const int frame = GhostRig_GetFrameCount();
+    if (s_lastUnavailableFrame == INT_MIN || frame < 0 ||
+        frame - s_lastUnavailableFrame >= 120) {
+      s_lastUnavailableFrame = frame;
+      Log("[P7-FINDFLOOR-API] available=0 unityFrame=%d method=%p "
+          "movement=%p cachedEntity=%p mainEntity=%p owner=%p "
+          "action=hold-stable-plane-then-flat-air-target tid=%lu",
+          frame, g_computeFloorDistMethod, s_cachedMovementComp,
+          s_cachedEntity, g_mainCharEntity,
+          reinterpret_cast<void *>(ownerCharacter),
+          GetCurrentThreadId());
+    }
+    return false;
+  }
+  if (!DirectVmdFinite(queryPosition.x) ||
+      !DirectVmdFinite(queryPosition.y) ||
+      !DirectVmdFinite(queryPosition.z) ||
+      !DirectVmdFinite(stepDown) || stepDown <= 0.0f)
+    return false;
+
+  if (!s_computeFloorDistNativeFn) {
+    __try {
+      s_computeFloorDistNativeFn =
+          reinterpret_cast<ComputeFloorDistNative_t>(
+              reinterpret_cast<MInfo *>(g_computeFloorDistMethod)->mp);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+      s_computeFloorDistNativeFn = nullptr;
+    }
+  }
+  if (!s_computeFloorDistNativeFn)
+    return false;
+  static constexpr float kDirectVmdSweepRadius = 0.010f;
+  if (!s_layoutLogged) {
+    s_layoutLogged = true;
+    Log("[P7-FINDFLOOR-API] available=1 native=%p method=%p "
+        "sampler=ComputeFloorDist sweepRadius=%.3f "
+        "resultLayout=hit+0x00,walkable+0x01,dist+0x08,"
+        "point+0x10,normal+0x1C mainThreadOnly=1 tid=%lu",
+        s_computeFloorDistNativeFn, g_computeFloorDistMethod,
+        kDirectVmdSweepRadius, GetCurrentThreadId());
+  }
+
+  float position[3] = {
+      queryPosition.x, queryPosition.y, queryPosition.z};
+  alignas(16) unsigned char floorResult[0xB0] = {};
+  __try {
+    s_computeFloorDistNativeFn(
+        s_cachedMovementComp, position, stepDown, floorResult,
+        kDirectVmdSweepRadius, false, stepDown, false,
+        g_computeFloorDistMethod);
+    const bool hit = *reinterpret_cast<bool *>(floorResult + 0x00);
+    const bool walkable = *reinterpret_cast<bool *>(floorResult + 0x01);
+    if (!hit || !walkable)
+      return false;
+    const float floorDistance =
+        *reinterpret_cast<const float *>(floorResult + 0x08);
+    const float *point =
+        reinterpret_cast<const float *>(floorResult + 0x10);
+    const float *normal =
+        reinterpret_cast<const float *>(floorResult + 0x1C);
+    sample->query = queryPosition;
+    sample->point = {point[0], point[1], point[2]};
+    sample->normal = {normal[0], normal[1], normal[2]};
+    sample->floorDistance = floorDistance;
+    if (!DirectVmdFinite(sample->point.x) ||
+        !DirectVmdFinite(sample->point.y) ||
+        !DirectVmdFinite(sample->point.z) ||
+        !DirectVmdFinite(sample->normal.x) ||
+        !DirectVmdFinite(sample->normal.y) ||
+        !DirectVmdFinite(sample->normal.z) ||
+        !DirectVmdFinite(sample->floorDistance) ||
+        sample->floorDistance < 0.0f) {
+      *sample = DirectVmdTerrainProbeHit();
+      return false;
+    }
+    const float dx = sample->point.x - queryPosition.x;
+    const float dz = sample->point.z - queryPosition.z;
+    const float horizontalError = std::sqrt(dx * dx + dz * dz);
+    static constexpr float kMaximumHorizontalError = 0.035f;
+    if (!DirectVmdFinite(horizontalError) ||
+        horizontalError > kMaximumHorizontalError) {
+      const int frame = GhostRig_GetFrameCount();
+      if (s_lastRejectedFrame == INT_MIN || frame < 0 ||
+          frame - s_lastRejectedFrame >= 120) {
+        s_lastRejectedFrame = frame;
+        Log("[P7-FINDFLOOR-REJECT] unityFrame=%d reason=xz-error "
+            "error=%.6f limit=%.6f query=(%.6f,%.6f,%.6f) "
+            "point=(%.6f,%.6f,%.6f) floorDist=%.6f "
+            "sampler=ComputeFloorDist tid=%lu",
+            frame, horizontalError, kMaximumHorizontalError,
+            queryPosition.x, queryPosition.y, queryPosition.z,
+            sample->point.x, sample->point.y, sample->point.z,
+            sample->floorDistance, GetCurrentThreadId());
+      }
+      *sample = DirectVmdTerrainProbeHit();
+      return false;
+    }
+    sample->hit = 1;
+    return true;
+  } __except (EXCEPTION_EXECUTE_HANDLER) {
+    *sample = DirectVmdTerrainProbeHit();
+    if (!s_sehLogged) {
+      s_sehLogged = true;
+      Log("[P7-FINDFLOOR-API] SEH owner=%p movement=%p method=%p "
+          "terrainSampleRejected=1 tid=%lu",
+          reinterpret_cast<void *>(ownerCharacter),
+          s_cachedMovementComp, g_computeFloorDistMethod,
+          GetCurrentThreadId());
+    }
+    return false;
+  }
+}
+
 static void __fastcall Hooked_MovementComponent_Tick(void *self, float deltaTime, void *methodInfo) {
   typedef void (__fastcall *fn)(void *, float, void *);
-  
+
   if (!s_cachedMovementComp && g_cachedAnimator) {
     __try {
       void *entity = *(void **)((char *)self + g_offBaseCompEntity);
@@ -951,7 +1128,7 @@ static void __fastcall Hooked_MovementComponent_Tick(void *self, float deltaTime
       }
     } __except(1) {}
   }
-  
+
   if (s_origMoveTick)
     ((fn)s_origMoveTick)(self, deltaTime, methodInfo);
 }
@@ -962,25 +1139,26 @@ static void __fastcall Hooked_IK_UpdateSolver(void *self, void *methodInfo);
 
 static void __fastcall Hooked_SolverManager_LateUpdate(void *self, void *methodInfo) {
   typedef void (__fastcall *fn)(void *, void *);
+  GhostRig_OnSolverManagerLateUpdate(self);
   if (s_origLateUpdate) {
     ((fn)s_origLateUpdate)(self, methodInfo);
   }
+  DirectVmdCamera_UpdateMainThread(GhostRig_GetFrameCount());
+  DirectVmdAudio_UpdateMainThread(GhostRig_GetFrameCount());
 }
-
-static void *s_origOnUpdate = nullptr;
 
 static void __fastcall Hooked_OnUpdate(void *self, void *methodInfo) {
   typedef void (__fastcall *fn)(void *, void *);
 
   __try {
-    if (g_mmdIKActive) {
+    if (g_motionBackend.Is(MotionBackend::Muscle) && g_mmdIKActive) {
       if (self == g_activeLfSolver && g_activeLfSolver) {
         *(float *)((char *)self + OFF_IKSOLVER_IKPOS_X) = s_curFootTargetL[0];
         *(float *)((char *)self + OFF_IKSOLVER_IKPOS_Y) = s_curFootTargetL[1];
         *(float *)((char *)self + OFF_IKSOLVER_IKPOS_Z) = s_curFootTargetL[2];
         *(float *)((char *)self + OFF_IKSOLVER_IKPOS_WEIGHT) = 1.0f;
 
-        *(float *)((char *)self + 0x60) = s_curFootRotWeightL; 
+        *(float *)((char *)self + 0x60) = s_curFootRotWeightL;
         *(float *)((char *)self + 0x64) = s_curFootRotTargetL[0];
         *(float *)((char *)self + 0x68) = s_curFootRotTargetL[1];
         *(float *)((char *)self + 0x6C) = s_curFootRotTargetL[2];
@@ -992,25 +1170,35 @@ static void __fastcall Hooked_OnUpdate(void *self, void *methodInfo) {
         *(float *)((char *)self + OFF_IKSOLVER_IKPOS_Z) = s_curFootTargetR[2];
         *(float *)((char *)self + OFF_IKSOLVER_IKPOS_WEIGHT) = 1.0f;
 
-        *(float *)((char *)self + 0x60) = s_curFootRotWeightR; 
+        *(float *)((char *)self + 0x60) = s_curFootRotWeightR;
         *(float *)((char *)self + 0x64) = s_curFootRotTargetR[0];
         *(float *)((char *)self + 0x68) = s_curFootRotTargetR[1];
         *(float *)((char *)self + 0x6C) = s_curFootRotTargetR[2];
         *(float *)((char *)self + 0x70) = s_curFootRotTargetR[3];
       }
+    } else if (g_motionBackend.Is(MotionBackend::DirectVmd)) {
+      GhostRig_BeforeLegSolverUpdate(self, methodInfo);
     }
 
-    if (s_origOnUpdate) {
-      ((fn)s_origOnUpdate)(self, methodInfo);
+    if (g_origIkTrigOnUpdate) {
+      ((fn)g_origIkTrigOnUpdate)(self, methodInfo);
     }
   } __except (EXCEPTION_EXECUTE_HANDLER) {}
 }
 
 static void __fastcall Hooked_IK_UpdateSolver(void *self, void *methodInfo) {
   typedef void (__fastcall *fn)(void *, void *);
+  GhostRig_BeforeFinalIK(self);
+  if (GhostRig_ShouldSuppressFinalIKPhase5Safety(self)) {
+    GhostRig_LogFinalIKSuppressedPhase5Safety(self);
+    return;
+  }
+
+  GhostRig_LogFinalIKEntry(self);
   if (s_origUpdateSolver) {
     ((fn)s_origUpdateSolver)(self, methodInfo);
   }
+  GhostRig_AfterFinalIK(self);
 }
 
 static void PreSampleVmdCenter() {
@@ -1020,13 +1208,13 @@ static void PreSampleVmdCenter() {
     float frameF = g_musclePlayer->currentTime * 30.0f;
     Vec3 center = {0, 0, 0};
     auto itC = vmd->boneTimelines.find(
-        "\xe3\x82\xbb\xe3\x83\xb3\xe3\x82\xbf\xe3\x83\xbc"); 
+        "\xe3\x82\xbb\xe3\x83\xb3\xe3\x82\xbf\xe3\x83\xbc");
     if (itC != vmd->boneTimelines.end()) {
       InterpResult irC = InterpolateBone(itC->second.keys, frameF, true);
       center = irC.position;
     }
     auto itG = vmd->boneTimelines.find(
-        "\xe3\x82\xb0\xe3\x83\xab\xe3\x83\xbc\xe3\x83\x96"); 
+        "\xe3\x82\xb0\xe3\x83\xab\xe3\x83\xbc\xe3\x83\x96");
     if (itG != vmd->boneTimelines.end()) {
       InterpResult irG = InterpolateBone(itG->second.keys, frameF, true);
       center.x += irG.position.x;
@@ -1046,7 +1234,7 @@ static void ConfigureIKComponents(bool footIKEnabled) {
           int trueVal = 1; void *params[] = {&trueVal};
           __try { Invoke(g_animator_set_enabled, s_bipedIK[bi], params); } __except(1) {}
         }
-        *(bool *)((char *)s_bipedIK[bi] + OFF_BIPEDIK_FIX_TRANSFORMS) = false; 
+        *(bool *)((char *)s_bipedIK[bi] + OFF_BIPEDIK_FIX_TRANSFORMS) = false;
         __try {
           void *solvers = *(void **)((char *)s_bipedIK[bi] + OFF_BIPEDIK_SOLVERS);
           if (solvers) {
@@ -1272,25 +1460,25 @@ static void ApplyMmdPoseOnMainThread() {
     switch (stdIdx) {
     case 9:
       mmdCur += NECK_NOD_OFFSET;
-      break; 
+      break;
     case 39:
       mmdCur += ARM_DU_OFFSET;
-      break; 
+      break;
     case 48:
       mmdCur += ARM_DU_OFFSET;
-      break; 
+      break;
     case 40:
       mmdCur += ARM_FB_OFFSET;
-      break; 
+      break;
     case 49:
       mmdCur += ARM_FB_OFFSET;
-      break; 
+      break;
     case 42:
       mmdCur += FOREARM_STRETCH_OFFSET;
-      break; 
+      break;
     case 51:
       mmdCur += FOREARM_STRETCH_OFFSET;
-      break; 
+      break;
     }
 
     float partScale = GetMuscleScale(stdIdx);
@@ -1309,8 +1497,8 @@ static void ApplyMmdPoseOnMainThread() {
 
       if (s_footIKFirstCaptured && s_initialRootCaptured) {
         const float IK_SCALE = 0.08f * g_motionScale;
-        const float PMX_REST_L_X = +1.25f; 
-        const float PMX_REST_R_X = -1.25f; 
+        const float PMX_REST_L_X = +1.25f;
+        const float PMX_REST_R_X = -1.25f;
 
         float liftL = (ikSample.leftPos.y > 0.0f) ? ikSample.leftPos.y * IK_SCALE : 0.0f;
         float locL_y = s_baseAnkleHeightL + liftL;
@@ -1450,8 +1638,8 @@ static void ApplyMmdPoseOnMainThread() {
 
 
   if (g_trojanActive && g_cachedAnimator) {
-    void *leftFootT = SafeGetBoneTransform(5);   
-    void *rightFootT = SafeGetBoneTransform(6);   
+    void *leftFootT = SafeGetBoneTransform(5);
+    void *rightFootT = SafeGetBoneTransform(6);
 
     float qBody[4] = {s_cachedPose.bodyRotX, s_cachedPose.bodyRotY, s_cachedPose.bodyRotZ, s_cachedPose.bodyRotW};
     float qCharWorld[4] = {0, 0, 0, 1};
@@ -1526,10 +1714,10 @@ static void ApplyMmdPoseOnMainThread() {
     }
 
     if (!s_legLengthCaptured && haveFootBones) {
-      void *lThighT = SafeGetBoneTransform(1); 
-      void *rThighT = SafeGetBoneTransform(2); 
-      void *lCalfT  = SafeGetBoneTransform(3); 
-      void *rCalfT  = SafeGetBoneTransform(4); 
+      void *lThighT = SafeGetBoneTransform(1);
+      void *rThighT = SafeGetBoneTransform(2);
+      void *lCalfT  = SafeGetBoneTransform(3);
+      void *rCalfT  = SafeGetBoneTransform(4);
 
       if (lThighT && lCalfT && rThighT && rCalfT) {
         Vec3 pThighL = {}, pCalfL = {}, pFootL = curLfPos;
@@ -1740,8 +1928,8 @@ static void ApplyMmdPoseOnMainThread() {
     s_desiredFootTargetR[1] = s_initialRootPos[1] + g_ikDeltaRf[1] + s_curFootGroundDeltaR;
     s_desiredFootTargetR[2] = footZ_R;
 
-    void *lThighT = SafeGetBoneTransform(1); 
-    void *rThighT = SafeGetBoneTransform(2); 
+    void *lThighT = SafeGetBoneTransform(1);
+    void *rThighT = SafeGetBoneTransform(2);
     Vec3 hipPosL = {}, hipPosR = {};
     bool haveThighL = (lThighT && ReadWorldPosition(lThighT, hipPosL));
     bool haveThighR = (rThighT && ReadWorldPosition(rThighT, hipPosR));
@@ -1847,20 +2035,20 @@ static void ApplyMmdPoseOnMainThread() {
             *(void **)((char *)lfSolver + OFF_IKSOLVER_ON_PRE_UPDATE) = nullptr;
             *(void **)((char *)lfSolver + OFF_IKSOLVER_ON_POST_UPDATE) = nullptr;
             *(void **)((char *)lfSolver + OFF_IKTRIG_TARGET) = nullptr;
-            *(int *)((char *)lfSolver + 0xAC) = 0; 
-            *(float *)((char *)lfSolver + 0xB4) = 1.0f; 
+            *(int *)((char *)lfSolver + 0xAC) = 0;
+            *(float *)((char *)lfSolver + 0xB4) = 1.0f;
           }
           if (rfSolver) {
             *(void **)((char *)rfSolver + OFF_IKSOLVER_ON_PRE_UPDATE) = nullptr;
             *(void **)((char *)rfSolver + OFF_IKSOLVER_ON_POST_UPDATE) = nullptr;
             *(void **)((char *)rfSolver + OFF_IKTRIG_TARGET) = nullptr;
-            *(int *)((char *)rfSolver + 0xAC) = 0; 
-            *(float *)((char *)rfSolver + 0xB4) = 1.0f; 
+            *(int *)((char *)rfSolver + 0xAC) = 0;
+            *(float *)((char *)rfSolver + 0xB4) = 1.0f;
           }
 
-          *(bool *)((char *)bipedIK + 0x30) = true;   
-          *(bool *)((char *)bipedIK + 0x32) = false;  
-          *(void **)((char *)bipedIK + 0x20) = nullptr; 
+          *(bool *)((char *)bipedIK + 0x30) = true;
+          *(bool *)((char *)bipedIK + 0x32) = false;
+          *(void **)((char *)bipedIK + 0x20) = nullptr;
 
           g_activeLfSolver = lfSolver;
           g_activeRfSolver = rfSolver;
@@ -1871,12 +2059,12 @@ static void ApplyMmdPoseOnMainThread() {
       g_mmdIKActive = false;
       __try {
         if (g_activeLfSolver) {
-          *(float *)((char *)g_activeLfSolver + 0x20) = 0.0f; 
-          *(float *)((char *)g_activeLfSolver + 0x60) = 0.0f; 
+          *(float *)((char *)g_activeLfSolver + 0x20) = 0.0f;
+          *(float *)((char *)g_activeLfSolver + 0x60) = 0.0f;
         }
         if (g_activeRfSolver) {
-          *(float *)((char *)g_activeRfSolver + 0x20) = 0.0f; 
-          *(float *)((char *)g_activeRfSolver + 0x60) = 0.0f; 
+          *(float *)((char *)g_activeRfSolver + 0x20) = 0.0f;
+          *(float *)((char *)g_activeRfSolver + 0x60) = 0.0f;
         }
       } __except (1) {}
     }
@@ -2197,7 +2385,7 @@ static void ApplyMmdPoseOnMainThread() {
     }
     if (s_skirtRetryFrames > 0) {
       s_skirtRetryFrames--;
-      s_skirtScaleResolved = false;  
+      s_skirtScaleResolved = false;
       s_skirtDirty = true;
       ApplySkirtColliderScale();
     }
@@ -2290,7 +2478,7 @@ static void ApplyMmdPoseOnMainThread() {
       float ax = s1*dx, ay = s1*dy, az = s1*dz, aw = s0 + s1*dw;
 
       float rx, ry, rz, rw;
-      bool isProximal = (i % 3 == 0); 
+      bool isProximal = (i % 3 == 0);
 
       if (isProximal) {
 
@@ -2362,7 +2550,7 @@ static void ApplyMmdPoseOnMainThread() {
         g_charWorldPos = {pos[0], pos[1], pos[2]};
         if (g_camGetRot) {
           float q[4] = {};
-          g_camGetRot(charTransform, q);  
+          g_camGetRot(charTransform, q);
           g_charYaw = atan2f(2.0f * (q[3] * q[1] + q[0] * q[2]),
                              1.0f - 2.0f * (q[1] * q[1] + q[2] * q[2]));
         }
@@ -2370,8 +2558,8 @@ static void ApplyMmdPoseOnMainThread() {
             g_charWorldPos.x, g_charWorldPos.y, g_charWorldPos.z,
             g_charYaw * 57.2958f);
 
-        g_camInitHipsWorldPos = g_charWorldPos; 
-        g_camInitHipsYaw = 0.0f; 
+        g_camInitHipsWorldPos = g_charWorldPos;
+        g_camInitHipsYaw = 0.0f;
         if (g_muscleAnim && g_muscleAnim->loaded &&
             !g_muscleAnim->frames.empty()) {
           const float *br = g_muscleAnim->frames[0].bodyRot;
@@ -2382,14 +2570,14 @@ static void ApplyMmdPoseOnMainThread() {
               g_camInitHipsYaw * 57.2958f);
         }
         if (g_animator_GetBoneTransform && g_cachedAnimator) {
-          void *hipsT = SafeGetBoneTransform(0); 
+          void *hipsT = SafeGetBoneTransform(0);
           Vec3 hipsPos;
           if (hipsT && ReadWorldPosition(hipsT, hipsPos)) {
             g_camInitHipsWorldPos = hipsPos;
             Log("[CAM] Initial Hips world pos: (%.3f, %.3f, %.3f)",
                 hipsPos.x, hipsPos.y, hipsPos.z);
           }
-          void *headT0 = SafeGetBoneTransform(10); 
+          void *headT0 = SafeGetBoneTransform(10);
           if (headT0 && g_camGetRot) {
             float hq[4] = {};
             g_camGetRot(headT0, hq);
@@ -2406,11 +2594,11 @@ static void ApplyMmdPoseOnMainThread() {
 
         g_charHeight = 0.0f;
         if (g_animator_GetBoneTransform && g_cachedAnimator) {
-          void *headT = SafeGetBoneTransform(10); 
+          void *headT = SafeGetBoneTransform(10);
           Vec3 headPos;
           if (headT && ReadWorldPosition(headT, headPos)) {
-            float h = headPos.y - g_charWorldPos.y; 
-            if (h > 0.1f && h < 5.0f) 
+            float h = headPos.y - g_charWorldPos.y;
+            if (h > 0.1f && h < 5.0f)
               g_charHeight = h;
           }
         }
@@ -2420,7 +2608,7 @@ static void ApplyMmdPoseOnMainThread() {
                                                      : g_charHeight;
           g_camHeightScale = g_charHeight / g_camRefHeight;
         } else {
-          g_camHeightScale = 1.0f; 
+          g_camHeightScale = 1.0f;
         }
         Log("[CAM] Char height=%.3f refHeight=%.3f heightScale=%.3f",
             g_charHeight, g_camRefHeight, g_camHeightScale);
@@ -2438,7 +2626,7 @@ static void ApplyMmdPoseOnMainThread() {
   if (g_cameraActive && g_musclePlayer) {
     __try {
       if (g_animator_GetBoneTransform && g_cachedAnimator) {
-        void *hipsT = SafeGetBoneTransform(0); 
+        void *hipsT = SafeGetBoneTransform(0);
         Vec3 hipsNow;
         if (hipsT && ReadWorldPosition(hipsT, hipsNow)) {
           g_charWorldPos.x = hipsNow.x;
@@ -2454,13 +2642,13 @@ static void ApplyMmdPoseOnMainThread() {
     } __except (1) {}
     __try {
       if (g_animator_GetBoneTransform && g_cachedAnimator) {
-        void *headT = SafeGetBoneTransform(10); 
+        void *headT = SafeGetBoneTransform(10);
         Vec3 headPos;
         if (headT && ReadWorldPosition(headT, headPos)) {
           g_headWorldPos = headPos;
           if (g_camGetRot) {
             float hq[4] = {};
-            g_camGetRot(headT, hq); 
+            g_camGetRot(headT, hq);
             g_headForward.x = 2.0f * (hq[3] * hq[1] + hq[0] * hq[2]);
             g_headForward.y = 2.0f * (hq[1] * hq[2] - hq[3] * hq[0]);
             g_headForward.z = 1.0f - 2.0f * (hq[0] * hq[0] + hq[1] * hq[1]);
@@ -2514,7 +2702,7 @@ static bool EnsureAudioLoaded() {
   if (!g_audioEnabled) return false;
   if (!g_audioPlayer) g_audioPlayer = new AudioPlayer();
   if (g_audioPlayer->loaded) return true;
-  if (g_audioPathW[0] == L'\0') return false; 
+  if (g_audioPathW[0] == L'\0') return false;
   return g_audioPlayer->Open(g_audioPathW);
 }
 
@@ -2539,17 +2727,596 @@ static void AudioStartFresh() {
       startMs, g_audioOffset, g_audioIsClock ? 1 : 0);
 }
 
+struct DirectVmdAudioRuntimeState {
+  bool initialized = false;
+  bool ownsDevice = false;
+  uint64_t sequence = 0;
+  uint64_t rigGeneration = 0;
+  uint64_t clipGeneration = 0;
+  uint64_t playbackCycle = 0;
+  uint64_t seekRevision = 0;
+  uintptr_t ownerCharacter = 0;
+  DirectVmdPlaybackState playback = DirectVmdPlaybackState::Stopped;
+  DirectVmdAudioRange range = DirectVmdAudioRange::Delayed;
+  float offsetSeconds = 0.0f;
+  float speed = 1.0f;
+  int targetMilliseconds = 0;
+  ULONGLONG lastDriftCheckTick = 0;
+  int lastHeartbeatFrame = -300;
+};
+
+static DirectVmdAudioRuntimeState s_directVmdAudio;
+
+static const char *DirectVmdAudio_RangeName(DirectVmdAudioRange range) {
+  switch (range) {
+  case DirectVmdAudioRange::Audible: return "audible";
+  case DirectVmdAudioRange::PastEnd: return "past-end";
+  default: return "delayed";
+  }
+}
+
+static void DirectVmdAudio_RecordFrame(
+    const DirectVmdSampleFrame &frame,
+    const DirectVmdAudioTimelineTarget &target, float speed) {
+  s_directVmdAudio.initialized = true;
+  s_directVmdAudio.sequence = frame.sequence;
+  s_directVmdAudio.rigGeneration = frame.rigGeneration;
+  s_directVmdAudio.clipGeneration = frame.clipGeneration;
+  s_directVmdAudio.playbackCycle = frame.playbackCycle;
+  s_directVmdAudio.seekRevision = frame.seekRevision;
+  s_directVmdAudio.ownerCharacter = frame.ownerCharacter;
+  s_directVmdAudio.playback = frame.playback;
+  s_directVmdAudio.range = target.range;
+  s_directVmdAudio.offsetSeconds = g_audioOffset;
+  s_directVmdAudio.speed = speed;
+  s_directVmdAudio.targetMilliseconds = target.mediaMilliseconds;
+}
+
+static void DirectVmdAudio_ResetMainThread(const char *reason,
+                                           bool closeResource) {
+  if (!GhostRig_RequireMainThread("P6.Audio.Reset", true))
+    return;
+  const bool hadOwnership = s_directVmdAudio.ownsDevice;
+  const bool wasLoaded = g_audioPlayer && g_audioPlayer->loaded;
+  const bool wasPlaying = wasLoaded && g_audioPlayer->playing;
+  if (hadOwnership && wasLoaded) {
+    g_audioPlayer->SetPlaybackSpeed(1.0f);
+    g_audioPlayer->Stop();
+  }
+  if (closeResource && g_audioPlayer)
+    g_audioPlayer->Close();
+  s_directVmdAudio = DirectVmdAudioRuntimeState{};
+  g_audioIsClock = false;
+  g_audioPendingStart = false;
+  Log("[P6-AUDIO-LIFECYCLE] event=reset reason=%s hadOwnership=%d "
+      "wasLoaded=%d wasPlaying=%d closeResource=%d tid=%lu",
+      reason ? reason : "unspecified", hadOwnership ? 1 : 0,
+      wasLoaded ? 1 : 0, wasPlaying ? 1 : 0, closeResource ? 1 : 0,
+      GetCurrentThreadId());
+}
+
+static void DirectVmdAudio_UpdateMainThread(int frameNumber) {
+  if (!GhostRig_RequireMainThread("P6.Audio.Update", false))
+    return;
+  if (!g_motionBackend.Is(MotionBackend::DirectVmd)) {
+    if (s_directVmdAudio.ownsDevice || s_directVmdAudio.initialized)
+      DirectVmdAudio_ResetMainThread("backend-not-direct", false);
+    return;
+  }
+
+  DirectVmdSampleFrame frame;
+  const bool copied = DirectVmdRuntime_CopyLatestFrame(&frame);
+  const uint64_t targetGeneration =
+      DirectVmdRuntime_PublicTargetGeneration();
+  const uint64_t clipGeneration =
+      DirectVmdRuntime_PublicClipGeneration();
+  const uintptr_t targetOwner = DirectVmdRuntime_PublicTargetOwner();
+  uint64_t ghostGeneration = 0;
+  uintptr_t ghostOwner = 0;
+  const bool ghostIdentityValid = GhostRig_GetDirectChannelIdentity(
+      &ghostGeneration, &ghostOwner);
+  const bool identityValid =
+      copied && frame.valid && ghostIdentityValid &&
+      targetGeneration != 0 && targetOwner != 0 &&
+      frame.rigGeneration == targetGeneration &&
+      frame.clipGeneration == clipGeneration &&
+      frame.ownerCharacter == targetOwner &&
+      frame.rigGeneration == ghostGeneration &&
+      frame.ownerCharacter == ghostOwner;
+  if (!identityValid) {
+    if (s_directVmdAudio.ownsDevice || s_directVmdAudio.initialized)
+      DirectVmdAudio_ResetMainThread("invalid-generation-or-frame", false);
+    return;
+  }
+
+  if (!g_audioEnabled || !g_audioPlayer || !g_audioPlayer->loaded) {
+    if (s_directVmdAudio.ownsDevice || s_directVmdAudio.initialized)
+      DirectVmdAudio_ResetMainThread(
+          g_audioEnabled ? "audio-resource-unloaded" : "audio-disabled",
+          false);
+    return;
+  }
+  if (s_directVmdAudio.initialized &&
+      frame.sequence == s_directVmdAudio.sequence)
+    return;
+
+  g_audioIsClock = false;
+  g_audioPendingStart = false;
+  const float speed = DirectVmdRuntime_GetSpeed();
+  const DirectVmdAudioTimelineTarget target = DirectVmdComputeAudioTarget(
+      frame.sourceFrame, static_cast<double>(g_audioOffset),
+      g_audioPlayer->GetLengthMs());
+
+  const bool identityChanged =
+      !s_directVmdAudio.initialized ||
+      frame.rigGeneration != s_directVmdAudio.rigGeneration ||
+      frame.clipGeneration != s_directVmdAudio.clipGeneration ||
+      frame.ownerCharacter != s_directVmdAudio.ownerCharacter;
+  const bool seekChanged =
+      s_directVmdAudio.initialized &&
+      frame.seekRevision != s_directVmdAudio.seekRevision;
+  const bool cycleChanged =
+      s_directVmdAudio.initialized &&
+      frame.playbackCycle != s_directVmdAudio.playbackCycle;
+  const bool playbackChanged =
+      !s_directVmdAudio.initialized ||
+      frame.playback != s_directVmdAudio.playback;
+  const bool offsetChanged =
+      s_directVmdAudio.initialized &&
+      fabsf(g_audioOffset - s_directVmdAudio.offsetSeconds) > 0.0005f;
+  const bool rangeChanged =
+      !s_directVmdAudio.initialized || target.range != s_directVmdAudio.range;
+  const bool speedChanged =
+      !s_directVmdAudio.initialized ||
+      fabsf(speed - s_directVmdAudio.speed) > 0.0005f;
+  const bool timelineJump = identityChanged || seekChanged || cycleChanged ||
+                            offsetChanged || rangeChanged;
+
+  if (identityChanged && s_directVmdAudio.ownsDevice) {
+    g_audioPlayer->Stop();
+    s_directVmdAudio.ownsDevice = false;
+  }
+
+  if (frame.playback == DirectVmdPlaybackState::Stopped) {
+    if (s_directVmdAudio.ownsDevice) {
+      g_audioPlayer->Stop();
+      Log("[P6-AUDIO-SYNC] event=stop sourceFrame=%.6f sequence=%llu "
+          "generation=%llu owner=%p sameClock=1 tid=%lu",
+          frame.sourceFrame, (unsigned long long)frame.sequence,
+          (unsigned long long)frame.rigGeneration,
+          reinterpret_cast<void *>(frame.ownerCharacter),
+          GetCurrentThreadId());
+    }
+    s_directVmdAudio.ownsDevice = false;
+    DirectVmdAudio_RecordFrame(frame, target, speed);
+    return;
+  }
+
+  if (frame.playback == DirectVmdPlaybackState::Ended) {
+    if (timelineJump || playbackChanged || g_audioPlayer->playing) {
+      g_audioPlayer->SeekTo(target.mediaMilliseconds);
+      Log("[P6-AUDIO-SYNC] event=ended-hold sourceFrame=%.6f "
+          "audioMs=%d range=%s cycle=%llu seekRevision=%llu "
+          "sequence=%llu generation=%llu owner=%p sameClock=1 tid=%lu",
+          frame.sourceFrame, target.mediaMilliseconds,
+          DirectVmdAudio_RangeName(target.range),
+          (unsigned long long)frame.playbackCycle,
+          (unsigned long long)frame.seekRevision,
+          (unsigned long long)frame.sequence,
+          (unsigned long long)frame.rigGeneration,
+          reinterpret_cast<void *>(frame.ownerCharacter),
+          GetCurrentThreadId());
+    }
+    s_directVmdAudio.ownsDevice = true;
+    DirectVmdAudio_RecordFrame(frame, target, speed);
+    return;
+  }
+
+  if (frame.playback == DirectVmdPlaybackState::Paused) {
+    const bool needsPausedSeek =
+        timelineJump || playbackChanged ||
+        target.mediaMilliseconds != s_directVmdAudio.targetMilliseconds;
+    if (needsPausedSeek) {
+      g_audioPlayer->SeekTo(target.mediaMilliseconds);
+      Log("[P6-AUDIO-SYNC] event=paused-seek sourceFrame=%.6f "
+          "audioMs=%d range=%s cycle=%llu seekRevision=%llu "
+          "sequence=%llu generation=%llu owner=%p sameClock=1 tid=%lu",
+          frame.sourceFrame, target.mediaMilliseconds,
+          DirectVmdAudio_RangeName(target.range),
+          (unsigned long long)frame.playbackCycle,
+          (unsigned long long)frame.seekRevision,
+          (unsigned long long)frame.sequence,
+          (unsigned long long)frame.rigGeneration,
+          reinterpret_cast<void *>(frame.ownerCharacter),
+          GetCurrentThreadId());
+    } else if (s_directVmdAudio.ownsDevice && g_audioPlayer->playing) {
+      g_audioPlayer->Pause();
+    }
+    s_directVmdAudio.ownsDevice = true;
+    DirectVmdAudio_RecordFrame(frame, target, speed);
+    return;
+  }
+
+  if (target.range != DirectVmdAudioRange::Audible) {
+    if (timelineJump || playbackChanged || g_audioPlayer->playing) {
+      g_audioPlayer->SeekTo(target.mediaMilliseconds);
+      Log("[P6-AUDIO-SYNC] event=%s sourceFrame=%.6f audioMs=%d "
+          "cycle=%llu seekRevision=%llu sequence=%llu generation=%llu "
+          "owner=%p sameClock=1 tid=%lu",
+          target.range == DirectVmdAudioRange::Delayed
+              ? "offset-delay"
+              : "audio-past-end",
+          frame.sourceFrame, target.mediaMilliseconds,
+          (unsigned long long)frame.playbackCycle,
+          (unsigned long long)frame.seekRevision,
+          (unsigned long long)frame.sequence,
+          (unsigned long long)frame.rigGeneration,
+          reinterpret_cast<void *>(frame.ownerCharacter),
+          GetCurrentThreadId());
+    }
+    s_directVmdAudio.ownsDevice = true;
+    DirectVmdAudio_RecordFrame(frame, target, speed);
+    return;
+  }
+
+  if (speedChanged || timelineJump || playbackChanged)
+    g_audioPlayer->SetPlaybackSpeed(speed);
+  const bool needsStart =
+      timelineJump || playbackChanged || !s_directVmdAudio.ownsDevice ||
+      !g_audioPlayer->playing;
+  if (needsStart) {
+    if (g_audioPlayer->playing)
+      g_audioPlayer->Pause();
+    g_audioPlayer->PlayFrom(target.mediaMilliseconds);
+    g_audioPlayer->SetVolume(g_audioVolume);
+    s_directVmdAudio.ownsDevice = true;
+    s_directVmdAudio.lastDriftCheckTick = GetTickCount64();
+    Log("[P6-AUDIO-SYNC] event=%s sourceFrame=%.6f audioMs=%d "
+        "speed=%.3f cycle=%llu seekRevision=%llu sequence=%llu "
+        "generation=%llu owner=%p sameClock=1 audioDrivesVmd=0 tid=%lu",
+        cycleChanged ? "loop-restart"
+                     : (seekChanged ? "seek" :
+                        (playbackChanged ? "play-or-resume" : "start")),
+        frame.sourceFrame, target.mediaMilliseconds, speed,
+        (unsigned long long)frame.playbackCycle,
+        (unsigned long long)frame.seekRevision,
+        (unsigned long long)frame.sequence,
+        (unsigned long long)frame.rigGeneration,
+        reinterpret_cast<void *>(frame.ownerCharacter),
+        GetCurrentThreadId());
+  } else {
+    const ULONGLONG now = GetTickCount64();
+    if (now - s_directVmdAudio.lastDriftCheckTick >= 500) {
+      s_directVmdAudio.lastDriftCheckTick = now;
+      const int actual = g_audioPlayer->GetPositionMs();
+      const int drift = actual >= 0 ? actual - target.mediaMilliseconds : 0;
+      if (actual >= 0 && abs(drift) > 120) {
+        g_audioPlayer->Pause();
+        g_audioPlayer->PlayFrom(target.mediaMilliseconds);
+        Log("[P6-AUDIO-DRIFT] action=correct sourceFrame=%.6f "
+            "desiredMs=%d actualMs=%d driftMs=%d speed=%.3f "
+            "sequence=%llu sameClock=1 audioDrivesVmd=0 tid=%lu",
+            frame.sourceFrame, target.mediaMilliseconds, actual, drift,
+            speed, (unsigned long long)frame.sequence,
+            GetCurrentThreadId());
+      }
+    }
+  }
+
+  if (frameNumber - s_directVmdAudio.lastHeartbeatFrame >= 300) {
+    s_directVmdAudio.lastHeartbeatFrame = frameNumber;
+    const int actual = g_audioPlayer->GetPositionMs();
+    Log("[P6-AUDIO-HEARTBEAT] hookFrame=%d sourceFrame=%.6f "
+        "desiredMs=%d actualMs=%d speed=%.3f playback=%u cycle=%llu "
+        "seekRevision=%llu sequence=%llu generation=%llu owner=%p "
+        "sameClock=1 audioDrivesVmd=0 tid=%lu",
+        frameNumber, frame.sourceFrame, target.mediaMilliseconds, actual,
+        speed, static_cast<unsigned>(frame.playback),
+        (unsigned long long)frame.playbackCycle,
+        (unsigned long long)frame.seekRevision,
+        (unsigned long long)frame.sequence,
+        (unsigned long long)frame.rigGeneration,
+        reinterpret_cast<void *>(frame.ownerCharacter),
+        GetCurrentThreadId());
+  }
+  DirectVmdAudio_RecordFrame(frame, target, speed);
+}
+
+static bool MotionBackend_RequireCommandThread(const char *stage) {
+  return GhostRig_RequireMainThread(stage, true);
+}
+
+static bool MotionBackend_PublishMainThread(MotionBackend next,
+                                            const char *reason) {
+  if (!MotionBackend_RequireCommandThread("MotionBackend.Transition"))
+    return false;
+  const MotionBackend previous = g_motionBackend.Current();
+  const bool changed = g_motionBackend.TransitionTo(next);
+  Log("[P3-BACKEND] frame=%d seq=%llu tid=%lu old=%s new=%s "
+      "changed=%d backendGeneration=%llu ghostGeneration=%llu reason=%s",
+      GhostRig_GetFrameCount(),
+      (unsigned long long)GhostRig_NextOrderSequence(),
+      GetCurrentThreadId(), MotionBackendName(previous),
+      MotionBackendName(next), changed ? 1 : 0,
+      (unsigned long long)g_motionBackend.Generation(),
+      (unsigned long long)s_ghostRequestedGeneration.load(
+          std::memory_order_acquire),
+      reason ? reason : "unspecified");
+  return true;
+}
+
+static bool MotionBackend_HasMuscleOwnership() {
+  return g_trojanActive || s_poseReady || g_poseHandleGC != 0 ||
+         g_musclesArrayGC != 0 || g_mmdIKActive || s_ikDisabled ||
+         (g_musclePlayer &&
+          (g_musclePlayer->playing || g_musclePlayer->currentTime > 0.0f ||
+           g_musclePlayer->ended));
+}
+
+static void MotionBackend_ReleaseMuscleMainThread(const char *reason) {
+  const bool hadOwnership = MotionBackend_HasMuscleOwnership();
+
+  g_trojanActive = false;
+  g_mmdPendingApply = false;
+  g_mmdHasMuscles = false;
+  g_mmdHasArmBones = false;
+  g_mmdHasFingerBones = false;
+  g_mouthWeightsFromMuscle = false;
+  if (g_musclePlayer &&
+      (g_musclePlayer->playing || g_musclePlayer->currentTime > 0.0f ||
+       g_musclePlayer->ended)) {
+    g_musclePlayer->Stop();
+  }
+
+  memset((void *)g_mmdMuscles, 0, sizeof(g_mmdMuscles));
+  memset((void *)g_mmdArmBoneRots, 0, sizeof(g_mmdArmBoneRots));
+  memset((void *)g_mmdFingerBoneRots, 0, sizeof(g_mmdFingerBoneRots));
+  memset((void *)g_mouthWeights, 0, sizeof(g_mouthWeights));
+  CleanupPoseHandler();
+  RestoreBigList();
+  if (g_confirmedSMC && OFF_allMorphBoneDirty > 0) {
+    __try {
+      *(bool *)((char *)g_confirmedSMC + OFF_allMorphBoneDirty) = true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+    }
+  }
+  memset((void *)g_faceBoneTouched, 0, sizeof(g_faceBoneTouched));
+  for (int i = 0; i < NUM_EXTRA_MORPHS; ++i) {
+    g_extraMorphs[i].weight = 0.0f;
+    g_extraMorphs[i].prevWeight = 0.0f;
+  }
+
+  g_mmdIKActive = false;
+  ClearActiveFootIKSolverWeights();
+  ResetFootIKRuntimeState();
+  RestoreDisabledComponents();
+  RestoreSkirtColliders();
+  SafeSetAnimatorEnabled(true);
+
+  if (g_cameraActive)
+    RestoreCinemachine();
+  ResetCameraState();
+  s_firstFrame = true;
+  if (s_initialRootCaptured && g_camSetPos && g_cachedAnimator) {
+    void *rootTransform = SafeGetComponentTransform(g_cachedAnimator);
+    if (rootTransform) {
+      g_camSetPos(rootTransform, s_initialRootPos);
+      Log("[P3-BACKEND] restored legacy MUS4 root before ownership release "
+          "position=(%.3f,%.3f,%.3f)",
+          s_initialRootPos[0], s_initialRootPos[1], s_initialRootPos[2]);
+    }
+  }
+  s_initialRootCaptured = false;
+  if (g_audioPlayer)
+    g_audioPlayer->Stop();
+  g_audioIsClock = false;
+  g_audioPendingStart = false;
+
+  Log("[P3-MUSCLE-RELEASE] hadOwnership=%d backend=%s reason=%s "
+      "trojan=0 pendingPose=0 poseHandle=%u ikActive=%d tid=%lu",
+      hadOwnership ? 1 : 0, MotionBackendName(g_motionBackend.Current()),
+      reason ? reason : "unspecified", g_poseHandleGC,
+      g_mmdIKActive ? 1 : 0, GetCurrentThreadId());
+}
+
+static void MotionBackend_DisableDirectMainThread(
+    GhostRigCleanupReason cleanupReason, const char *reason) {
+  DirectVmdRuntime_RequestStop();
+  DirectVmdMorph_ResetMainThread(reason ? reason : "direct-release");
+  DirectVmdCamera_ResetMainThread(reason ? reason : "direct-release");
+  const bool closeAudioResource =
+      cleanupReason == GhostRigCleanupReason::PluginDisabled ||
+      cleanupReason == GhostRigCleanupReason::PluginUnload ||
+      cleanupReason == GhostRigCleanupReason::WindowClosing;
+  DirectVmdAudio_ResetMainThread(reason ? reason : "direct-release",
+                                 closeAudioResource);
+  DirectVmdRuntime_RequestCameraOverride(nullptr);
+  DirectVmdRuntime_RequestMorphOverride(nullptr);
+  if (GhostRig_IsRequestedEnabled() || GhostRig_IsAliveForGui())
+    GhostRig_RequestEnabled(false, cleanupReason);
+  else
+    DirectVmdRuntime_SetActive(false);
+  GhostRig_TryImmediateCleanupOnCurrentThread(cleanupReason);
+  Log("[P3-DIRECT-RELEASE] backend=%s reason=%s ghostAlive=%d "
+      "generation=%llu targetHandlesRetained=0 tid=%lu",
+      MotionBackendName(g_motionBackend.Current()),
+      reason ? reason : "unspecified",
+      GhostRig_IsAliveForGui() ? 1 : 0,
+      (unsigned long long)s_ghostRequestedGeneration.load(
+          std::memory_order_acquire),
+      GetCurrentThreadId());
+}
+
+static void MotionBackend_EnterNativeMainThread(
+    GhostRigCleanupReason cleanupReason, const char *reason,
+    bool releaseMuscle = true) {
+  if (!MotionBackend_RequireCommandThread("MotionBackend.EnterNative"))
+    return;
+  const MotionBackend previous = g_motionBackend.Current();
+  if (!MotionBackend_PublishMainThread(MotionBackend::Native, reason))
+    return;
+  if (previous == MotionBackend::DirectVmd ||
+      GhostRig_IsRequestedEnabled() || GhostRig_IsAliveForGui()) {
+    MotionBackend_DisableDirectMainThread(cleanupReason, reason);
+  }
+  if (releaseMuscle &&
+      (previous == MotionBackend::Muscle ||
+       MotionBackend_HasMuscleOwnership())) {
+    MotionBackend_ReleaseMuscleMainThread(reason);
+  }
+  SafeSetAnimatorEnabled(true);
+  if (previous == MotionBackend::DirectVmd) {
+    Log("[P4-NATIVE-ANIMATOR] enabled=1 route=native-restore "
+        "reason=%s entity=%p animator=%p tid=%lu",
+        reason ? reason : "unspecified", g_mainCharEntity,
+        g_cachedAnimator, GetCurrentThreadId());
+  }
+}
+
+static bool MotionBackend_EnterMuscleMainThread(const char *reason) {
+  if (!g_pluginActive ||
+      !MotionBackend_RequireCommandThread("MotionBackend.EnterMuscle"))
+    return false;
+  const MotionBackend previous = g_motionBackend.Current();
+  if (!MotionBackend_PublishMainThread(MotionBackend::Muscle, reason))
+    return false;
+  if (previous == MotionBackend::DirectVmd ||
+      GhostRig_IsRequestedEnabled() || GhostRig_IsAliveForGui()) {
+    MotionBackend_DisableDirectMainThread(GhostRigCleanupReason::Stop,
+                                          "switch-to-muscle");
+  }
+  return true;
+}
+
+static bool MotionBackend_EnterDirectMainThread(bool play,
+                                                const char *reason) {
+  if (!g_pluginActive || !DirectVmdRuntime_IsLoaded()) {
+    Log("[P3-DIRECT-ENTER] rejected pluginActive=%d loaded=%d reason=%s",
+        g_pluginActive ? 1 : 0, DirectVmdRuntime_IsLoaded() ? 1 : 0,
+        reason ? reason : "unspecified");
+    return false;
+  }
+  if (!MotionBackend_RequireCommandThread("MotionBackend.EnterDirect"))
+    return false;
+
+  if (g_motionBackend.Is(MotionBackend::DirectVmd)) {
+    if (!GhostRig_IsRequestedEnabled()) {
+      RefreshEntityAnimator();
+      if (!g_mainCharEntity || !g_cachedAnimator) {
+        MotionBackend_PublishMainThread(MotionBackend::Native,
+                                        "direct-retry-no-owner");
+        DirectVmdRuntime_RequestStop();
+        DirectVmdRuntime_SetActive(false);
+        SafeSetAnimatorEnabled(true);
+        return false;
+      }
+      GhostRig_RequestOwnerChange(g_mainCharEntity);
+      GhostRig_RequestEnabled(true, GhostRigCleanupReason::None);
+      DirectVmdRuntime_RequestCameraOverride(
+          g_cameraOverrideExplicit && g_cameraVmdPath[0]
+              ? g_cameraVmdPath
+              : nullptr);
+      DirectVmdRuntime_RequestMorphOverride(
+          g_morphVmdPath[0] ? g_morphVmdPath : nullptr);
+    }
+    SafeSetAnimatorEnabled(false);
+    DirectVmdRuntime_SetSpeed(g_playbackSpeed);
+    DirectVmdRuntime_SetLoop(g_playbackLoop);
+    if (play) {
+      if (EnsureAudioLoaded())
+        g_audioPlayer->SetVolume(g_audioVolume);
+      DirectVmdRuntime_RequestPlay();
+    }
+    return true;
+  }
+
+  const MotionBackend previous = g_motionBackend.Current();
+  if (!MotionBackend_PublishMainThread(MotionBackend::DirectVmd, reason))
+    return false;
+  if (previous == MotionBackend::Muscle ||
+      MotionBackend_HasMuscleOwnership()) {
+    MotionBackend_ReleaseMuscleMainThread("switch-to-direct-vmd");
+  } else {
+    g_trojanActive = false;
+    g_mmdPendingApply = false;
+  }
+
+  RefreshEntityAnimator();
+  if (!g_mainCharEntity || !g_cachedAnimator) {
+    Log("[P3-DIRECT-ENTER] rejected reason=no-owner entity=%p animator=%p",
+        g_mainCharEntity, g_cachedAnimator);
+    MotionBackend_PublishMainThread(MotionBackend::Native,
+                                    "direct-no-owner");
+    DirectVmdRuntime_RequestStop();
+    DirectVmdRuntime_SetActive(false);
+    SafeSetAnimatorEnabled(true);
+    return false;
+  }
+
+  SafeSetAnimatorEnabled(false);
+  Log("[P4-NATIVE-ANIMATOR] enabled=0 "
+      "route=Muscle.SafeSetAnimatorEnabled reason=%s entity=%p "
+      "animator=%p fingerOwnership=DirectVmd-hold "
+      "finalIkComponentDisabled=0 finalIkSolverPolicy=stage5-per-leg "
+      "tid=%lu",
+      reason ? reason : "unspecified", g_mainCharEntity,
+      g_cachedAnimator, GetCurrentThreadId());
+
+  GhostRig_RequestOwnerChange(g_mainCharEntity);
+  GhostRig_RequestEnabled(true, GhostRigCleanupReason::None);
+  DirectVmdRuntime_RequestCameraOverride(
+      g_cameraOverrideExplicit && g_cameraVmdPath[0]
+          ? g_cameraVmdPath
+          : nullptr);
+  DirectVmdRuntime_RequestMorphOverride(
+      g_morphVmdPath[0] ? g_morphVmdPath : nullptr);
+  DirectVmdRuntime_SetSpeed(g_playbackSpeed);
+  DirectVmdRuntime_SetLoop(g_playbackLoop);
+  if (play) {
+    if (EnsureAudioLoaded())
+      g_audioPlayer->SetVolume(g_audioVolume);
+    DirectVmdRuntime_RequestPlay();
+  }
+  Log("[P4-DIRECT-ENTER] accepted play=%d entity=%p animator=%p "
+      "backendGeneration=%llu ghostGeneration=%llu setHumanPose=0 "
+      "camera=DirectVmd audio=DirectVmd morph=DirectVmd "
+      "cameraOverrideExplicit=%d finalIkTargetsDeferredToHook=1 "
+      "finalIkSolverPolicy=stage5-per-leg nativeAnimator=0 tid=%lu",
+      play ? 1 : 0, g_mainCharEntity, g_cachedAnimator,
+      (unsigned long long)g_motionBackend.Generation(),
+      (unsigned long long)s_ghostRequestedGeneration.load(
+          std::memory_order_acquire),
+      g_cameraOverrideExplicit ? 1 : 0,
+      GetCurrentThreadId());
+  return true;
+}
+
 
 static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
                                    LPARAM lParam) {
   if (msg == WM_CLOSE || msg == WM_DESTROY) {
     Log("[WNDPROC] Game window closing (msg=0x%X), signaling threads to exit",
         msg);
+    MotionBackend_EnterNativeMainThread(
+        GhostRigCleanupReason::WindowClosing, "window-closing");
     g_guiRunning = false;
-    g_trojanActive = false;
   }
 
   if (msg == WM_MMD_APPLY_POSE) {
+    if (!g_motionBackend.Is(MotionBackend::Muscle)) {
+      static uint64_t rejectedPoseMessages = 0;
+      ++rejectedPoseMessages;
+      if (rejectedPoseMessages <= 8 ||
+          (rejectedPoseMessages % 120) == 0) {
+        Log("[P3-SET-HUMAN-POSE-REJECT] backend=%s count=%llu tid=%lu "
+            "message=WM_MMD_APPLY_POSE",
+            MotionBackendName(g_motionBackend.Current()),
+            (unsigned long long)rejectedPoseMessages,
+            GetCurrentThreadId());
+      }
+      g_mmdPendingApply = false;
+      return 0;
+    }
     static bool s_firstLog = false;
     if (!s_firstLog) {
       Log("[WNDPROC] WM_MMD_APPLY_POSE received on main thread!");
@@ -2567,12 +3334,33 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
   }
   if (msg >= (WM_USER + 100) && msg <= (WM_USER + 120)) {
     switch (msg) {
-    case (WM_USER + 100): 
-      Log("[GUI-CMD] Play");
+    case (WM_USER + 100):
+      Log("[GUI-CMD] Play selectedBackend=%s",
+          MotionBackendName(GuiSelectedMotionBackend()));
+      if (GuiSelectedMotionBackend() == MotionBackend::DirectVmd) {
+        if (!g_directVmdPath[0]) {
+          Log("[GUI-CMD] DirectVmd play rejected: no action VMD selected");
+          return 0;
+        }
+        if (!DirectVmdRuntime_IsLoaded()) {
+          GhostRig_RequestVmdReload(g_directVmdPath);
+          Log("[GUI-CMD] DirectVmd play waiting for background load: %s",
+              g_directVmdPath);
+          return 0;
+        }
+        MotionBackend_EnterDirectMainThread(true, "gui-direct-play");
+        return 0;
+      }
+      if (!g_muscleAnimPath[0]) {
+        Log("[GUI-CMD] Muscle play rejected: no muscle data selected");
+        return 0;
+      }
       if (!g_muscleAnim) g_muscleAnim = new MuscleAnim();
       if (!g_muscleAnim->loaded)
         g_muscleAnim->Load(g_muscleAnimPath);
       if (g_muscleAnim->loaded) {
+        if (!MotionBackend_EnterMuscleMainThread("muscle-play"))
+          return 0;
         if (!g_musclePlayer) {
           g_musclePlayer = new MmdPlayer();
           g_musclePlayer->speed = g_playbackSpeed;
@@ -2583,7 +3371,7 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
           g_musclePlayer->Start(g_muscleAnim->Duration());
           AudioStartFresh();
         } else if (g_musclePlayer->currentTime > 0 && !g_musclePlayer->ended) {
-          g_musclePlayer->TogglePause(); 
+          g_musclePlayer->TogglePause();
           if (g_audioIsClock && g_audioPlayer) g_audioPlayer->Resume();
         } else {
           RefreshEntityAnimator();
@@ -2591,72 +3379,54 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
             if (g_trojanHookTarget) MH_EnableHook(g_trojanHookTarget);
             g_trojanActive = true;
             g_musclePlayer->Start(g_muscleAnim->Duration());
-            if (g_cameraEnabled) {
+            if (g_cameraEnabled && g_cameraVmdPath[0]) {
+              Log("[CAM-LOAD] begin reason=play path='%s'",
+                  g_cameraVmdPath);
               if (!g_cameraVmd) g_cameraVmd = LoadVmd(g_cameraVmdPath);
               if (g_cameraVmd && g_cameraVmd->loaded &&
                   !g_cameraVmd->cameraKeys.empty()) {
                 g_cameraPlayer.SetVmd(g_cameraVmd);
                 g_cameraNeedsCapture = true;
+                Log("[CAM-LOAD] ready keys=%zu frames=%u warnings=%zu",
+                    g_cameraVmd->cameraKeys.size(),
+                    g_cameraVmd->totalFrames,
+                    g_cameraVmd->warnings.size());
+              } else {
+                const char *error =
+                    (g_cameraVmd && !g_cameraVmd->error.empty())
+                        ? g_cameraVmd->error.c_str()
+                        : "no camera keyframes";
+                Log("[CAM-LOAD] failed path='%s' error='%s'",
+                    g_cameraVmdPath, error);
               }
+            } else {
+              Log("[CAM-LOAD] skipped reason=%s",
+                  g_cameraEnabled ? "no-camera-file" : "camera-disabled");
             }
             AudioStartFresh();
+          } else {
+            MotionBackend_EnterNativeMainThread(
+                GhostRigCleanupReason::Stop, "muscle-init-failed");
           }
         }
       }
       return 0;
-    case (WM_USER + 101): 
+    case (WM_USER + 101):
       Log("[GUI-CMD] Pause");
-      if (g_musclePlayer && g_musclePlayer->playing) {
+      if (g_motionBackend.Is(MotionBackend::DirectVmd)) {
+        DirectVmdRuntime_RequestPause();
+      } else if (g_motionBackend.Is(MotionBackend::Muscle) &&
+          g_musclePlayer && g_musclePlayer->playing) {
         g_musclePlayer->TogglePause();
         if (g_audioIsClock && g_audioPlayer) g_audioPlayer->Pause();
       }
       return 0;
-    case (WM_USER + 102): 
+    case (WM_USER + 102):
       Log("[GUI-CMD] Stop");
-      if (g_musclePlayer &&
-          (g_musclePlayer->playing || g_musclePlayer->currentTime > 0)) {
-        if (g_musclePlayer->playing) g_musclePlayer->TogglePause();
-        g_musclePlayer->Stop();
-        g_trojanActive = false;
-        g_mouthWeightsFromMuscle = false;
-        memset(g_mouthWeights, 0, sizeof(g_mouthWeights));
-        CleanupPoseHandler();
-        RestoreBigList();
-        if (g_confirmedSMC && OFF_allMorphBoneDirty > 0) {
-          *(bool *)((char *)g_confirmedSMC + OFF_allMorphBoneDirty) = true;
-        }
-        memset(g_faceBoneTouched, 0, sizeof(g_faceBoneTouched));
-        for (int i = 0; i < NUM_EXTRA_MORPHS; i++) {
-          g_extraMorphs[i].weight = 0;
-          g_extraMorphs[i].prevWeight = 0;
-        }
-        g_mmdIKActive = false;
-        ClearActiveFootIKSolverWeights();
-        ResetFootIKRuntimeState();
-
-        RestoreDisabledComponents();
-        RestoreSkirtColliders();
-        SafeSetAnimatorEnabled(true);
-        if (g_cameraActive) {
-          RestoreCinemachine();
-        }
-        ResetCameraState();
-        s_firstFrame = true;
-        if (s_initialRootCaptured && g_camSetPos && g_cachedAnimator) {
-          void *rootT = SafeGetComponentTransform(g_cachedAnimator);
-          if (rootT) {
-            g_camSetPos(rootT, s_initialRootPos);
-            Log("[ROOT-MOVE] Root restored to initial pos: (%.2f, %.2f, %.2f)",
-                s_initialRootPos[0], s_initialRootPos[1], s_initialRootPos[2]);
-          }
-        }
-        s_initialRootCaptured = false;
-        if (g_audioPlayer) g_audioPlayer->Stop();
-        g_audioIsClock = false;
-        g_audioPendingStart = false;
-      }
+      MotionBackend_EnterNativeMainThread(GhostRigCleanupReason::Stop,
+                                          "user-stop");
       return 0;
-    case (WM_USER + 103): 
+    case (WM_USER + 103):
       Log("[GUI-CMD] Load: %s", g_muscleAnimPath);
       if (!g_muscleAnim) g_muscleAnim = new MuscleAnim();
       g_muscleAnim->loaded = false;
@@ -2667,9 +3437,10 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
         Log("[GUI-CMD] Load FAILED: %s", g_muscleAnimPath);
       }
       return 0;
-    case (WM_USER + 107): 
+    case (WM_USER + 107):
       Log("[GUI-CMD] Load audio: %s", g_audioPath);
       if (!g_audioPlayer) g_audioPlayer = new AudioPlayer();
+      DirectVmdAudio_ResetMainThread("audio-reload", false);
       g_audioPlayer->Close();
       if (g_audioPathW[0] != L'\0') {
         if (g_audioPlayer->Open(g_audioPathW)) {
@@ -2679,8 +3450,18 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
           Log("[GUI-CMD] Audio load FAILED: %s", g_audioPath);
       }
       return 0;
-    case (WM_USER + 108): { 
+    case (WM_USER + 108): {
       int motionMs = (int)wParam;
+      if (g_motionBackend.Is(MotionBackend::DirectVmd)) {
+        const double directFrame =
+            static_cast<double>(motionMs) *
+            (kVmdFramesPerSecond / 1000.0);
+        DirectVmdRuntime_RequestSeekFrame(directFrame);
+        Log("[P6-AUDIO-SYNC] event=seek-command-forwarded "
+            "motionMs=%d directFrame=%.6f authority=DirectVmd tid=%lu",
+            motionMs, directFrame, GetCurrentThreadId());
+        return 0;
+      }
       int audioMs = motionMs + (int)(g_audioOffset * 1000.0f);
       if (audioMs < 0) audioMs = 0;
       Log("[GUI-CMD] Seek audio: motion=%d ms, audio=%d ms (offset=%.2f)",
@@ -2696,35 +3477,21 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
       }
       return 0;
     }
-    case (WM_USER + 109): 
+    case (WM_USER + 109):
       if (g_audioPlayer && g_audioPlayer->loaded)
         g_audioPlayer->SetVolume((int)wParam);
       return 0;
-    case (WM_USER + 104): 
+    case (WM_USER + 104):
       SafeInvokeCursorAction(g_cursorShowAction);
       return 0;
-    case (WM_USER + 105): 
+    case (WM_USER + 105):
       SafeInvokeCursorAction(g_cursorHideAction);
       return 0;
-    case (WM_USER + 106): 
+    case (WM_USER + 106):
       Log("[GUI-CMD] Re-capture character");
-      if (g_musclePlayer &&
-          (g_musclePlayer->playing || g_musclePlayer->currentTime > 0)) {
-        g_musclePlayer->Stop();
-        g_trojanActive = false;
-        RestoreSkirtColliders();
-        RestoreDisabledComponents();
-        if (g_cameraActive) {
-          RestoreCinemachine();
-          g_cameraActive = false;
-          g_cameraNeedsCapture = false;
-        }
-        SafeSetAnimatorEnabled(true);
-        if (g_audioPlayer) g_audioPlayer->Stop();
-        g_audioIsClock = false;
-        g_audioPendingStart = false;
-        Log("[GUI-CMD] Stopped for character switch");
-      }
+      GhostRig_RequestOwnerChange(nullptr);
+      MotionBackend_EnterNativeMainThread(
+          GhostRigCleanupReason::Recapture, "character-recapture");
       g_cachedAnimator = nullptr;
       s_poseReady = false;
       g_mmdHasMuscles = false;
@@ -2738,14 +3505,97 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
       g_groundDeltaY = 0.0f;
       memset(g_mouthWeights, 0, sizeof(g_mouthWeights));
       RefreshEntityAnimator();
+      GhostRig_RequestOwnerChange(g_mainCharEntity);
       if (g_cachedAnimator) {
         Log("[GUI-CMD] New character captured: animator=%p", g_cachedAnimator);
       } else {
         Log("[GUI-CMD] No character found. Switch to a character first.");
       }
       return 0;
-    case (WM_USER + 110): { 
+    case (WM_USER + 118): {
+      bool enable = wParam != 0;
+      GhostRigCleanupReason reason = GhostRigCleanupReason::UserDisabled;
+      if (lParam != 0) {
+        reason = static_cast<GhostRigCleanupReason>(lParam);
+      }
+      if (enable)
+        reason = GhostRigCleanupReason::None;
+      if (enable) {
+        MotionBackend_EnterDirectMainThread(false, "direct-toggle-on");
+      } else if (reason == GhostRigCleanupReason::PluginDisabled ||
+                 reason == GhostRigCleanupReason::PluginUnload ||
+                 reason == GhostRigCleanupReason::WindowClosing) {
+        MotionBackend_EnterNativeMainThread(reason,
+                                            "direct-global-disable");
+      } else if (g_motionBackend.Is(MotionBackend::DirectVmd) ||
+                 GhostRig_IsRequestedEnabled() ||
+                 GhostRig_IsAliveForGui()) {
+        MotionBackend_EnterNativeMainThread(reason,
+                                            "direct-toggle-off", false);
+      }
+      Log("[P3-DIRECT-CMD] enable=%d backend=%s reason=%s "
+          "wndTid=%lu mainTid=%lu",
+          enable ? 1 : 0, MotionBackendName(g_motionBackend.Current()),
+          GhostRig_CleanupReasonName(reason),
+          GetCurrentThreadId(),
+          s_ghostMainThreadId.load(std::memory_order_acquire));
+      return 0;
+    }
+    case (WM_USER + 119): {
+      if (wParam == 1) {
+        MotionBackend_EnterDirectMainThread(true, "direct-play");
+      } else if (wParam == 2) {
+        if (g_motionBackend.Is(MotionBackend::DirectVmd)) {
+          DirectVmdRuntime_RequestPause();
+          Log("[P3-DIRECT-CMD] pause backend=DirectVmd tid=%lu",
+              GetCurrentThreadId());
+        }
+      } else if (g_motionBackend.Is(MotionBackend::DirectVmd) ||
+                 GhostRig_IsRequestedEnabled() ||
+                 GhostRig_IsAliveForGui()) {
+        MotionBackend_EnterNativeMainThread(
+            GhostRigCleanupReason::Stop, "direct-stop", false);
+      } else {
+        DirectVmdRuntime_RequestStop();
+      }
+      return 0;
+    }
+    case (WM_USER + 120): {
+      const MotionBackend selected =
+          wParam == static_cast<WPARAM>(MotionBackend::Muscle)
+              ? MotionBackend::Muscle
+              : MotionBackend::DirectVmd;
+      GuiSelectMotionBackend(selected);
+      const MotionBackend active = g_motionBackend.Current();
+      if ((active != MotionBackend::Native && active != selected) ||
+          (selected == MotionBackend::Muscle &&
+           (GhostRig_IsRequestedEnabled() || GhostRig_IsAliveForGui()))) {
+        MotionBackend_EnterNativeMainThread(
+            GhostRigCleanupReason::Stop, "gui-backend-selection-change");
+      }
+      if (selected == MotionBackend::DirectVmd) {
+        if (g_directVmdPath[0] && !DirectVmdRuntime_IsLoaded())
+          GhostRig_RequestVmdReload(g_directVmdPath);
+        DirectVmdRuntime_RequestCameraOverride(
+            g_cameraOverrideExplicit && g_cameraVmdPath[0]
+                ? g_cameraVmdPath
+                : nullptr);
+        DirectVmdRuntime_RequestMorphOverride(
+            g_morphVmdPath[0] ? g_morphVmdPath : nullptr);
+      }
+      Log("[GUI-MODE] selected=%s active=%s defaultDirect=1 tid=%lu",
+          MotionBackendName(selected),
+          MotionBackendName(g_motionBackend.Current()),
+          GetCurrentThreadId());
+      return 0;
+    }
+    case (WM_USER + 110): {
       Log("[GUI-CMD] Unload muscle animation");
+      if (g_motionBackend.Is(MotionBackend::Muscle) ||
+          MotionBackend_HasMuscleOwnership()) {
+        MotionBackend_EnterNativeMainThread(
+            GhostRigCleanupReason::Stop, "unload-muscle-animation");
+      }
       if (g_musclePlayer && (g_musclePlayer->playing || g_musclePlayer->currentTime > 0)) {
         if (g_musclePlayer->playing) g_musclePlayer->TogglePause();
         g_musclePlayer->Stop();
@@ -2791,9 +3641,22 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
       g_mmdHasFingerBones = false;
       return 0;
     }
-    case (WM_USER + 111): { 
+    case (WM_USER + 111): {
       Log("[GUI-CMD] Unload camera VMD");
       g_cameraVmdPath[0] = '\0';
+      g_cameraOverrideExplicit = false;
+      if (g_motionBackend.Is(MotionBackend::DirectVmd)) {
+        if (g_cameraVmd) {
+          FreeVmd(g_cameraVmd);
+          g_cameraVmd = nullptr;
+        }
+        g_cameraPlayer.SetVmd(nullptr);
+        DirectVmdRuntime_RequestCameraOverride(nullptr);
+        Log("[P6-CAMERA-OVERRIDE] request=clear "
+            "fallback=direct-vmd-camera tid=%lu",
+            GetCurrentThreadId());
+        return 0;
+      }
       if (g_cameraVmd) {
         FreeVmd(g_cameraVmd);
         g_cameraVmd = nullptr;
@@ -2805,14 +3668,14 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
       ResetCameraState();
       return 0;
     }
-    case (WM_USER + 112): { 
+    case (WM_USER + 112): {
       Log("[GUI-CMD] Unload Foot IK VMD");
       g_footIkVmdPath[0] = '\0';
       if (g_footIkVmd) {
         FreeVmd(g_footIkVmd);
         g_footIkVmd = nullptr;
       }
-      g_footIkResolved = true; 
+      g_footIkResolved = true;
       ClearActiveFootIKSolverWeights();
       ResetFootIKRuntimeState();
       s_footIKFirstCaptured = false;
@@ -2820,14 +3683,21 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
       s_footIKCalibrated = false;
       return 0;
     }
-    case (WM_USER + 113): { 
+    case (WM_USER + 113): {
       Log("[GUI-CMD] Unload morph/face VMD");
       g_morphVmdPath[0] = '\0';
+      if (GuiSelectedMotionBackend() == MotionBackend::DirectVmd ||
+          g_motionBackend.Is(MotionBackend::DirectVmd)) {
+        DirectVmdRuntime_RequestMorphOverride(nullptr);
+        Log("[P6-MORPH-OVERRIDE] request=clear "
+            "fallback=direct-vmd-morph tid=%lu",
+            GetCurrentThreadId());
+      }
       if (g_vmd) {
         FreeVmd(g_vmd);
         g_vmd = nullptr;
       }
-      g_bsIndicesResolved = true; 
+      g_bsIndicesResolved = true;
       g_mouthWeightsFromMuscle = false;
       memset((void *)g_mouthWeights, 0, sizeof(g_mouthWeights));
       for (int i = 0; i < NUM_EXTRA_MORPHS; i++) {
@@ -2841,10 +3711,11 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
       }
       return 0;
     }
-    case (WM_USER + 114): { 
+    case (WM_USER + 114): {
       Log("[GUI-CMD] Unload audio");
       g_audioPath[0] = '\0';
       g_audioPathW[0] = L'\0';
+      DirectVmdAudio_ResetMainThread("audio-unload", false);
       if (g_audioPlayer) {
         g_audioPlayer->Stop();
         g_audioPlayer->Close();
@@ -2853,8 +3724,18 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
       g_audioPendingStart = false;
       return 0;
     }
-    case (WM_USER + 115): { 
+    case (WM_USER + 115): {
       Log("[GUI-CMD] Load camera VMD: %s", g_cameraVmdPath);
+      if (GuiSelectedMotionBackend() == MotionBackend::DirectVmd ||
+          g_motionBackend.Is(MotionBackend::DirectVmd)) {
+        g_cameraOverrideExplicit = g_cameraVmdPath[0] != '\0';
+        DirectVmdRuntime_RequestCameraOverride(
+            g_cameraOverrideExplicit ? g_cameraVmdPath : nullptr);
+        Log("[P6-CAMERA-OVERRIDE] request=%s path='%s' tid=%lu",
+            g_cameraOverrideExplicit ? "load" : "clear",
+            g_cameraVmdPath, GetCurrentThreadId());
+        return 0;
+      }
       if (g_cameraVmd) {
         FreeVmd(g_cameraVmd);
         g_cameraVmd = nullptr;
@@ -2863,14 +3744,19 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
         g_cameraVmd = LoadVmd(g_cameraVmdPath);
         if (g_cameraVmd && g_cameraVmd->loaded && !g_cameraVmd->cameraKeys.empty()) {
           g_cameraPlayer.SetVmd(g_cameraVmd);
-          Log("[GUI-CMD] Camera VMD loaded: %zu keys", g_cameraVmd->cameraKeys.size());
+          Log("[GUI-CMD] Camera VMD loaded: %zu keys, %zu warning(s)",
+              g_cameraVmd->cameraKeys.size(), g_cameraVmd->warnings.size());
         } else {
-          Log("[GUI-CMD] Camera VMD load failed: %s", g_cameraVmdPath);
+          Log("[GUI-CMD] Camera VMD load failed: %s error='%s'",
+              g_cameraVmdPath,
+              (g_cameraVmd && !g_cameraVmd->error.empty())
+                  ? g_cameraVmd->error.c_str()
+                  : "no camera keyframes");
         }
       }
       return 0;
     }
-    case (WM_USER + 116): { 
+    case (WM_USER + 116): {
       Log("[GUI-CMD] Load Foot IK VMD: %s", g_footIkVmdPath);
       if (g_footIkVmd) {
         FreeVmd(g_footIkVmd);
@@ -2891,8 +3777,17 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
       }
       return 0;
     }
-    case (WM_USER + 117): { 
+    case (WM_USER + 117): {
       Log("[GUI-CMD] Load morph/face VMD: %s", g_morphVmdPath);
+      if (GuiSelectedMotionBackend() == MotionBackend::DirectVmd ||
+          g_motionBackend.Is(MotionBackend::DirectVmd)) {
+        DirectVmdRuntime_RequestMorphOverride(
+            g_morphVmdPath[0] ? g_morphVmdPath : nullptr);
+        Log("[P6-MORPH-OVERRIDE] request=%s path='%s' tid=%lu",
+            g_morphVmdPath[0] ? "load" : "clear", g_morphVmdPath,
+            GetCurrentThreadId());
+        return 0;
+      }
       if (g_vmd) {
         FreeVmd(g_vmd);
         g_vmd = nullptr;
@@ -2931,7 +3826,11 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
 }
 
 static void MuscleAnimationTick() {
-  if (!g_musclePlayer || (!g_musclePlayer->playing && g_musclePlayer->currentTime <= 0.0f && !g_musclePlayer->ended) || !g_trojanActive)
+  if (!g_motionBackend.Is(MotionBackend::Muscle) ||
+      !g_musclePlayer ||
+      (!g_musclePlayer->playing &&
+       g_musclePlayer->currentTime <= 0.0f && !g_musclePlayer->ended) ||
+      !g_trojanActive)
     return;
   if (!g_muscleAnim || !g_muscleAnim->loaded)
     return;
@@ -2942,9 +3841,9 @@ static void MuscleAnimationTick() {
   float prevTime = g_musclePlayer->currentTime;
   float frameNum = 0.0f;
   if (g_musclePlayer->playing) {
-    frameNum = g_musclePlayer->Tick(); 
+    frameNum = g_musclePlayer->Tick();
   } else {
-    frameNum = g_musclePlayer->currentTime * 30.0f; 
+    frameNum = g_musclePlayer->currentTime * 30.0f;
   }
 
   if (g_audioPendingStart && g_audioPlayer && g_audioPlayer->loaded) {
@@ -2966,7 +3865,7 @@ static void MuscleAnimationTick() {
       Log("[AUDIO] Speed != 1.0, audio sync disabled");
     } else {
       int posMs = g_audioPlayer->GetPositionMs();
-      if (posMs > 0) { 
+      if (posMs > 0) {
         float audioSec = posMs / 1000.0f - g_audioOffset;
         float drift = audioSec - g_musclePlayer->currentTime;
 
@@ -2994,7 +3893,7 @@ static void MuscleAnimationTick() {
   }
 
   float timeSec =
-      frameNum / g_muscleAnim->fps; 
+      frameNum / g_muscleAnim->fps;
   MuscleFrame mf = g_muscleAnim->GetFrame(timeSec);
 
   memcpy((void *)g_mmdMuscles, mf.muscles, 95 * sizeof(float));
@@ -3029,7 +3928,7 @@ static void MuscleAnimationTick() {
   }
 
   if (!g_vmd && !g_bsIndicesResolved) {
-    g_bsIndicesResolved = true; 
+    g_bsIndicesResolved = true;
 
     if (g_morphVmdPath[0] != '\0') {
       VmdFile *v = LoadVmd(g_morphVmdPath);
@@ -3046,11 +3945,11 @@ static void MuscleAnimationTick() {
 
   if (g_vmd && g_vmd->loaded && !g_vmd->morphTimelines.empty()) {
     static const char *morphNames[5] = {
-        "\xe3\x81\x82", 
-        "\xe3\x81\x84", 
-        "\xe3\x81\x86", 
-        "\xe3\x81\x88", 
-        "\xe3\x81\x8a", 
+        "\xe3\x81\x82",
+        "\xe3\x81\x84",
+        "\xe3\x81\x86",
+        "\xe3\x81\x88",
+        "\xe3\x81\x8a",
     };
 
     static bool s_morphMapped = false;
@@ -3085,7 +3984,7 @@ static void MuscleAnimationTick() {
 
     static float s_prevMouthWeights[5] = {};
     static float s_mouthAlpha =
-        0.25f; 
+        0.25f;
 
     for (int i = 0; i < 5; i++) {
       float target = 0.0f;
@@ -3129,8 +4028,10 @@ static void MuscleAnimationTick() {
 }
 
 static void AnimationTick() {
+  if (!g_motionBackend.Is(MotionBackend::Native))
+    return;
   if (g_calibMode) {
-    SafeSetAnimatorEnabled(false); 
+    SafeSetAnimatorEnabled(false);
     CalibrationTick();
     return;
   }

@@ -33,6 +33,7 @@ D(int, il2cpp_field_get_flags, void *);
 D(void *, il2cpp_class_get_method_from_name, void *, const char *, int);
 D(void *, il2cpp_runtime_invoke, void *, void *, void **, void **);
 D(void *, il2cpp_class_get_parent, void *);
+D(int32_t, il2cpp_class_value_size, void *, uint32_t *);
 D(void, il2cpp_field_static_get_value, void *, void *);
 D(void *, il2cpp_field_get_type, void *);
 D(int, il2cpp_type_get_type, void *);
@@ -122,6 +123,7 @@ static bool Resolve() {
   R(il2cpp_field_get_offset);
   R(il2cpp_runtime_invoke);
   R(il2cpp_class_get_parent);
+  R(il2cpp_class_value_size);
   R(il2cpp_field_static_get_value);
   R(il2cpp_field_get_type);
   R(il2cpp_type_get_type);

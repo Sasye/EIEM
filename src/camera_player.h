@@ -3,25 +3,75 @@
 #include <cstdint>
 #include <vector>
 #include "vmd_parser.h"
-#include "mmd_player.h"  
+#include "mmd_player.h"
 
 #define CAM_SIGN_RX (-1.0f)
 #define CAM_SIGN_RY (-1.0f)
 #define CAM_SIGN_RZ (-1.0f)
 
-#define CAM_SCALE    0.07f    
-#define CAM_FOV_BIAS 5.0f     
-#define CAM_YAW_BIAS 180.0f   
-#define CAM_YAW_SIGN 1.0f     
+#define CAM_SCALE    0.07f
+#define CAM_FOV_BIAS 5.0f
+#define CAM_YAW_BIAS 180.0f
+#define CAM_YAW_SIGN 1.0f
 
 #define CAM_REF_HEIGHT 1.245f
 
+struct DirectVmdCameraFraming {
+  float positionScale = 0.0f;
+  float automaticHeightScale = 1.0f;
+  float effectiveHeightScale = 1.0f;
+  float fovBias = 0.0f;
+  float fov = 60.0f;
+  bool legacyOverride = false;
+  bool usedNaturalBindHeight = false;
+};
+
+static inline bool DirectVmdResolveCameraFraming(
+    bool fromOverride, float sharedMotionScale, float naturalBindHeight,
+    float legacyHeightBias, float sampledFov,
+    DirectVmdCameraFraming *framing) {
+  if (!framing || !DirectVmdFinite(sharedMotionScale) ||
+      sharedMotionScale <= 0.0f || !DirectVmdFinite(legacyHeightBias) ||
+      !DirectVmdFinite(sampledFov))
+    return false;
+
+  DirectVmdCameraFraming result;
+  result.legacyOverride = fromOverride;
+  if (fromOverride) {
+    const bool validNaturalHeight =
+        DirectVmdFinite(naturalBindHeight) && naturalBindHeight > 0.1f &&
+        naturalBindHeight < 5.0f && CAM_REF_HEIGHT > 0.1f;
+    result.usedNaturalBindHeight = validNaturalHeight;
+    result.automaticHeightScale =
+        validNaturalHeight ? naturalBindHeight / CAM_REF_HEIGHT : 1.0f;
+    result.effectiveHeightScale =
+        result.automaticHeightScale + legacyHeightBias;
+    result.positionScale = CAM_SCALE * result.effectiveHeightScale;
+    result.fovBias = CAM_FOV_BIAS;
+  } else {
+    result.positionScale = sharedMotionScale;
+  }
+
+  if (!DirectVmdFinite(result.positionScale) ||
+      result.positionScale <= 0.0f)
+    return false;
+  result.fov = sampledFov + result.fovBias;
+  if (!DirectVmdFinite(result.fov))
+    return false;
+  if (result.fov < 1.0f)
+    result.fov = 1.0f;
+  else if (result.fov > 179.0f)
+    result.fov = 179.0f;
+  *framing = result;
+  return true;
+}
+
 struct CameraState {
-  Vec3 position;   
-  Quat rotation;   
-  float fov;       
-  Vec3 interest;   
-  Vec3 euler;      
+  Vec3 position;
+  Quat rotation;
+  float fov;
+  Vec3 interest;
+  Vec3 euler;
   bool valid;
 };
 
@@ -72,9 +122,42 @@ static inline Vec3 CamQuatRotate(Quat q, Vec3 v) {
   return {v.x + q.w * t.x + c.x, v.y + q.w * t.y + c.y, v.z + q.w * t.z + c.z};
 }
 
+static inline bool DirectVmdBuildCameraWorldPose(
+    const DirectVmdCameraSamplePod &camera,
+    const DirectVmdWorldPosePod &anchor, float cameraScale,
+    const VmdVec3 &targetSideWorldOffset,
+    DirectVmdWorldPosePod *worldPose) {
+  if (!worldPose || !camera.valid || !DirectVmdFinite(cameraScale) ||
+      cameraScale <= 0.0f ||
+      !DirectVmdFinite(targetSideWorldOffset.x) ||
+      !DirectVmdFinite(targetSideWorldOffset.y) ||
+      !DirectVmdFinite(targetSideWorldOffset.z))
+    return false;
+  const Quat sourceCameraRotation = CamQuatFromEuler(
+      camera.rotationEuler.x, camera.rotationEuler.y,
+      camera.rotationEuler.z);
+  const VmdQuaternion sourceRotation = DirectVmdNormalizeQuaternion(
+      {sourceCameraRotation.x, sourceCameraRotation.y,
+       sourceCameraRotation.z, sourceCameraRotation.w});
+  const VmdVec3 sourceOffset = DirectVmdRotateVector(
+      sourceRotation, {0.0f, 0.0f, camera.distance});
+  const VmdVec3 sourceCameraPosition = DirectVmdAdd(
+      camera.interest, sourceOffset);
+  const DirectVmdLocalPosePod ownerPose = {
+      DirectVmdScale(
+          SourceToGameBasis::ConvertPosition(sourceCameraPosition),
+          cameraScale),
+      DirectVmdQuaternionMultiply(SourceToGameBasis::Rotation(),
+                                  sourceRotation)};
+  *worldPose = DirectVmdComposeWorldPose(anchor, ownerPose);
+  worldPose->position = DirectVmdAdd(
+      worldPose->position, targetSideWorldOffset);
+  return true;
+}
+
 struct CameraPlayer {
   const VmdFile *vmd = nullptr;
-  float scale = CAM_SCALE;  
+  float scale = CAM_SCALE;
 
   bool HasData() const { return vmd && !vmd->cameraKeys.empty(); }
 
@@ -175,7 +258,7 @@ struct CameraPlayer {
 
   void BuildStateRaw(Vec3 interest, Vec3 euler, float distance, float fov,
                      CameraState &out) const {
-    out.euler = euler; 
+    out.euler = euler;
     Quat camRot = CamQuatFromEuler(euler.x, euler.y, euler.z);
     Vec3 offset = CamQuatRotate(camRot, {0.0f, 0.0f, distance});
     Vec3 camPos = {(interest.x + offset.x) * scale,
@@ -183,7 +266,7 @@ struct CameraPlayer {
                    (interest.z + offset.z) * scale};
     out.position = camPos;
     out.rotation = camRot;
-    out.interest = interest; 
+    out.interest = interest;
     out.fov = fov + CAM_FOV_BIAS;
     out.valid = true;
   }

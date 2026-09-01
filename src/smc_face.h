@@ -1,9 +1,15 @@
 #pragma once
 
+static bool GhostRig_GetDirectChannelIdentity(
+    uint64_t *generation, uintptr_t *ownerCharacter);
+static bool GhostRig_RequireMainThread(const char *stage, bool allowCapture);
+
 typedef void (*NativeSetPos_t)(void *transform, float *vec3);
 typedef void (*NativeSetRot_t)(void *transform, float *quat);
 static NativeSetPos_t g_nativeSetPos = nullptr;
 static NativeSetRot_t g_nativeSetRot = nullptr;
+static bool g_directVmdMorphActive = false;
+static void *g_confirmedSMC = nullptr;
 
 static volatile bool g_applyBoneDone = false;
 static void __fastcall Hooked_ApplyBoneTrans(void *__this, bool param1,
@@ -13,7 +19,8 @@ static void __fastcall Hooked_ApplyBoneTrans(void *__this, bool param1,
     g_origApplyBoneTrans(__this, param1, param2, jobHandle, methodInfo);
   g_applyBoneDone = true;
 
-  if (!g_faceTestActive || !g_faceBonesCaptured || !g_nativeSetPos ||
+  if (!(g_faceTestActive || g_directVmdMorphActive) ||
+      !g_faceBonesCaptured || !g_nativeSetPos ||
       !g_nativeSetRot)
     return;
 
@@ -21,13 +28,16 @@ static void __fastcall Hooked_ApplyBoneTrans(void *__this, bool param1,
     for (int i = 0; i < g_faceBoneCount; i++) {
       if (!g_faceBoneRefs[i])
         continue;
+      if (g_directVmdMorphActive && !g_faceTestActive &&
+          !g_faceBoneTouched[i])
+        continue;
       float pos[3] = {g_faceBones[i].px, g_faceBones[i].py, g_faceBones[i].pz};
       float rot[4] = {g_faceBones[i].rx, g_faceBones[i].ry, g_faceBones[i].rz,
                       g_faceBones[i].rw};
       g_nativeSetPos(g_faceBoneRefs[i], pos);
       g_nativeSetRot(g_faceBoneRefs[i], rot);
     }
-  } __except (1) { 
+  } __except (1) {
   }
 }
 
@@ -59,7 +69,7 @@ static void ResolveSMCOffsets(void *smcClass) {
   OFF_allMorphBoneDirty = getOff("m_allMorphBoneDirty");
   OFF_avatarData = getOff("m_avatarData");
   if (OFF_avatarData < 0)
-    OFF_avatarData = getOff("morphData"); 
+    OFF_avatarData = getOff("morphData");
   OFF_allBonesTransforms = getOff("m_allBonesTransforms");
   OFF_boneIDToIdx = getOff("m_boneIDToIdx");
   OFF_phonemesWeights = getOff("m_phonemesWeights");
@@ -87,87 +97,87 @@ static void ResolveSMCOffsets(void *smcClass) {
 
 struct MouthShapeInfo {
   const char *name;
-  int nameHash; 
-  int morphId;  
-  int startIdx; 
-  int count;    
+  int nameHash;
+  int morphId;
+  int startIdx;
+  int count;
   int jobStartIdx;
   int jobCount;
   bool resolved;
 };
 
 static MouthShapeInfo g_mouthShapes[] = {
-    {"A", 299073642, -1, -1, -1, -1, -1, false},  
-    {"I", 1271943943, -1, -1, -1, -1, -1, false}, 
-    {"U", 1701661734, -1, -1, -1, -1, -1, false}, 
-    {"E", -781522180, -1, -1, -1, -1, -1, false}, 
-    {"O", -348812070, -1, -1, -1, -1, -1, false}, 
+    {"A", 299073642, -1, -1, -1, -1, -1, false},
+    {"I", 1271943943, -1, -1, -1, -1, -1, false},
+    {"U", 1701661734, -1, -1, -1, -1, -1, false},
+    {"E", -781522180, -1, -1, -1, -1, -1, false},
+    {"O", -348812070, -1, -1, -1, -1, -1, false},
 };
 static const int NUM_MOUTH_SHAPES = 5;
-static float g_mouthWeights[5] = {}; 
+static float g_mouthWeights[5] = {};
 static bool g_mouthShapesResolved =
-    false; 
+    false;
 
 static bool g_bigListCaptured = false;
 static bool g_hashCorrelationDone = false;
 static bool g_smcResetRequested = false;
 
 struct ExtraMorphTarget {
-  const char *endfieldName; 
-  int nameHash;             
-  int startIdx;             
-  int count;                
+  const char *endfieldName;
+  int nameHash;
+  int startIdx;
+  int count;
   int jobStartIdx;
   int jobCount;
   bool resolved;
 };
 
 struct ExtraMorph {
-  const char *vmdNameUtf8;     
-  const char *label;           
-  ExtraMorphTarget targets[4]; 
+  const char *vmdNameUtf8;
+  const char *label;
+  ExtraMorphTarget targets[4];
   int targetCount;
-  float weight;     
-  float prevWeight; 
+  float weight;
+  float prevWeight;
 };
 
 
 static ExtraMorph g_extraMorphs[] = {
     {"\xe3\x81\xbe\xe3\x81\xb0\xe3\x81\x9f\xe3\x81\x8d",
-     "blink", 
+     "blink",
      {{"eye_thinkcloseeyes_a_R_ctrl", 0, -1, -1, false},
       {"eye_thinkcloseeyes_a_L_ctrl", 0, -1, -1, false}},
      2,
      0,
      0},
     {"\xe7\xac\x91\xe3\x81\x84",
-     "smile_eye", 
+     "smile_eye",
      {{"eye_relax_a_R_ctrl", 0, -1, -1, false},
       {"eye_relax_a_L_ctrl", 0, -1, -1, false}},
      2,
      0,
      0},
     {"\xe3\x82\xa6\xe3\x82\xa3\xe3\x83\xb3\xe3\x82\xaf",
-     "wink_L", 
+     "wink_L",
      {{"eye_thinkcloseeyes_a_L_ctrl", 0, -1, -1, false}},
      1,
      0,
      0},
     {"\xe3\x82\xa6\xe3\x82\xa3\xe3\x83\xb3\xe3\x82\xaf\xe5\x8f\xb3",
-     "wink_R", 
+     "wink_R",
      {{"eye_thinkcloseeyes_a_R_ctrl", 0, -1, -1, false}},
      1,
      0,
      0},
     {"\xe3\x81\xaa\xe3\x81\x94\xe3\x81\xbf",
-     "nagomi", 
+     "nagomi",
      {{"eye_relax_a_R_ctrl", 0, -1, -1, false},
       {"eye_relax_a_L_ctrl", 0, -1, -1, false}},
      2,
      0,
      0},
     {"\xe3\x81\xb3\xe3\x81\xa3\xe3\x81\x8f\xe3\x82\x8a",
-     "surprise_eye", 
+     "surprise_eye",
      {{"eye_relax_a_R_ctrl", 0, -1, -1, false},
       {"eye_relax_a_L_ctrl", 0, -1, -1, false}},
      2,
@@ -175,35 +185,35 @@ static ExtraMorph g_extraMorphs[] = {
      0},
 
     {"\xe4\xb8\x8a",
-     "brow_up", 
+     "brow_up",
      {{"brow_offset_u_R_ctrl", 0, -1, -1, false},
       {"brow_offset_u_L_ctrl", 0, -1, -1, false}},
      2,
      0,
      0},
     {"\xe4\xb8\x8b",
-     "brow_down", 
+     "brow_down",
      {{"brow_offset_d_R_ctrl", 0, -1, -1, false},
       {"brow_offset_d_L_ctrl", 0, -1, -1, false}},
      2,
      0,
      0},
     {"\xe6\x80\x92\xe3\x82\x8a",
-     "brow_angry", 
+     "brow_angry",
      {{"brow_attack_a_R_ctrl", 0, -1, -1, false},
       {"brow_attack_a_L_ctrl", 0, -1, -1, false}},
      2,
      0,
      0},
     {"\xe5\x9b\xb0\xe3\x82\x8b",
-     "brow_sad", 
+     "brow_sad",
      {{"brow_relax_a_R_ctrl", 0, -1, -1, false},
       {"brow_relax_a_L_ctrl", 0, -1, -1, false}},
      2,
      0,
      0},
     {"\xe3\x81\xab\xe3\x81\x93\xe3\x82\x8a",
-     "brow_smile", 
+     "brow_smile",
      {{"brow_relax_a_R_ctrl", 0, -1, -1, false},
       {"brow_relax_a_L_ctrl", 0, -1, -1, false}},
      2,
@@ -271,7 +281,143 @@ static int g_bsIdxA = -1, g_bsIdxI = -1, g_bsIdxU = -1, g_bsIdxE = -1,
            g_bsIdxO = -1;
 static bool g_bsIndicesResolved = false;
 static volatile bool g_mouthWeightsFromMuscle =
-    false; 
+    false;
+
+static bool FaceMorphOwnershipActive() {
+  return g_faceTestActive || g_mouthWeightsFromMuscle ||
+         g_directVmdMorphActive;
+}
+
+static float DirectVmdMorph_ClampWeight(float weight) {
+  if (!std::isfinite(weight))
+    return 0.0f;
+  return (std::max)(0.0f, (std::min)(weight, 1.0f));
+}
+
+static void DirectVmdMorph_ResetMainThread(const char *reason) {
+  if (!GhostRig_RequireMainThread("P6.Morph.Reset", true))
+    return;
+  const bool wasActive = g_directVmdMorphActive;
+  g_directVmdMorphActive = false;
+  memset(g_mouthWeights, 0, sizeof(g_mouthWeights));
+  for (int index = 0; index < NUM_EXTRA_MORPHS; ++index) {
+    g_extraMorphs[index].weight = 0.0f;
+    g_extraMorphs[index].prevWeight = 0.0f;
+  }
+  memset(g_faceBoneTouched, 0, sizeof(g_faceBoneTouched));
+  if (g_confirmedSMC && OFF_allMorphBoneDirty > 0) {
+    __try {
+      *(bool *)((char *)g_confirmedSMC + OFF_allMorphBoneDirty) = true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+    }
+  }
+  if (wasActive) {
+    Log("[P6-MORPH-RESET] reason=%s weightsCleared=1 touchedCleared=1 "
+        "tid=%lu",
+        reason ? reason : "unspecified", GetCurrentThreadId());
+  }
+}
+
+static bool DirectVmdMorph_IsKnownName(const char *name) {
+  if (!name)
+    return false;
+  static constexpr const char *mouthNames[NUM_MOUTH_SHAPES] = {
+      u8"あ", u8"い", u8"う", u8"え", u8"お"};
+  for (int index = 0; index < NUM_MOUTH_SHAPES; ++index) {
+    if (strcmp(name, mouthNames[index]) == 0)
+      return true;
+  }
+  for (int index = 0; index < NUM_EXTRA_MORPHS; ++index) {
+    if (strcmp(name, g_extraMorphs[index].vmdNameUtf8) == 0)
+      return true;
+  }
+  return false;
+}
+
+static void DirectVmdMorph_UpdateFromRuntime(int smcFrame) {
+  if (!g_motionBackend.Is(MotionBackend::DirectVmd) ||
+      !DirectVmdRuntime_IsLoaded()) {
+    if (g_directVmdMorphActive)
+      DirectVmdMorph_ResetMainThread("backend-or-resource-inactive");
+    return;
+  }
+  if (!GhostRig_RequireMainThread("P6.Morph.Update", false))
+    return;
+
+  DirectVmdSampleFrame frame;
+  const bool copied = DirectVmdRuntime_CopyLatestFrame(&frame);
+  const uint64_t targetGeneration =
+      DirectVmdRuntime_PublicTargetGeneration();
+  const uintptr_t targetOwner = DirectVmdRuntime_PublicTargetOwner();
+  uint64_t ghostGeneration = 0;
+  uintptr_t ghostOwner = 0;
+  const bool ghostIdentityValid = GhostRig_GetDirectChannelIdentity(
+      &ghostGeneration, &ghostOwner);
+  const bool accepted = copied && frame.valid && ghostIdentityValid &&
+      frame.rigGeneration == targetGeneration &&
+      frame.ownerCharacter == targetOwner && targetOwner != 0 &&
+      frame.clipGeneration == DirectVmdRuntime_PublicClipGeneration() &&
+      frame.rigGeneration == ghostGeneration &&
+      frame.ownerCharacter == ghostOwner;
+  if (!accepted) {
+    if (g_directVmdMorphActive)
+      DirectVmdMorph_ResetMainThread("sample-ownership-mismatch");
+    return;
+  }
+
+  static constexpr const char *mouthNames[NUM_MOUTH_SHAPES] = {
+      u8"あ", u8"い", u8"う", u8"え", u8"お"};
+  int mappedTracks = 0;
+  for (int index = 0; index < NUM_MOUTH_SHAPES; ++index) {
+    float weight = 0.0f;
+    if (DirectVmdFindMorphWeight(frame, mouthNames[index], &weight))
+      ++mappedTracks;
+    g_mouthWeights[index] = DirectVmdMorph_ClampWeight(weight);
+  }
+  for (int index = 0; index < NUM_EXTRA_MORPHS; ++index) {
+    float weight = 0.0f;
+    if (DirectVmdFindMorphWeight(
+            frame, g_extraMorphs[index].vmdNameUtf8, &weight))
+      ++mappedTracks;
+    const float exact = DirectVmdMorph_ClampWeight(weight);
+    g_extraMorphs[index].weight = exact;
+    g_extraMorphs[index].prevWeight = exact;
+  }
+
+  int unknownTracks = 0;
+  const uint32_t morphCount =
+      (std::min)(frame.morphCount, DIRECT_VMD_MAX_MORPH_CHANNELS);
+  for (uint32_t index = 0; index < morphCount; ++index) {
+    if (!DirectVmdMorph_IsKnownName(frame.morphs[index].name))
+      ++unknownTracks;
+  }
+  const bool wasActive = g_directVmdMorphActive;
+  g_directVmdMorphActive = mappedTracks > 0;
+  if (!g_directVmdMorphActive && wasActive) {
+    memset(g_faceBoneTouched, 0, sizeof(g_faceBoneTouched));
+    if (g_confirmedSMC && OFF_allMorphBoneDirty > 0) {
+      __try {
+        *(bool *)((char *)g_confirmedSMC + OFF_allMorphBoneDirty) = true;
+      } __except (EXCEPTION_EXECUTE_HANDLER) {
+      }
+    }
+  }
+
+  if (smcFrame <= 1 || smcFrame % 120 == 0) {
+    Log("[P6-MORPH-SAMPLE] smcFrame=%d sourceFrame=%.6f sampleSeq=%llu "
+        "playback=%u tracks=%u mapped=%d unknown=%d dropped=%u active=%d "
+        "generation=%llu owner=%p exactFrameSampling=1 muscleTimeline=0 "
+        "smoothing=0 tid=%lu",
+        smcFrame, frame.sourceFrame,
+        (unsigned long long)frame.sequence,
+        static_cast<unsigned>(frame.playback), frame.morphCount,
+        mappedTracks, unknownTracks, frame.morphDroppedCount,
+        g_directVmdMorphActive ? 1 : 0,
+        (unsigned long long)frame.rigGeneration,
+        reinterpret_cast<void *>(frame.ownerCharacter),
+        GetCurrentThreadId());
+  }
+}
 
 static void ResolveMouthShapes(char *smcBase) {
   if (g_mouthShapesResolved)
@@ -350,7 +496,7 @@ static void ResolveMouthShapes(char *smcBase) {
           g_mouthShapes[m].morphId = vi[0];
           g_mouthShapes[m].startIdx = vi[4];
           g_mouthShapes[m].count = vi[5];
-          g_mouthShapes[m].jobStartIdx = vi[4]; 
+          g_mouthShapes[m].jobStartIdx = vi[4];
           g_mouthShapes[m].jobCount = vi[5];
           g_mouthShapes[m].resolved = true;
           Log("[MOUTH-RESOLVE] '%s' entry[%d]: morphId=%d smcStartIdx=%d "
@@ -430,7 +576,7 @@ static void ResolveMouthShapes(char *smcBase) {
               tgt.nameHash = keys[e];
               tgt.startIdx = smcStart;
               tgt.count = smcCount;
-              tgt.jobStartIdx = smcStart; 
+              tgt.jobStartIdx = smcStart;
               tgt.jobCount = smcCount;
               tgt.jobStartIdx = smcStart;
               tgt.jobCount = smcCount;
@@ -514,11 +660,14 @@ typedef void(__fastcall *MorphToBoneJob_t)(void *__this, void *param1,
 static MorphToBoneJob_t g_origMorphToBoneJob = nullptr;
 static int s_jobCallCount = 0;
 
-static void *g_confirmedSMC = nullptr; 
 
 static void __fastcall Hooked_MorphToBoneJob(void *__this, void *param1,
                                              void *param2, void *methodInfo) {
   s_jobCallCount++;
+
+  if (!g_smcOffsetsResolved && g_skeletalMorphCoreClass) {
+    ResolveSMCOffsets(g_skeletalMorphCoreClass);
+  }
 
   if (!g_confirmedSMC && param1) {
     g_confirmedSMC = param1;
@@ -585,7 +734,7 @@ static void __fastcall Hooked_MorphToBoneJob(void *__this, void *param1,
     }
   }
 
-  if ((g_faceTestActive || g_mouthWeightsFromMuscle) && g_faceBonesCaptured &&
+  if (FaceMorphOwnershipActive() && g_faceBonesCaptured &&
       g_boneMapReady && param1 && param1 == g_confirmedSMC) {
     __try {
       int blOff2 = SafeOff(OFF_bigList, 0x120, "bigList");
@@ -598,7 +747,7 @@ static void __fastcall Hooked_MorphToBoneJob(void *__this, void *param1,
           int boneID = live[i].boneID;
           int arrIdx = (boneID >= 0 && boneID < 512) ? g_boneIDToIdx[boneID] : -1;
           if (arrIdx < 0 || arrIdx >= g_faceBoneCount)
-            continue; 
+            continue;
           live[i].deltaPosX = 0;
           live[i].deltaPosY = 0;
           live[i].deltaPosZ = 0;
@@ -644,7 +793,7 @@ static void RestoreBigList() {
   }
 }
 
-static void CleanupPoseHandler(); 
+static void CleanupPoseHandler();
 
 static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
                                         void *methodInfo) {
@@ -652,8 +801,8 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
   if (!g_skeletalMorphCore) {
     if (g_confirmedSMC && __this == g_confirmedSMC) {
       g_skeletalMorphCore = __this;
-      s_frame = 0;                 
-      g_faceGetLocalPos = nullptr; 
+      s_frame = 0;
+      g_faceGetLocalPos = nullptr;
       Log("[FACE] Locked SMC (confirmed by MorphToBoneJob): %p", __this);
     } else {
       if (g_origSMCUpdate)
@@ -685,6 +834,8 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
 
   s_frame++;
 
+  DirectVmdMorph_UpdateFromRuntime(s_frame);
+
   if (!g_trojanActive && g_mouthWeightsFromMuscle) {
     g_mouthWeightsFromMuscle = false;
     memset(g_mouthWeights, 0, sizeof(g_mouthWeights));
@@ -701,7 +852,7 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
     Log("[FACE] SMC reset: s_frame reset to 1");
   }
 
-  if ((g_faceTestActive || g_mouthWeightsFromMuscle) && g_faceBonesCaptured &&
+  if (FaceMorphOwnershipActive() && g_faceBonesCaptured &&
       g_faceSetLocalPos && g_faceSetLocalRot && s_frame > 5) {
     __try {
       for (int i = 0; i < g_faceBoneCount; i++) {
@@ -1145,7 +1296,7 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
             Log("[BONEMAP]   Mapped %d bones (flat)!", mapped);
           } else {
             Log("[BONEMAP]   Still all -1 at frame %d, forcing dirty", s_frame);
-            g_boneMapReady = false; 
+            g_boneMapReady = false;
             if (OFF_allMorphBoneDirty > 0) {
               *(bool *)((char *)__this + OFF_allMorphBoneDirty) = true;
             }
@@ -1158,12 +1309,13 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
   }
 
 
-  if (g_faceTestActive && s_frame > 20 && !g_mouthWeightsFromMuscle) {
-    float t = g_faceTestFrame / 180.0f; 
+  if (g_faceTestActive && s_frame > 20 && !g_mouthWeightsFromMuscle &&
+      !g_directVmdMorphActive) {
+    float t = g_faceTestFrame / 180.0f;
     int baseShape = ((int)t) % NUM_MOUTH_SHAPES;
     int nextShape = (baseShape + 1) % NUM_MOUTH_SHAPES;
     float blend =
-        (1.0f - cosf((t - (int)t) * 3.14159265f)) * 0.5f; 
+        (1.0f - cosf((t - (int)t) * 3.14159265f)) * 0.5f;
 
     for (int s = 0; s < NUM_MOUTH_SHAPES; s++)
       g_mouthWeights[s] = 0.0f;
@@ -1171,8 +1323,7 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
     g_mouthWeights[nextShape] = blend;
   }
 
-  bool faceActive =
-      (g_faceTestActive || g_mouthWeightsFromMuscle) && s_frame > 20;
+  bool faceActive = FaceMorphOwnershipActive() && s_frame > 20;
   if (s_frame == 25 || s_frame == 50 || s_frame == 100) {
     Log("[DIAG] s_frame=%d faceActive=%d boneMapReady=%d boneIDMapCount=%d "
         "capturedLen=%d mouthResolved=%d bigListCaptured=%d "
@@ -1195,9 +1346,9 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
 
       memcpy(g_faceBones, g_faceRestPose, sizeof(g_faceBones));
 
-      float deltaPosAccum[MAX_FACE_BONES][3] = {}; 
-      float deltaRotAccum[MAX_FACE_BONES][3] = {}; 
-      memset(g_faceBoneTouched, 0, sizeof(g_faceBoneTouched)); 
+      float deltaPosAccum[MAX_FACE_BONES][3] = {};
+      float deltaRotAccum[MAX_FACE_BONES][3] = {};
+      memset(g_faceBoneTouched, 0, sizeof(g_faceBoneTouched));
 
       int applied = 0;
       for (int s = 0; s < NUM_MOUTH_SHAPES; s++) {
@@ -1350,11 +1501,11 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
       Log("[MOUTH] Exception");
     }
   }
-  if ((g_faceTestActive || g_mouthWeightsFromMuscle) && s_frame >= 15) {
+  if (FaceMorphOwnershipActive() && s_frame >= 15) {
     g_faceTestFrame++;
   }
 
-  if ((g_faceTestActive || g_mouthWeightsFromMuscle) && g_faceBonesCaptured &&
+  if (FaceMorphOwnershipActive() && g_faceBonesCaptured &&
       OFF_allMorphBoneDirty > 0) {
     char *smcBase = (char *)__this;
     *(bool *)(smcBase + OFF_allMorphBoneDirty) = false;
@@ -1437,14 +1588,14 @@ static void __fastcall Hooked_SMCUpdate(void *__this, float deltaTime,
 
   {
 
-    if ((g_faceTestActive || g_mouthWeightsFromMuscle) && g_faceBonesCaptured &&
+    if (FaceMorphOwnershipActive() && g_faceBonesCaptured &&
         g_faceSetLocalPos && g_faceSetLocalRot && s_frame > 5) {
       __try {
         for (int i = 0; i < g_faceBoneCount; i++) {
           if (!g_faceBoneRefs[i])
             continue;
           if (!g_faceBoneTouched[i])
-            continue; 
+            continue;
           float pos[3] = {g_faceBones[i].px, g_faceBones[i].py,
                           g_faceBones[i].pz};
           float rot[4] = {g_faceBones[i].rx, g_faceBones[i].ry,

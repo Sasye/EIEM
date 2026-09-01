@@ -12,18 +12,18 @@
 
 
 struct AP_PluginInfo {
-    int         apiVersion;         
-    const char* id;                 
-    const char* displayName;        
-    const char* description;        
-    const char* configFile;         
-    bool        supportsHotDisable; 
+    int         apiVersion;
+    const char* id;
+    const char* displayName;
+    const char* description;
+    const char* configFile;
+    bool        supportsHotDisable;
 };
 
 struct AP_HotkeyInfo {
-    const char* name;               
-    const char* configKey;          
-    int         currentVK;          
+    const char* name;
+    const char* configKey;
+    int         currentVK;
 };
 
 

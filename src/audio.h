@@ -1,7 +1,9 @@
 #pragma once
 #include <windows.h>
 #include <mmsystem.h>
-#include <digitalv.h>  
+#include <digitalv.h>
+#include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 
@@ -20,7 +22,7 @@ static bool DecodeMp3ToWav(const wchar_t *mp3Path, const wchar_t *wavPath) {
   HRESULT hr;
 
   hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-  bool comOwner = SUCCEEDED(hr); 
+  bool comOwner = SUCCEEDED(hr);
 
   hr = MFStartup(MF_VERSION);
   if (FAILED(hr)) {
@@ -60,7 +62,7 @@ static bool DecodeMp3ToWav(const wchar_t *mp3Path, const wchar_t *wavPath) {
   }
 
   DWORD totalSize = 0;
-  DWORD bufCap = 10 * 1024 * 1024; 
+  DWORD bufCap = 10 * 1024 * 1024;
   BYTE *pcmBuf = (BYTE *)malloc(bufCap);
   if (!pcmBuf) {
     reader->Release();
@@ -126,7 +128,7 @@ static bool DecodeMp3ToWav(const wchar_t *mp3Path, const wchar_t *wavPath) {
   fwrite("fmt ", 1, 4, fp);
   DWORD fmtSize = 16;
   fwrite(&fmtSize, 4, 1, fp);
-  WORD audioFmt = 1; 
+  WORD audioFmt = 1;
   fwrite(&audioFmt, 2, 1, fp);
   WORD ch = (WORD)channels;
   fwrite(&ch, 2, 1, fp);
@@ -149,11 +151,12 @@ static bool DecodeMp3ToWav(const wchar_t *mp3Path, const wchar_t *wavPath) {
 
 struct AudioPlayer {
   bool loaded = false;
-  bool playing = false;   
-  bool isMp3 = false;     
-  int lengthMs = 0;       
-  MCIDEVICEID devId = 0;  
-  wchar_t tempWav[MAX_PATH] = {}; 
+  bool playing = false;
+  bool isMp3 = false;
+  int lengthMs = 0;
+  int speedPermille = 1000;
+  MCIDEVICEID devId = 0;
+  wchar_t tempWav[MAX_PATH] = {};
 
   bool Open(const wchar_t *path) {
     Close();
@@ -215,6 +218,7 @@ struct AudioPlayer {
 
     loaded = true;
     playing = false;
+    speedPermille = 1000;
     char narrowPath[512] = {};
     WideCharToMultiByte(CP_UTF8, 0, path, -1, narrowPath, sizeof(narrowPath), nullptr, nullptr);
     Log("[AUDIO] Opened %s, length=%d ms, isMp3=%d", narrowPath, lengthMs, isMp3 ? 1 : 0);
@@ -239,6 +243,8 @@ struct AudioPlayer {
       return;
     if (ms < 0)
       ms = 0;
+    if (lengthMs > 0 && ms > lengthMs)
+      ms = lengthMs;
     MCI_PLAY_PARMS playParms = {};
     playParms.dwFrom = (DWORD)ms;
     MCIERROR err = mciSendCommandW(devId, MCI_PLAY, MCI_FROM, (DWORD_PTR)&playParms);
@@ -273,6 +279,55 @@ struct AudioPlayer {
     playing = false;
   }
 
+  bool SeekTo(int ms) {
+    if (!loaded || !devId)
+      return false;
+    if (ms < 0)
+      ms = 0;
+    if (lengthMs > 0 && ms > lengthMs)
+      ms = lengthMs;
+    if (playing)
+      Pause();
+    MCI_SEEK_PARMS seekParms = {};
+    seekParms.dwTo = static_cast<DWORD>(ms);
+    MCIERROR err = mciSendCommandW(
+        devId, MCI_SEEK, MCI_TO | MCI_WAIT,
+        reinterpret_cast<DWORD_PTR>(&seekParms));
+    if (err != 0) {
+      Log("[AUDIO] SeekTo %d ms FAILED (err=%u)", ms,
+          static_cast<unsigned>(err));
+      return false;
+    }
+    playing = false;
+    return true;
+  }
+
+  bool SetPlaybackSpeed(float speed) {
+    if (!loaded || !devId || !std::isfinite(speed))
+      return false;
+    const int requested = (std::max)(50, (std::min)(4000,
+        static_cast<int>(std::lround(speed * 1000.0f))));
+    if (requested == speedPermille)
+      return true;
+    MCI_DGV_SET_PARMS speedParms = {};
+    speedParms.dwSpeed = static_cast<DWORD>(requested);
+    MCIERROR err = mciSendCommandW(
+        devId, MCI_SET, MCI_DGV_SET_SPEED | MCI_WAIT,
+        reinterpret_cast<DWORD_PTR>(&speedParms));
+    if (err != 0) {
+      static int s_speedErrorCount = 0;
+      if (s_speedErrorCount < 4) {
+        Log("[P6-AUDIO-SPEED] requested=%d supported=0 err=%u",
+            requested, static_cast<unsigned>(err));
+        ++s_speedErrorCount;
+      }
+      return false;
+    }
+    speedPermille = requested;
+    Log("[P6-AUDIO-SPEED] requested=%d supported=1", requested);
+    return true;
+  }
+
   void Close() {
     if (loaded && devId) {
       mciSendCommandW(devId, MCI_CLOSE, MCI_WAIT, 0);
@@ -282,6 +337,7 @@ struct AudioPlayer {
     loaded = false;
     playing = false;
     lengthMs = 0;
+    speedPermille = 1000;
     if (tempWav[0] != L'\0') {
       DeleteFileW(tempWav);
       tempWav[0] = L'\0';
@@ -307,7 +363,7 @@ struct AudioPlayer {
     int pos = GetPositionMs();
     if (pos < 0)
       return false;
-    return pos >= lengthMs - 30; 
+    return pos >= lengthMs - 30;
   }
 
   void SetVolume(int vol) {

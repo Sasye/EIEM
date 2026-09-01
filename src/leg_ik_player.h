@@ -4,20 +4,20 @@
 
 #define IK_MMD_SCALE 0.08f
 
-static const char *IK_BONE_LEFT_FOOT  = "\xe5\xb7\xa6\xe8\xb6\xb3\xef\xbc\xa9\xef\xbc\xab";       
-static const char *IK_BONE_RIGHT_FOOT = "\xe5\x8f\xb3\xe8\xb6\xb3\xef\xbc\xa9\xef\xbc\xab";       
-static const char *IK_BONE_LEFT_TOE   = "\xe5\xb7\xa6\xe3\x81\xa4\xe3\x81\xbe\xe5\x85\x88\xef\xbc\xa9\xef\xbc\xab"; 
-static const char *IK_BONE_RIGHT_TOE  = "\xe5\x8f\xb3\xe3\x81\xa4\xe3\x81\xbe\xe5\x85\x88\xef\xbc\xa9\xef\xbc\xab"; 
+static const char *IK_BONE_LEFT_FOOT  = "\xe5\xb7\xa6\xe8\xb6\xb3\xef\xbc\xa9\xef\xbc\xab";
+static const char *IK_BONE_RIGHT_FOOT = "\xe5\x8f\xb3\xe8\xb6\xb3\xef\xbc\xa9\xef\xbc\xab";
+static const char *IK_BONE_LEFT_TOE   = "\xe5\xb7\xa6\xe3\x81\xa4\xe3\x81\xbe\xe5\x85\x88\xef\xbc\xa9\xef\xbc\xab";
+static const char *IK_BONE_RIGHT_TOE  = "\xe5\x8f\xb3\xe3\x81\xa4\xe3\x81\xbe\xe5\x85\x88\xef\xbc\xa9\xef\xbc\xab";
 
-static const char *IK_BONE_LEFT_FOOT_HW  = "\xe5\xb7\xa6\xe8\xb6\xb3IK";       
-static const char *IK_BONE_RIGHT_FOOT_HW = "\xe5\x8f\xb3\xe8\xb6\xb3IK";       
-static const char *IK_BONE_LEFT_TOE_HW   = "\xe5\xb7\xa6\xe3\x81\xa4\xe3\x81\xbe\xe5\x85\x88IK"; 
-static const char *IK_BONE_RIGHT_TOE_HW  = "\xe5\x8f\xb3\xe3\x81\xa4\xe3\x81\xbe\xe5\x85\x88IK"; 
+static const char *IK_BONE_LEFT_FOOT_HW  = "\xe5\xb7\xa6\xe8\xb6\xb3IK";
+static const char *IK_BONE_RIGHT_FOOT_HW = "\xe5\x8f\xb3\xe8\xb6\xb3IK";
+static const char *IK_BONE_LEFT_TOE_HW   = "\xe5\xb7\xa6\xe3\x81\xa4\xe3\x81\xbe\xe5\x85\x88IK";
+static const char *IK_BONE_RIGHT_TOE_HW  = "\xe5\x8f\xb3\xe3\x81\xa4\xe3\x81\xbe\xe5\x85\x88IK";
 
 struct LegIKTarget {
-  float pos[3];   
-  float rot[4];   
-  bool valid;      
+  float pos[3];
+  float rot[4];
+  bool valid;
 };
 
 struct LegIKState {
@@ -34,11 +34,11 @@ struct LegIKState {
   float leftFootBase[3];
   float rightFootBase[3];
 
-  const VmdBoneTimeline *center;   
-  const VmdBoneTimeline *groove;   
-  const VmdBoneTimeline *master;   
+  const VmdBoneTimeline *center;
+  const VmdBoneTimeline *groove;
+  const VmdBoneTimeline *master;
 
-  bool hasData;  
+  bool hasData;
 };
 
 static LegIKState g_legIK = {};
@@ -232,7 +232,7 @@ static void TransformIKToWorld(const float mmdPos[3], const float mmdRot[4],
                                 float scale, const Vec3 &charPos, float charYawRad,
                                 float outPos[3], float outRot[4]) {
   float s = IK_MMD_SCALE * scale;
-  float ux = -mmdPos[0] * s;  
+  float ux = -mmdPos[0] * s;
   float uy =  mmdPos[1] * s;
   float uz =  mmdPos[2] * s;
 
@@ -245,10 +245,10 @@ static void TransformIKToWorld(const float mmdPos[3], const float mmdRot[4],
   outPos[2] = charPos.z + wz;
 
   if (outRot) {
-    outRot[0] =  mmdRot[0];  
-    outRot[1] = -mmdRot[1];  
-    outRot[2] = -mmdRot[2];  
-    outRot[3] =  mmdRot[3];  
+    outRot[0] =  mmdRot[0];
+    outRot[1] = -mmdRot[1];
+    outRot[2] = -mmdRot[2];
+    outRot[3] =  mmdRot[3];
 
     float qy[4] = { 0, sinf(charYawRad * 0.5f), 0, cosf(charYawRad * 0.5f) };
     float rx = qy[3]*outRot[0] + qy[0]*outRot[3] + qy[1]*outRot[2] - qy[2]*outRot[1];

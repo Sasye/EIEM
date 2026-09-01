@@ -1,69 +1,69 @@
 #pragma once
 
 static const char *g_humanBoneNames[] = {
-    "Hips",                    
-    "LeftUpperLeg",            
-    "RightUpperLeg",           
-    "LeftLowerLeg",            
-    "RightLowerLeg",           
-    "LeftFoot",                
-    "RightFoot",               
-    "Spine",                   
-    "Chest",                   
-    "Neck",                    
-    "Head",                    
-    "LeftShoulder",            
-    "RightShoulder",           
-    "LeftUpperArm",            
-    "RightUpperArm",           
-    "LeftLowerArm",            
-    "RightLowerArm",           
-    "LeftHand",                
-    "RightHand",               
-    "LeftToes",                
-    "RightToes",               
-    "LeftEye",                 
-    "RightEye",                
-    "Jaw",                     
-    "LeftThumbProximal",       
-    "LeftThumbIntermediate",   
-    "LeftThumbDistal",         
-    "LeftIndexProximal",       
-    "LeftIndexIntermediate",   
-    "LeftIndexDistal",         
-    "LeftMiddleProximal",      
-    "LeftMiddleIntermediate",  
-    "LeftMiddleDistal",        
-    "LeftRingProximal",        
-    "LeftRingIntermediate",    
-    "LeftRingDistal",          
-    "LeftLittleProximal",      
-    "LeftLittleIntermediate",  
-    "LeftLittleDistal",        
-    "RightThumbProximal",      
-    "RightThumbIntermediate",  
-    "RightThumbDistal",        
-    "RightIndexProximal",      
-    "RightIndexIntermediate",  
-    "RightIndexDistal",        
-    "RightMiddleProximal",     
-    "RightMiddleIntermediate", 
-    "RightMiddleDistal",       
-    "RightRingProximal",       
-    "RightRingIntermediate",   
-    "RightRingDistal",         
-    "RightLittleProximal",     
-    "RightLittleIntermediate", 
-    "RightLittleDistal",       
-    "UpperChest",              
+    "Hips",
+    "LeftUpperLeg",
+    "RightUpperLeg",
+    "LeftLowerLeg",
+    "RightLowerLeg",
+    "LeftFoot",
+    "RightFoot",
+    "Spine",
+    "Chest",
+    "Neck",
+    "Head",
+    "LeftShoulder",
+    "RightShoulder",
+    "LeftUpperArm",
+    "RightUpperArm",
+    "LeftLowerArm",
+    "RightLowerArm",
+    "LeftHand",
+    "RightHand",
+    "LeftToes",
+    "RightToes",
+    "LeftEye",
+    "RightEye",
+    "Jaw",
+    "LeftThumbProximal",
+    "LeftThumbIntermediate",
+    "LeftThumbDistal",
+    "LeftIndexProximal",
+    "LeftIndexIntermediate",
+    "LeftIndexDistal",
+    "LeftMiddleProximal",
+    "LeftMiddleIntermediate",
+    "LeftMiddleDistal",
+    "LeftRingProximal",
+    "LeftRingIntermediate",
+    "LeftRingDistal",
+    "LeftLittleProximal",
+    "LeftLittleIntermediate",
+    "LeftLittleDistal",
+    "RightThumbProximal",
+    "RightThumbIntermediate",
+    "RightThumbDistal",
+    "RightIndexProximal",
+    "RightIndexIntermediate",
+    "RightIndexDistal",
+    "RightMiddleProximal",
+    "RightMiddleIntermediate",
+    "RightMiddleDistal",
+    "RightRingProximal",
+    "RightRingIntermediate",
+    "RightRingDistal",
+    "RightLittleProximal",
+    "RightLittleIntermediate",
+    "RightLittleDistal",
+    "UpperChest",
 };
 static const int g_humanBoneCount = 55;
 
-static void DiscoverSkeleton();            
-static void *g_playerController = nullptr; 
-static void *g_mainCharEntity = nullptr;   
+static void DiscoverSkeleton();
+static void *g_playerController = nullptr;
+static void *g_mainCharEntity = nullptr;
 static void *g_cachedAnimator =
-    nullptr; 
+    nullptr;
 
 static VmdFile *g_vmd = nullptr;
 static std::vector<ResolvedBoneMapping> *g_resolvedMappings = nullptr;
@@ -248,7 +248,7 @@ static void RestoreDisabledComponents() {
     Log("[BBC] Restored %d cloth instances (ratio=0, reset)", s_bbcCount);
   }
   s_bbcCount = 0;
-  s_skirtBBCIndex = -1;  
+  s_skirtBBCIndex = -1;
   ResetSkirtState();
   memset(s_bbcInstances, 0, sizeof(s_bbcInstances));
 
@@ -325,37 +325,37 @@ static void ComputeStances(std::vector<ResolvedBoneMapping> &mappings) {
     const char *child;
   } boneChain[] = {
       {"\xe5\xb7\xa6\xe8\x82\xa9",
-       "\xe5\xb7\xa6\xe8\x85\x95"}, 
+       "\xe5\xb7\xa6\xe8\x85\x95"},
       {"\xe5\xb7\xa6\xe8\x85\x95",
-       "\xe5\xb7\xa6\xe3\x81\xb2\xe3\x81\x98"}, 
+       "\xe5\xb7\xa6\xe3\x81\xb2\xe3\x81\x98"},
       {"\xe5\xb7\xa6\xe3\x81\xb2\xe3\x81\x98",
-       "\xe5\xb7\xa6\xe6\x89\x8b\xe9\xa6\x96"}, 
+       "\xe5\xb7\xa6\xe6\x89\x8b\xe9\xa6\x96"},
       {"\xe5\xb7\xa6\xe6\x89\x8b\xe9\xa6\x96",
-       nullptr}, 
+       nullptr},
       {"\xe5\x8f\xb3\xe8\x82\xa9",
-       "\xe5\x8f\xb3\xe8\x85\x95"}, 
+       "\xe5\x8f\xb3\xe8\x85\x95"},
       {"\xe5\x8f\xb3\xe8\x85\x95",
-       "\xe5\x8f\xb3\xe3\x81\xb2\xe3\x81\x98"}, 
+       "\xe5\x8f\xb3\xe3\x81\xb2\xe3\x81\x98"},
       {"\xe5\x8f\xb3\xe3\x81\xb2\xe3\x81\x98",
-       "\xe5\x8f\xb3\xe6\x89\x8b\xe9\xa6\x96"}, 
+       "\xe5\x8f\xb3\xe6\x89\x8b\xe9\xa6\x96"},
       {"\xe5\x8f\xb3\xe6\x89\x8b\xe9\xa6\x96",
-       nullptr}, 
+       nullptr},
       {"\xe4\xb8\x8a\xe5\x8d\x8a\xe8\xba\xab",
-       "\xe4\xb8\x8a\xe5\x8d\x8a\xe8\xba\xab\x32"}, 
+       "\xe4\xb8\x8a\xe5\x8d\x8a\xe8\xba\xab\x32"},
       {"\xe4\xb8\x8a\xe5\x8d\x8a\xe8\xba\xab\x32",
-       "\xe9\xa6\x96"},                 
-      {"\xe9\xa6\x96", "\xe9\xa0\xad"}, 
-      {"\xe9\xa0\xad", nullptr},        
+       "\xe9\xa6\x96"},
+      {"\xe9\xa6\x96", "\xe9\xa0\xad"},
+      {"\xe9\xa0\xad", nullptr},
       {"\xe5\xb7\xa6\xe8\xb6\xb3",
-       "\xe5\xb7\xa6\xe3\x81\xb2\xe3\x81\x96"}, 
+       "\xe5\xb7\xa6\xe3\x81\xb2\xe3\x81\x96"},
       {"\xe5\xb7\xa6\xe3\x81\xb2\xe3\x81\x96",
-       "\xe5\xb7\xa6\xe8\xb6\xb3\xe9\xa6\x96"}, 
-      {"\xe5\xb7\xa6\xe8\xb6\xb3\xe9\xa6\x96", nullptr}, 
+       "\xe5\xb7\xa6\xe8\xb6\xb3\xe9\xa6\x96"},
+      {"\xe5\xb7\xa6\xe8\xb6\xb3\xe9\xa6\x96", nullptr},
       {"\xe5\x8f\xb3\xe8\xb6\xb3",
-       "\xe5\x8f\xb3\xe3\x81\xb2\xe3\x81\x96"}, 
+       "\xe5\x8f\xb3\xe3\x81\xb2\xe3\x81\x96"},
       {"\xe5\x8f\xb3\xe3\x81\xb2\xe3\x81\x96",
-       "\xe5\x8f\xb3\xe8\xb6\xb3\xe9\xa6\x96"}, 
-      {"\xe5\x8f\xb3\xe8\xb6\xb3\xe9\xa6\x96", nullptr}, 
+       "\xe5\x8f\xb3\xe8\xb6\xb3\xe9\xa6\x96"},
+      {"\xe5\x8f\xb3\xe8\xb6\xb3\xe9\xa6\x96", nullptr},
   };
   static const int chainCount = sizeof(boneChain) / sizeof(boneChain[0]);
 
@@ -464,25 +464,25 @@ struct MmdRestRot {
   float r[4];
 };
 static const MmdRestRot g_mmdRest[] = {
-    {0, {0.054970f, -0.000550f, 0.009985f, 0.998438f}},    
-    {1, {-0.221591f, 0.253252f, -0.060742f, 0.939719f}},   
-    {2, {-0.193183f, -0.279992f, 0.066861f, 0.937984f}},   
-    {3, {0.391337f, 0.000000f, 0.000000f, 0.920247f}},     
-    {4, {0.352274f, 0.000000f, 0.000000f, 0.935897f}},     
-    {5, {-0.243333f, 0.027973f, 0.030674f, 0.969054f}},    
-    {6, {-0.250818f, -0.070884f, -0.077729f, 0.962301f}},  
-    {7, {-0.054961f, 0.001099f, 0.000000f, 0.998488f}},    
-    {8, {0.000000f, 0.000000f, 0.000000f, 1.000000f}},     
-    {9, {0.000000f, 0.000000f, 0.000000f, 1.000000f}},     
-    {10, {0.054966f, -0.000825f, 0.014977f, 0.998376f}},   
-    {11, {-0.005895f, 0.094641f, 0.009901f, 0.995445f}},   
-    {12, {-0.005895f, -0.094641f, -0.009901f, 0.995445f}}, 
-    {13, {-0.323522f, 0.433520f, 0.147442f, 0.828043f}},   
-    {14, {-0.326467f, -0.442077f, -0.120765f, 0.826682f}}, 
-    {15, {-0.591116f, 0.746363f, 0.000000f, 0.305818f}},   
-    {16, {0.591117f, 0.746363f, 0.000000f, -0.305818f}},   
-    {17, {0.260797f, 0.418563f, -0.479321f, 0.725976f}},   
-    {18, {0.221362f, -0.429079f, 0.463713f, 0.742873f}},   
+    {0, {0.054970f, -0.000550f, 0.009985f, 0.998438f}},
+    {1, {-0.221591f, 0.253252f, -0.060742f, 0.939719f}},
+    {2, {-0.193183f, -0.279992f, 0.066861f, 0.937984f}},
+    {3, {0.391337f, 0.000000f, 0.000000f, 0.920247f}},
+    {4, {0.352274f, 0.000000f, 0.000000f, 0.935897f}},
+    {5, {-0.243333f, 0.027973f, 0.030674f, 0.969054f}},
+    {6, {-0.250818f, -0.070884f, -0.077729f, 0.962301f}},
+    {7, {-0.054961f, 0.001099f, 0.000000f, 0.998488f}},
+    {8, {0.000000f, 0.000000f, 0.000000f, 1.000000f}},
+    {9, {0.000000f, 0.000000f, 0.000000f, 1.000000f}},
+    {10, {0.054966f, -0.000825f, 0.014977f, 0.998376f}},
+    {11, {-0.005895f, 0.094641f, 0.009901f, 0.995445f}},
+    {12, {-0.005895f, -0.094641f, -0.009901f, 0.995445f}},
+    {13, {-0.323522f, 0.433520f, 0.147442f, 0.828043f}},
+    {14, {-0.326467f, -0.442077f, -0.120765f, 0.826682f}},
+    {15, {-0.591116f, 0.746363f, 0.000000f, 0.305818f}},
+    {16, {0.591117f, 0.746363f, 0.000000f, -0.305818f}},
+    {17, {0.260797f, 0.418563f, -0.479321f, 0.725976f}},
+    {18, {0.221362f, -0.429079f, 0.463713f, 0.742873f}},
 };
 static const int g_mmdRestCount = sizeof(g_mmdRest) / sizeof(g_mmdRest[0]);
 
@@ -492,7 +492,7 @@ static Quat GetMmdRestRot(int hb) {
       return {g_mmdRest[i].r[0], g_mmdRest[i].r[1], g_mmdRest[i].r[2],
               g_mmdRest[i].r[3]};
   }
-  return {0, 0, 0, 1}; 
+  return {0, 0, 0, 1};
 }
 
 
@@ -528,7 +528,7 @@ CaptureRestPoseViaRebind(std::vector<ResolvedBoneMapping> &mappings) {
   Log("[BIND] Reading rest pose after Rebind...");
   for (auto &rm : mappings) {
     rm.hasBind = false;
-    CaptureBindPose(rm); 
+    CaptureBindPose(rm);
   }
 
   for (auto &rm : mappings) {
@@ -609,9 +609,9 @@ static BoneAnim *g_boneAnim = nullptr;
 static MmdPlayer *g_bonePlayer = nullptr;
 
 struct Il2CppHumanPose {
-  float bodyPosX, bodyPosY, bodyPosZ;           
-  float bodyRotX, bodyRotY, bodyRotZ, bodyRotW; 
-  void *muscles; 
+  float bodyPosX, bodyPosY, bodyPosZ;
+  float bodyRotX, bodyRotY, bodyRotZ, bodyRotW;
+  void *muscles;
 };
 
 static void *CreateFloatArray(int count) {
@@ -638,7 +638,7 @@ static float *GetArrayData(void *arr) {
 
 static bool InitMusclePoseHandler() {
   if (g_poseHandleGC != 0)
-    return true; 
+    return true;
   if (!g_cachedAnimator || !g_humanPoseHandlerClass ||
       !g_humanPoseHandler_ctor) {
     Log("[MUSCLE] Missing: Animator=%p HPHClass=%p ctor=%p", g_cachedAnimator,
@@ -719,7 +719,7 @@ static bool InitMusclePoseHandler() {
 
         if (g_animator_GetBoneTransform && g_cachedAnimator) {
           void *rootT = SafeGetComponentTransform(g_cachedAnimator);
-          void *headT = SafeGetBoneTransform(10); 
+          void *headT = SafeGetBoneTransform(10);
           Vec3 rootPos, headPos;
           if (rootT && headT && ReadWorldPosition(rootT, rootPos) &&
               ReadWorldPosition(headT, headPos)) {
@@ -770,7 +770,7 @@ static Quat SafeGetLocalRotation(void *transform) {
   __try {
     void *boxed = Invoke(g_transform_get_localRotation, transform);
     if (boxed)
-      q = *(Quat *)((char *)boxed + 16); 
+      q = *(Quat *)((char *)boxed + 16);
   } __except (1) {
   }
   return q;
@@ -925,7 +925,7 @@ static void BoneAnimationTick() {
   }
 
   SafeSetAnimatorEnabled(
-      false); 
+      false);
 
   float time = g_bonePlayer->Tick();
   BoneFrame bf = g_boneAnim->GetFrame(time);

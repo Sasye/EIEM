@@ -67,9 +67,9 @@ static Quat RotationTo(Vec3 from, Vec3 to) {
   if (fl < 0.0001f || tl < 0.0001f) return {0,0,0,1};
   from.x/=fl; from.y/=fl; from.z/=fl;
   to.x/=tl; to.y/=tl; to.z/=tl;
-  
+
   float dot = from.x*to.x + from.y*to.y + from.z*to.z;
-  if (dot > 0.9999f) return {0,0,0,1}; 
+  if (dot > 0.9999f) return {0,0,0,1};
   if (dot < -0.9999f) {
     Vec3 perp = {1,0,0};
     if (fabsf(from.x) > 0.9f) perp = {0,1,0};
@@ -80,7 +80,7 @@ static Quat RotationTo(Vec3 from, Vec3 to) {
     };
     float al = sqrtf(axis.x*axis.x + axis.y*axis.y + axis.z*axis.z);
     if (al > 0.0001f) { axis.x/=al; axis.y/=al; axis.z/=al; }
-    return {axis.x, axis.y, axis.z, 0}; 
+    return {axis.x, axis.y, axis.z, 0};
   }
   Vec3 c = {
     from.y*to.z - from.z*to.y,
@@ -103,24 +103,24 @@ struct MmdStanceEntry {
 };
 
 static const MmdStanceEntry g_mmdStanceTable[] = {
-  {"\xe5\xb7\xa6\xe8\x82\xa9",   {1,0,0}, { 0.9687f,-0.2480f, 0.0138f}},  
-  {"\xe5\xb7\xa6\xe8\x85\x95",   {1,0,0}, { 0.7941f,-0.6076f, 0.0120f}},  
-  {"\xe5\xb7\xa6\xe3\x81\xb2\xe3\x81\x98",{1,0,0}, { 0.7962f,-0.6047f,-0.0182f}},  
-  {"\xe5\xb7\xa6\xe6\x89\x8b\xe9\xa6\x96",{1,0,0}, { 0.7999f,-0.5972f,-0.0596f}},  
-  {"\xe5\x8f\xb3\xe8\x82\xa9",   {-1,0,0},{-0.9687f,-0.2480f, 0.0138f}},  
-  {"\xe5\x8f\xb3\xe8\x85\x95",   {-1,0,0},{-0.7941f,-0.6076f, 0.0120f}},  
-  {"\xe5\x8f\xb3\xe3\x81\xb2\xe3\x81\x98",{-1,0,0},{-0.7962f,-0.6047f,-0.0182f}},  
-  {"\xe5\x8f\xb3\xe6\x89\x8b\xe9\xa6\x96",{-1,0,0},{-0.7999f,-0.5972f,-0.0596f}},  
-  {"\xe4\xb8\x8a\xe5\x8d\x8a\xe8\xba\xab",      {0,1,0}, { 0.0000f, 0.9990f, 0.0440f}},  
-  {"\xe4\xb8\x8a\xe5\x8d\x8a\xe8\xba\xab\x32",   {0,1,0}, { 0.0000f, 0.9990f, 0.0440f}},  
-  {"\xe9\xa6\x96",               {0,1,0}, { 0.0000f, 1.0000f,-0.0099f}},  
-  {"\xe9\xa0\xad",               {0,1,0}, { 0.0000f, 1.0000f, 0.0000f}},  
-  {"\xe5\xb7\xa6\xe8\xb6\xb3",   {0,-1,0},{ 0.0151f,-0.9979f, 0.0637f}},  
-  {"\xe5\xb7\xa6\xe3\x81\xb2\xe3\x81\x96",{0,-1,0},{ 0.0073f,-0.9922f, 0.1247f}},  
-  {"\xe5\xb7\xa6\xe8\xb6\xb3\xe9\xa6\x96",{0,-1,0},{ 0.0000f,-1.0000f, 0.0000f}},  
-  {"\xe5\x8f\xb3\xe8\xb6\xb3",   {0,-1,0},{-0.0151f,-0.9979f, 0.0637f}},  
-  {"\xe5\x8f\xb3\xe3\x81\xb2\xe3\x81\x96",{0,-1,0},{-0.0073f,-0.9922f, 0.1247f}},  
-  {"\xe5\x8f\xb3\xe8\xb6\xb3\xe9\xa6\x96",{0,-1,0},{ 0.0000f,-1.0000f, 0.0000f}},  
+  {"\xe5\xb7\xa6\xe8\x82\xa9",   {1,0,0}, { 0.9687f,-0.2480f, 0.0138f}},
+  {"\xe5\xb7\xa6\xe8\x85\x95",   {1,0,0}, { 0.7941f,-0.6076f, 0.0120f}},
+  {"\xe5\xb7\xa6\xe3\x81\xb2\xe3\x81\x98",{1,0,0}, { 0.7962f,-0.6047f,-0.0182f}},
+  {"\xe5\xb7\xa6\xe6\x89\x8b\xe9\xa6\x96",{1,0,0}, { 0.7999f,-0.5972f,-0.0596f}},
+  {"\xe5\x8f\xb3\xe8\x82\xa9",   {-1,0,0},{-0.9687f,-0.2480f, 0.0138f}},
+  {"\xe5\x8f\xb3\xe8\x85\x95",   {-1,0,0},{-0.7941f,-0.6076f, 0.0120f}},
+  {"\xe5\x8f\xb3\xe3\x81\xb2\xe3\x81\x98",{-1,0,0},{-0.7962f,-0.6047f,-0.0182f}},
+  {"\xe5\x8f\xb3\xe6\x89\x8b\xe9\xa6\x96",{-1,0,0},{-0.7999f,-0.5972f,-0.0596f}},
+  {"\xe4\xb8\x8a\xe5\x8d\x8a\xe8\xba\xab",      {0,1,0}, { 0.0000f, 0.9990f, 0.0440f}},
+  {"\xe4\xb8\x8a\xe5\x8d\x8a\xe8\xba\xab\x32",   {0,1,0}, { 0.0000f, 0.9990f, 0.0440f}},
+  {"\xe9\xa6\x96",               {0,1,0}, { 0.0000f, 1.0000f,-0.0099f}},
+  {"\xe9\xa0\xad",               {0,1,0}, { 0.0000f, 1.0000f, 0.0000f}},
+  {"\xe5\xb7\xa6\xe8\xb6\xb3",   {0,-1,0},{ 0.0151f,-0.9979f, 0.0637f}},
+  {"\xe5\xb7\xa6\xe3\x81\xb2\xe3\x81\x96",{0,-1,0},{ 0.0073f,-0.9922f, 0.1247f}},
+  {"\xe5\xb7\xa6\xe8\xb6\xb3\xe9\xa6\x96",{0,-1,0},{ 0.0000f,-1.0000f, 0.0000f}},
+  {"\xe5\x8f\xb3\xe8\xb6\xb3",   {0,-1,0},{-0.0151f,-0.9979f, 0.0637f}},
+  {"\xe5\x8f\xb3\xe3\x81\xb2\xe3\x81\x96",{0,-1,0},{-0.0073f,-0.9922f, 0.1247f}},
+  {"\xe5\x8f\xb3\xe8\xb6\xb3\xe9\xa6\x96",{0,-1,0},{ 0.0000f,-1.0000f, 0.0000f}},
 };
 static const int g_mmdStanceCount = sizeof(g_mmdStanceTable) / sizeof(g_mmdStanceTable[0]);
 
@@ -130,7 +130,7 @@ static Quat LookupMmdStance(const std::string &mmdName) {
       return RotationTo(g_mmdStanceTable[i].defaultAxis, g_mmdStanceTable[i].boneDir);
     }
   }
-  return {0,0,0,1}; 
+  return {0,0,0,1};
 }
 
 static Vec3 MmdPosToUnity(Vec3 p) {
@@ -151,7 +151,7 @@ static InterpResult InterpolateBone(
 {
   InterpResult result;
   result.hasPosition = isPositionBone;
-  result.rotation = { 0, 0, 0, 1 }; 
+  result.rotation = { 0, 0, 0, 1 };
   result.position = { 0, 0, 0 };
 
   if (keys.empty()) return result;
@@ -203,9 +203,9 @@ struct MmdPlayer {
   bool playing;
   bool loop;
   bool ended;
-  float currentTime;    
-  float speed;          
-  float totalDuration;  
+  float currentTime;
+  float speed;
+  float totalDuration;
 
   LARGE_INTEGER lastTick;
   LARGE_INTEGER freq;
@@ -237,7 +237,7 @@ struct MmdPlayer {
     } else {
       playing = true;
       ended = false;
-      QueryPerformanceCounter(&lastTick); 
+      QueryPerformanceCounter(&lastTick);
     }
   }
 
@@ -258,10 +258,10 @@ struct MmdPlayer {
       } else {
         currentTime = totalDuration;
         playing = false;
-        ended = true; 
+        ended = true;
       }
     }
 
-    return currentTime * 30.0f; 
+    return currentTime * 30.0f;
   }
 };

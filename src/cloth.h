@@ -1,25 +1,25 @@
 #pragma once
 
 
-static float s_skirtRadiusA = 1.0f;          
-static float s_skirtRadiusB = 3.0f;          
-static float s_skirtHipRadiusDelta = 0.124f; 
-static float s_skirtLengthScale = 1.0f;      
-static bool  s_skirtTaperOn = true;          
-static float s_skirtCenterOfs[3] = {0,0,0};  
-static float s_skirtOrigSize[8][3] = {};     
-static float s_skirtOrigCenter[8][3] = {};   
+static float s_skirtRadiusA = 1.0f;
+static float s_skirtRadiusB = 3.0f;
+static float s_skirtHipRadiusDelta = 0.124f;
+static float s_skirtLengthScale = 1.0f;
+static bool  s_skirtTaperOn = true;
+static float s_skirtCenterOfs[3] = {0,0,0};
+static float s_skirtOrigSize[8][3] = {};
+static float s_skirtOrigCenter[8][3] = {};
 static int s_skirtColliderCount = 0;
 static bool s_skirtScaleResolved = false;
-static bool s_skirtDirty = true;             
-static int s_skirtRetryFrames = 0;           
-static int s_skirtCenterAxis = 0;            
-static void *s_coll_SetSize = nullptr;       
-static void *s_coll_UpdateParams = nullptr;  
-static void *s_cloth_SetParamChange = nullptr; 
-static int OFF_bbc_process = -1;             
-static int OFF_cp_colliderList = -1;         
-static int OFF_radiusSep = -1;               
+static bool s_skirtDirty = true;
+static int s_skirtRetryFrames = 0;
+static int s_skirtCenterAxis = 0;
+static void *s_coll_SetSize = nullptr;
+static void *s_coll_UpdateParams = nullptr;
+static void *s_cloth_SetParamChange = nullptr;
+static int OFF_bbc_process = -1;
+static int OFF_cp_colliderList = -1;
+static int OFF_radiusSep = -1;
 
 static void ResetSkirtState() {
   s_skirtScaleResolved = false;
@@ -136,14 +136,14 @@ static void ApplySkirtColliderScale() {
         float hs = (g_charHeight > 0.1f) ? (g_charHeight / 1.245f) : 1.0f;
         float scaledDelta = s_skirtHipRadiusDelta * hs;
         hipR = baseR + scaledDelta;
-        float maxR = baseR * 3.0f;  
+        float maxR = baseR * 3.0f;
         if (hipR > maxR) hipR = maxR;
       } else {
-        hipR = baseR * s_skirtRadiusB;  
+        hipR = baseR * s_skirtRadiusB;
       }
       Vector3 newSize = {
-        baseR * s_skirtRadiusA,   
-        hipR,                     
+        baseR * s_skirtRadiusA,
+        hipR,
         s_skirtOrigSize[i][2] * s_skirtLengthScale
       };
       void *exc = nullptr;
@@ -168,7 +168,7 @@ static void ApplySkirtColliderScale() {
 
 
 static void RestoreSkirtColliders() {
-  if (!s_skirtScaleResolved) return; 
+  if (!s_skirtScaleResolved) return;
   if (s_skirtBBCIndex < 0 || s_skirtBBCIndex >= s_bbcCount) return;
   if (!s_bbcInstances[s_skirtBBCIndex]) return;
   void *skirt = s_bbcInstances[s_skirtBBCIndex];
@@ -215,7 +215,7 @@ static void RestoreSkirtColliders() {
   s_skirtScaleResolved = false;
   s_skirtDirty = true;
   s_skirtRadiusA = 1.0f;
-  s_skirtRadiusB = 3.0f;  
+  s_skirtRadiusB = 3.0f;
   s_skirtLengthScale = 1.0f;
   s_skirtCenterOfs[0] = s_skirtCenterOfs[1] = s_skirtCenterOfs[2] = 0;
 }

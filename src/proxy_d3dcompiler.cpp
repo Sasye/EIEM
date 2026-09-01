@@ -86,7 +86,7 @@
 
 static bool IsPluginDisabled(const char* dllName) {
   FILE* f = fopen("plugin\\applepie_manager_config.txt", "r");
-  if (!f) return false;  
+  if (!f) return false;
 
   bool inPluginsSection = false;
   char line[512];

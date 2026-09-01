@@ -5,8 +5,8 @@
 #include <cmath>
 
 struct BoneFrame {
-  float hipsDeltaPos[3]; 
-  float bones[55][4];    
+  float hipsDeltaPos[3];
+  float bones[55][4];
 };
 
 struct BoneAnim {
@@ -14,7 +14,7 @@ struct BoneAnim {
   float fps = 30.0f;
   uint32_t frameCount = 0;
   uint32_t boneCount = 0;
-  float restPose[55][4]; 
+  float restPose[55][4];
   BoneFrame *frames = nullptr;
 
   ~BoneAnim() { delete[] frames; }
@@ -27,13 +27,13 @@ struct BoneAnim {
 
     char magic[4];
     fread(magic, 1, 4, f);
-    
+
     uint32_t version;
     fread(&version, 4, 1, f);
-    
+
     bool isDelta = (memcmp(magic, "BNED", 4) == 0 && version == 2);
     bool isAbsolute = (memcmp(magic, "BONE", 4) == 0 && version == 1);
-    
+
     if (!isDelta && !isAbsolute) { fclose(f); return false; }
 
     fread(&fps, 4, 1, f);

@@ -22,8 +22,8 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(
 #define WM_MMD_GUI_LOAD   (WM_USER + 103)
 #define WM_MMD_GUI_RECAPTURE (WM_USER + 106)
 #define WM_MMD_GUI_LOAD_AUDIO (WM_USER + 107)
-#define WM_MMD_GUI_SEEK_AUDIO (WM_USER + 108) 
-#define WM_MMD_GUI_SET_VOLUME (WM_USER + 109) 
+#define WM_MMD_GUI_SEEK_AUDIO (WM_USER + 108)
+#define WM_MMD_GUI_SET_VOLUME (WM_USER + 109)
 #define WM_MMD_GUI_UNLOAD_ANIM   (WM_USER + 110)
 #define WM_MMD_GUI_UNLOAD_CAMERA (WM_USER + 111)
 #define WM_MMD_GUI_UNLOAD_FOOTIK (WM_USER + 112)
@@ -32,6 +32,19 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(
 #define WM_MMD_GUI_LOAD_CAMERA   (WM_USER + 115)
 #define WM_MMD_GUI_LOAD_FOOTIK   (WM_USER + 116)
 #define WM_MMD_GUI_LOAD_MORPH    (WM_USER + 117)
+#define WM_MMD_GUI_PHASE0_GHOST  (WM_USER + 118)
+#define WM_MMD_GUI_DIRECT_CONTROL (WM_USER + 119)
+#define WM_MMD_GUI_SELECT_MODE (WM_USER + 120)
+
+static const char *GuiFileName(const char *path) {
+  if (!path || !path[0])
+    return "";
+  const char *slash = strrchr(path, '\\');
+  const char *forwardSlash = strrchr(path, '/');
+  if (!slash || (forwardSlash && forwardSlash > slash))
+    slash = forwardSlash;
+  return slash ? slash + 1 : path;
+}
 
 
 
@@ -346,7 +359,7 @@ static void DrawMainPanel() {
                 IM_COL32(80, 80, 85, 120), "Priestess is watching you");
   }
   if (g_updateAvailable) {
-    float hue = fmodf((float)GetTickCount() / 1500.0f, 1.0f); 
+    float hue = fmodf((float)GetTickCount() / 1500.0f, 1.0f);
     float s = 0.9f, l = 0.6f;
     auto hue2rgb = [](float p, float q, float t) -> float {
       if (t < 0.0f) t += 1.0f;
@@ -425,11 +438,11 @@ static void DrawMainPanel() {
   {
     ImVec2 gradTop = ImVec2(winPos.x, winPos.y + titleH);
     ImVec2 gradBot = ImVec2(winPos.x + winSize.x, winPos.y + winSize.y);
-    ImU32 colTop = IM_COL32(255, 255, 255, 0);    
-    ImU32 colBot = IM_COL32(255, 255, 255, 65);   
+    ImU32 colTop = IM_COL32(255, 255, 255, 0);
+    ImU32 colBot = IM_COL32(255, 255, 255, 65);
     dl->AddRectFilledMultiColor(gradTop, gradBot,
-                                colTop, colTop,    
-                                colBot, colBot);   
+                                colTop, colTop,
+                                colBot, colBot);
   }
 
   ImGui::SetCursorPos(ImVec2(10, titleH + 8));
@@ -446,28 +459,56 @@ static void DrawMainPanel() {
   ImGui::Spacing();
   bool isPlaying = false;
   bool isPaused = false;
+  bool isEnded = false;
   float curTime = 0.0f;
   float totalTime = 0.0f;
   int curFrame = 0;
   int totalFrames = 0;
   bool animLoaded = false;
+  MotionBackend selectedMotionBackend = GuiSelectedMotionBackend();
+  bool directModeSelected =
+      selectedMotionBackend == MotionBackend::DirectVmd;
+  bool directBackendActive =
+      g_motionBackend.Is(MotionBackend::DirectVmd);
 
-  if (g_muscleAnim && g_muscleAnim->loaded) {
-    animLoaded = true;
-    totalTime = g_muscleAnim->Duration();
-    totalFrames = g_muscleAnim->frameCount;
-  }
-  if (g_musclePlayer) {
-    isPlaying = g_musclePlayer->playing;
-    curTime = g_musclePlayer->currentTime;
-    curFrame = (int)(curTime * 30.0f);
-    isPaused = !isPlaying && curTime > 0.0f;
+  if (directModeSelected) {
+    animLoaded = DirectVmdRuntime_IsLoaded();
+    const DirectVmdPlaybackState directPlayback =
+        DirectVmdRuntime_PublicPlayback();
+    const double directFrame = DirectVmdRuntime_PublicFrame();
+    const double directDuration =
+        DirectVmdRuntime_PublicDurationFrames();
+    curFrame = static_cast<int>(directFrame);
+    totalFrames = static_cast<int>(directDuration);
+    curTime = static_cast<float>(directFrame / kVmdFramesPerSecond);
+    totalTime =
+        static_cast<float>(directDuration / kVmdFramesPerSecond);
+    isPlaying = directPlayback == DirectVmdPlaybackState::Playing;
+    isPaused = directPlayback == DirectVmdPlaybackState::Paused;
+    isEnded = directPlayback == DirectVmdPlaybackState::Ended;
+  } else {
+    if (g_muscleAnim && g_muscleAnim->loaded) {
+      animLoaded = true;
+      totalTime = g_muscleAnim->Duration();
+      totalFrames = g_muscleAnim->frameCount;
+    }
+    if (g_musclePlayer) {
+      isPlaying = g_musclePlayer->playing;
+      curTime = g_musclePlayer->currentTime;
+      curFrame = (int)(curTime * 30.0f);
+      isPaused = !isPlaying && curTime > 0.0f &&
+                 !g_musclePlayer->ended;
+      isEnded = g_musclePlayer->ended;
+    }
   }
 
   if (isPlaying) {
     ImGui::TextColored(ImVec4(0.10f, 0.55f, 0.25f, 1.0f), u8"\u64ad\u653e\u4e2d");
   } else if (isPaused) {
     ImGui::TextColored(ImVec4(0.80f, 0.55f, 0.00f, 1.0f), u8"\u5df2\u6682\u505c");
+  } else if (isEnded) {
+    ImGui::TextColored(ImVec4(0.45f, 0.45f, 0.48f, 1.0f),
+                       u8"\u5df2\u7ed3\u675f");
   } else {
     ImGui::TextColored(ImVec4(0.45f, 0.45f, 0.48f, 1.0f), u8"\u5df2\u505c\u6b62");
   }
@@ -475,14 +516,20 @@ static void DrawMainPanel() {
   ImGui::Text(u8"\u65f6\u95f4: %.1f / %.1f \u79d2", curTime, totalTime);
   ImGui::Text(u8"\u5e27: %d / %d", curFrame, totalFrames);
 
-  if (totalTime > 0.0f && g_musclePlayer) {
+  if (animLoaded && totalTime > 0.0f &&
+      (directModeSelected || g_musclePlayer)) {
     float seekTime = curTime;
     ImGui::SetNextItemWidth(-1);
     static bool s_wasDragging = false;
     static float s_dragTarget = 0.0f;
     if (ImGui::SliderFloat("##seek", &seekTime, 0.0f, totalTime, u8"%.1f \u79d2")) {
-      g_musclePlayer->currentTime = seekTime;
-      QueryPerformanceCounter(&g_musclePlayer->lastTick);
+      if (directModeSelected) {
+        DirectVmdRuntime_RequestSeekFrame(
+            static_cast<double>(seekTime) * kVmdFramesPerSecond);
+      } else {
+        g_musclePlayer->currentTime = seekTime;
+        QueryPerformanceCounter(&g_musclePlayer->lastTick);
+      }
       s_wasDragging = true;
       s_dragTarget = seekTime;
     }
@@ -503,11 +550,16 @@ static void DrawMainPanel() {
   ImGui::Separator();
   ImGui::Spacing();
 
-  ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 14.0f); 
-  ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f)); 
+  ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 14.0f);
+  ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
   float btnW = 76.0f;
 
-  if (isPlaying) {
+  const bool hasSelectedAction = directModeSelected
+                                     ? g_directVmdPath[0] != '\0'
+                                     : g_muscleAnimPath[0] != '\0';
+  const bool canPlay = hasSelectedAction &&
+                       (!directModeSelected || animLoaded);
+  if (isPlaying || !canPlay) {
     ImGui::BeginDisabled();
     ImGui::Button(u8"\u64ad\u653e", ImVec2(btnW, 0));
     ImGui::EndDisabled();
@@ -529,7 +581,7 @@ static void DrawMainPanel() {
   }
   ImGui::SameLine();
 
-  if (!isPlaying && !isPaused) {
+  if (g_motionBackend.Is(MotionBackend::Native) && !isPaused && !isEnded) {
     ImGui::BeginDisabled();
     ImGui::Button(u8"\u505c\u6b62", ImVec2(btnW, 0));
     ImGui::EndDisabled();
@@ -538,12 +590,12 @@ static void DrawMainPanel() {
       PostMessageW(g_gameHwnd, WM_MMD_GUI_STOP, 0, 0);
     }
   }
-  ImGui::PopStyleColor(); 
-  ImGui::PopStyleVar(); 
+  ImGui::PopStyleColor();
+  ImGui::PopStyleVar();
 
   ImGui::Spacing();
 
-  if (g_musclePlayer) {
+  if (!directModeSelected && g_musclePlayer) {
     g_playbackSpeed = g_musclePlayer->speed;
     g_playbackLoop  = g_musclePlayer->loop;
   }
@@ -554,11 +606,32 @@ static void DrawMainPanel() {
   ImGui::SameLine();
   ImGui::Checkbox(u8"\u955c\u5934", &g_cameraEnabled);
 
-  ImGui::Checkbox(u8"\u4e0b\u534a\u8eabIK (\u8d70\u697c\u68af/\u8d34\u5730\u8ddf\u968f)", &g_footIKEnabled);
-  if (ImGui::IsItemHovered()) {
-    ImGui::SetTooltip(u8"\u52fe\u9009: \u4f7f\u7528VMD\u811a\u90e8IK+FinalIK\u89e3\u7b97\u5668+FindFloor\u8d70\u697c\u68af\u8d34\u5730\n\u53d6\u6d88: \u7eaf\u808c\u8089\u6570\u636e\u63a7\u5236\u4e0b\u534a\u8eab(\u7981\u7528\u6e38\u620fIK)");
+  if (directModeSelected) {
+    bool directTerrainEnabled = GhostRig_IsTerrainEnabledForGui();
+    if (ImGui::Checkbox(
+            u8"VMD\u5730\u5f62\u8ddf\u968f (\u8d70\u697c\u68af/\u8d34\u5730)",
+            &directTerrainEnabled)) {
+      GhostRig_SetTerrainEnabled(directTerrainEnabled);
+    }
+    if (ImGui::IsItemHovered()) {
+      ImGui::SetTooltip(
+          u8"\u4ec5\u540e\u5904\u7406\u6700\u7ec8\u811a\u90e8\u76ee\u6807\u548c Root \u8865\u507f\uff0c"
+          u8"\u4e0d\u4fee\u6539 VMD \u6837\u672c\u6216\u5e7d\u7075\u9aa8\u67b6\u3002");
+    }
+  } else {
+    ImGui::Checkbox(
+        u8"\u539f\u751f\u4e0b\u534a\u8eabIK (\u8d70\u697c\u68af/\u8d34\u5730\u8ddf\u968f)",
+        &g_footIKEnabled);
+    if (ImGui::IsItemHovered()) {
+      ImGui::SetTooltip(
+          u8"\u52fe\u9009: \u4f7f\u7528 VMD \u811a\u90e8IK + FinalIK + FindFloor\n"
+          u8"\u53d6\u6d88: \u808c\u8089\u6570\u636e\u76f4\u63a5\u63a7\u5236\u4e0b\u534a\u8eab");
+    }
   }
-  if (g_musclePlayer) {
+  if (directModeSelected) {
+    DirectVmdRuntime_SetSpeed(g_playbackSpeed);
+    DirectVmdRuntime_SetLoop(g_playbackLoop);
+  } else if (g_musclePlayer) {
     g_musclePlayer->speed = g_playbackSpeed;
     g_musclePlayer->loop  = g_playbackLoop;
   }
@@ -581,22 +654,32 @@ static void DrawMainPanel() {
 
   ImGui::TextColored(ImVec4(0.20f, 0.20f, 0.24f, 1.0f), u8"\u52a8\u753b\u4fe1\u606f");
   if (animLoaded) {
-    ImGui::Text(u8"\u6587\u4ef6: muscle_anim.bin");
-    ImGui::Text(u8"Muscles: %d", g_muscleAnim->muscleCount);
-    ImGui::Text(u8"FPS: %.0f", g_muscleAnim->fps);
-    if (g_muscleAnim->hasFingerBones)
-      ImGui::Text(u8"\u624b\u6307\u9aa8\u9abc: %d", g_muscleAnim->fingerBoneCount);
-    else
-      ImGui::TextDisabled(u8"\u624b\u6307\u9aa8\u9abc: \u65e0");
-  } else {
-    ImGui::TextDisabled(u8"\u672a\u52a0\u8f7d\u52a8\u753b");
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 14.0f);
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
-    if (ImGui::Button(u8"\u52a0\u8f7d", ImVec2(-1, 0))) {
-      PostMessageW(g_gameHwnd, WM_MMD_GUI_LOAD, 0, 0);
+    ImGui::Text(u8"\u6587\u4ef6: %s",
+                GuiFileName(directModeSelected ? g_directVmdPath
+                                               : g_muscleAnimPath));
+    if (directModeSelected) {
+      ImGui::Text(u8"\u5e27: %d | FPS: 30 | clip generation %llu",
+                  totalFrames,
+                  (unsigned long long)
+                      DirectVmdRuntime_PublicClipGeneration());
+    } else {
+      ImGui::Text(u8"Muscles: %d", g_muscleAnim->muscleCount);
+      ImGui::Text(u8"FPS: %.0f", g_muscleAnim->fps);
+      if (g_muscleAnim->hasFingerBones)
+        ImGui::Text(u8"\u624b\u6307\u9aa8\u9abc: %d",
+                    g_muscleAnim->fingerBoneCount);
+      else
+        ImGui::TextDisabled(u8"\u624b\u6307\u9aa8\u9abc: \u65e0");
     }
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
+  } else {
+    const bool hasPath = directModeSelected ? g_directVmdPath[0] != '\0'
+                                            : g_muscleAnimPath[0] != '\0';
+    if (!hasPath)
+      ImGui::TextDisabled(u8"\u672a\u9009\u62e9\u52a8\u4f5c\u6587\u4ef6");
+    else if (directModeSelected)
+      ImGui::TextDisabled(u8"\u6b63\u5728\u540e\u53f0\u52a0\u8f7d DirectVmd...");
+    else
+      ImGui::TextDisabled(u8"\u672a\u52a0\u8f7d (\u64ad\u653e\u65f6\u81ea\u52a8\u52a0\u8f7d)");
   }
 
   ImGui::Spacing();
@@ -610,7 +693,7 @@ static void DrawMainPanel() {
     ImGui::SetNextItemWidth(-1);
     if (ImGui::SliderFloat(u8"\u5927\u817f\u6839\u534a\u5f84\u8865\u5145", &s_skirtHipRadiusDelta,
                            0.0f, 0.4f, "%.3f")) {
-      s_skirtDirty = true; 
+      s_skirtDirty = true;
     }
     ImGui::TextDisabled(u8"\u539f\u59cb\u503c: 0.124  \u6548\u679c: \u52a0\u5927\u2192\u51cf\u5c11\u7a7f\u6a21");
   }
@@ -620,8 +703,25 @@ static void DrawMainPanel() {
   ImGui::Spacing();
 
   ImGui::TextColored(ImVec4(0.20f, 0.20f, 0.24f, 1.0f), u8"\u7cfb\u7edf\u72b6\u6001");
-  ImGui::Text(u8"Trojan: %s", g_trojanActive ? u8"\u6d3b\u52a8" : u8"\u7a7a\u95f2");
-  ImGui::Text(u8"\u76f8\u673a: %s", g_cameraActive ? u8"\u6d3b\u52a8" : u8"\u5173\u95ed");
+  ImGui::Text(u8"\u5f53\u524d\u6a21\u5f0f: %s | \u8fd0\u884c\u540e\u7aef: %s",
+              MotionBackendName(selectedMotionBackend),
+              MotionBackendName(g_motionBackend.Current()));
+  ImGui::Text("Backend generation: %llu",
+              (unsigned long long)g_motionBackend.Generation());
+  ImGui::Text(u8"Trojan: %s",
+              g_trojanActive ? u8"\u6d3b\u52a8" : u8"\u7a7a\u95f2");
+  ImGui::Text(u8"\u76f8\u673a: %s",
+              g_cameraActive ? u8"\u6d3b\u52a8" : u8"\u5173\u95ed");
+  if (directModeSelected || directBackendActive) {
+    ImGui::Text(u8"\u5e7d\u7075\u9aa8\u67b6: %s (generation %llu)",
+                GhostRig_IsAliveForGui() ? u8"\u5df2\u521b\u5efa"
+                                         : u8"\u672a\u521b\u5efa",
+                (unsigned long long)GhostRig_PublicGeneration());
+    ImGui::Text("Bind: %s | motionScale %.8f | terrain %s",
+                GhostRig_PublicBindStateName(),
+                GhostRig_PublicMotionScale(),
+                GhostRig_IsTerrainEnabledForGui() ? "on" : "off");
+  }
   ImGui::Spacing();
   ImGui::Separator();
   ImGui::Spacing();
@@ -635,7 +735,7 @@ static void DrawMainPanel() {
   ImGui::PopStyleVar();
 
   ImGui::EndTabItem();
-  } 
+  }
 
   ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
   bool tabFile = ImGui::BeginTabItem(u8"\u6587\u4ef6");
@@ -648,7 +748,51 @@ static void DrawMainPanel() {
     float itemSpacing = ImGui::GetStyle().ItemSpacing.x;
     float btnW2 = (availW - itemSpacing) * 0.5f;
 
-    ImGui::TextColored(ImVec4(0.20f, 0.20f, 0.24f, 1.0f), u8"\u52a8\u4f5c\u6587\u4ef6 (.bin)");
+    MotionBackend fileMode = GuiSelectedMotionBackend();
+    auto drawModeButton = [&](const char *label, MotionBackend backend,
+                              const char *id) {
+      const bool selected = fileMode == backend;
+      if (selected) {
+        ImGui::PushStyleColor(ImGuiCol_Button,
+                              ImVec4(0.95f, 0.76f, 0.05f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                              ImVec4(1.00f, 0.82f, 0.12f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive,
+                              ImVec4(0.82f, 0.64f, 0.02f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text,
+                              ImVec4(0.08f, 0.08f, 0.09f, 1.0f));
+      } else {
+        ImGui::PushStyleColor(ImGuiCol_Text,
+                              ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
+      }
+      char buttonId[96] = {};
+      snprintf(buttonId, sizeof(buttonId), "%s##%s", label, id);
+      const bool clicked = ImGui::Button(buttonId, ImVec2(btnW2, 0));
+      ImGui::PopStyleColor(selected ? 4 : 1);
+      if (clicked && !selected) {
+        fileMode = backend;
+        GuiSelectMotionBackend(backend);
+        PostMessageW(g_gameHwnd, WM_MMD_GUI_SELECT_MODE,
+                     static_cast<WPARAM>(backend), 0);
+      }
+    };
+
+    ImGui::TextColored(ImVec4(0.20f, 0.20f, 0.24f, 1.0f),
+                       u8"\u64ad\u653e\u6a21\u5f0f");
+    drawModeButton(u8"VMD\u76f4\u63a5\u6a21\u5f0f",
+                   MotionBackend::DirectVmd, "mode_direct");
+    ImGui::SameLine();
+    drawModeButton(u8"\u808c\u8089\u6a21\u5f0f", MotionBackend::Muscle,
+                   "mode_muscle");
+    const bool fileDirectMode = fileMode == MotionBackend::DirectVmd;
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    if (!fileDirectMode) {
+    ImGui::TextColored(ImVec4(0.20f, 0.20f, 0.24f, 1.0f),
+                       u8"\u808c\u8089\u6570\u636e\u6587\u4ef6 (.bin)");
     ImGui::SetNextItemWidth(-1);
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
@@ -699,16 +843,80 @@ static void DrawMainPanel() {
         ImGui::TextDisabled(u8"\u672a\u52a0\u8f7d (\u64ad\u653e\u65f6\u81ea\u52a8\u52a0\u8f7d)");
       }
     }
+    } else {
+    ImGui::TextColored(ImVec4(0.20f, 0.20f, 0.24f, 1.0f),
+                       u8"\u52a8\u4f5c VMD (.vmd)");
+    ImGui::SetNextItemWidth(-1);
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);
+    ImGui::PushStyleColor(ImGuiCol_Text,
+                          ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
+    ImGui::InputText("##directvmdpath", g_directVmdPath,
+                     sizeof(g_directVmdPath));
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
+      GhostRig_RequestVmdReload(g_directVmdPath[0]
+                                    ? g_directVmdPath
+                                    : nullptr);
+      Log("[P3-GUI] DirectVmd path edited; worker reload requested: %s",
+          g_directVmdPath);
+    }
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::PushStyleColor(ImGuiCol_Text,
+                          ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
+    if (ImGui::Button(u8"\u6d4f\u89c8##directvmd", ImVec2(btnW2, 0))) {
+      OPENFILENAMEA ofn = {};
+      char filePath[512] = "";
+      ofn.lStructSize = sizeof(ofn);
+      ofn.hwndOwner = g_guiHwnd;
+      ofn.lpstrFilter = "VMD Files (*.vmd)\0*.vmd\0All Files\0*.*\0";
+      ofn.lpstrFile = filePath;
+      ofn.nMaxFile = sizeof(filePath);
+      ofn.Flags = OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+      if (GetOpenFileNameA(&ofn)) {
+        strncpy_s(g_directVmdPath, sizeof(g_directVmdPath), filePath,
+                  _TRUNCATE);
+        Log("[P3-GUI] DirectVmd selected: %s", g_directVmdPath);
+        GhostRig_RequestVmdReload(g_directVmdPath);
+        Log("[P3-GUI] DirectVmd worker load requested automatically: %s",
+            g_directVmdPath);
+      }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button(u8"\u6e05\u9664##directvmd", ImVec2(btnW2, 0))) {
+      if (g_motionBackend.Is(MotionBackend::DirectVmd))
+        PostMessageW(g_gameHwnd, WM_MMD_GUI_STOP, 0, 0);
+      g_directVmdPath[0] = '\0';
+      GhostRig_RequestVmdReload(nullptr);
+    }
+    ImGui::PopStyleColor();
+    if (DirectVmdRuntime_IsLoaded()) {
+      ImGui::TextColored(
+          ImVec4(0.10f, 0.55f, 0.25f, 1.0f),
+          u8"%.0f \u5e27 | clip generation %llu",
+          DirectVmdRuntime_PublicDurationFrames(),
+          (unsigned long long)DirectVmdRuntime_PublicClipGeneration());
+    } else {
+      ImGui::TextDisabled(
+          g_directVmdPath[0]
+              ? u8"\u540e\u53f0\u52a0\u8f7d\u4e2d\u6216\u52a0\u8f7d\u5931\u8d25 (\u67e5\u770b\u65e5\u5fd7)"
+              : u8"\u672a\u9009\u62e9");
+    }
+    }
 
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::Spacing();
 
-    ImGui::TextColored(ImVec4(0.20f, 0.20f, 0.24f, 1.0f), u8"\u76f8\u673a\u6587\u4ef6 (.vmd)");
+    ImGui::TextColored(ImVec4(0.20f, 0.20f, 0.24f, 1.0f),
+                       u8"\u955c\u5934 VMD (.vmd)");
     ImGui::SetNextItemWidth(-1);
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
     ImGui::InputText("##vmdpath", g_cameraVmdPath, sizeof(g_cameraVmdPath));
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
+      g_cameraOverrideExplicit = g_cameraVmdPath[0] != '\0';
+      PostMessageW(g_gameHwnd, WM_MMD_GUI_LOAD_CAMERA, 0, 0);
+    }
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
@@ -724,24 +932,41 @@ static void DrawMainPanel() {
       if (GetOpenFileNameA(&ofn)) {
         strncpy(g_cameraVmdPath, filePath, sizeof(g_cameraVmdPath) - 1);
         g_cameraVmdPath[sizeof(g_cameraVmdPath) - 1] = '\0';
+        g_cameraOverrideExplicit = true;
         Log("[GUI] VMD selected: %s", g_cameraVmdPath);
-        if (g_cameraVmd) { FreeVmd(g_cameraVmd); g_cameraVmd = nullptr; }
-        if (g_cameraActive) RestoreCinemachine();
-        ResetCameraState();
-        if (g_musclePlayer) {
-          g_musclePlayer->Stop();
-          g_musclePlayer->currentTime = 0;
+        if (fileDirectMode) {
+          PostMessageW(g_gameHwnd, WM_MMD_GUI_LOAD_CAMERA, 0, 0);
+        } else {
+          if (g_cameraVmd) {
+            FreeVmd(g_cameraVmd);
+            g_cameraVmd = nullptr;
+          }
+          if (g_cameraActive) RestoreCinemachine();
+          ResetCameraState();
+          if (g_musclePlayer) {
+            g_musclePlayer->Stop();
+            g_musclePlayer->currentTime = 0;
+          }
         }
       }
     }
     ImGui::SameLine();
     if (ImGui::Button(u8"\u6e05\u9664##vmd", ImVec2(btnW2, 0))) {
       g_cameraVmdPath[0] = '\0';
+      g_cameraOverrideExplicit = false;
       PostMessageW(g_gameHwnd, WM_MMD_GUI_UNLOAD_CAMERA, 0, 0);
     }
     ImGui::PopStyleColor();
 
-    if (g_cameraVmd && g_cameraVmd->loaded && !g_cameraVmd->cameraKeys.empty()) {
+    if (fileDirectMode &&
+        g_cameraOverrideExplicit &&
+        DirectVmdRuntime_CameraOverrideLoaded()) {
+      ImGui::TextColored(ImVec4(0.10f, 0.55f, 0.25f, 1.0f),
+                         u8"DirectVmd \u76f8\u673a\u8986\u76d6\u5df2\u52a0\u8f7d");
+    } else if (fileDirectMode &&
+               !g_cameraOverrideExplicit) {
+      ImGui::TextDisabled(u8"\u4f7f\u7528\u4e3b Direct VMD \u7684 Camera section");
+    } else if (g_cameraVmd && g_cameraVmd->loaded && !g_cameraVmd->cameraKeys.empty()) {
       ImGui::TextColored(ImVec4(0.10f, 0.55f, 0.25f, 1.0f),
                          u8"%zu \u5173\u952e\u5e27",
                          g_cameraVmd->cameraKeys.size());
@@ -753,9 +978,12 @@ static void DrawMainPanel() {
       }
     }
 
+    if (!fileDirectMode) {
     ImGui::Spacing();
     ImGui::Separator();
-    ImGui::TextColored(ImVec4(0.20f, 0.20f, 0.24f, 1.0f), u8"\u4e0b\u534a\u8eab/\u817f\u90e8IK (.vmd)");
+    ImGui::Spacing();
+    ImGui::TextColored(ImVec4(0.20f, 0.20f, 0.24f, 1.0f),
+                       u8"\u4e0b\u534a\u8eab IK VMD (.vmd)");
     ImGui::SetNextItemWidth(-1);
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
@@ -802,16 +1030,20 @@ static void DrawMainPanel() {
         ImGui::TextDisabled(u8"\u672a\u52a0\u8f7d (\u64ad\u653e\u65f6\u52a0\u8f7d)");
       }
     }
+    }
 
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::Spacing();
 
-    ImGui::TextColored(ImVec4(0.20f, 0.20f, 0.24f, 1.0f), u8"\u53e3\u578b/\u8868\u60c5 (.vmd)");
+    ImGui::TextColored(ImVec4(0.20f, 0.20f, 0.24f, 1.0f),
+                       u8"\u9762\u90e8 VMD (.vmd)");
     ImGui::SetNextItemWidth(-1);
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
     ImGui::InputText("##morphpath", g_morphVmdPath, sizeof(g_morphVmdPath));
+    if (ImGui::IsItemDeactivatedAfterEdit())
+      PostMessageW(g_gameHwnd, WM_MMD_GUI_LOAD_MORPH, 0, 0);
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
@@ -828,8 +1060,7 @@ static void DrawMainPanel() {
         strncpy(g_morphVmdPath, filePath, sizeof(g_morphVmdPath) - 1);
         g_morphVmdPath[sizeof(g_morphVmdPath) - 1] = '\0';
         Log("[GUI] Morph VMD selected: %s", g_morphVmdPath);
-        if (g_vmd) { FreeVmd(g_vmd); g_vmd = nullptr; }
-        g_bsIndicesResolved = false;
+        PostMessageW(g_gameHwnd, WM_MMD_GUI_LOAD_MORPH, 0, 0);
       }
     }
     ImGui::SameLine();
@@ -839,7 +1070,18 @@ static void DrawMainPanel() {
     }
     ImGui::PopStyleColor();
 
-    if (g_vmd && g_vmd->loaded && !g_vmd->morphTimelines.empty()) {
+    if (fileDirectMode && g_morphVmdPath[0] &&
+        DirectVmdRuntime_MorphOverrideLoaded()) {
+      ImGui::TextColored(ImVec4(0.10f, 0.55f, 0.25f, 1.0f),
+                         u8"DirectVmd \u9762\u90e8\u8986\u76d6\u5df2\u52a0\u8f7d");
+    } else if (fileDirectMode && !g_morphVmdPath[0]) {
+      ImGui::TextDisabled(
+          u8"\u4f7f\u7528\u4e3b Direct VMD \u7684 Morph section");
+    } else if (fileDirectMode) {
+      ImGui::TextDisabled(
+          u8"\u672a\u52a0\u8f7d (\u9009\u62e9\u6216\u64ad\u653e\u65f6\u81ea\u52a8\u52a0\u8f7d)");
+    } else if (g_vmd && g_vmd->loaded &&
+               !g_vmd->morphTimelines.empty()) {
       ImGui::TextColored(ImVec4(0.10f, 0.55f, 0.25f, 1.0f),
                          u8"%d \u8868\u60c5\u8f68\u9053",
                          (int)g_vmd->morphTimelines.size());
@@ -895,6 +1137,8 @@ static void DrawMainPanel() {
     ImGui::SameLine();
     if (g_audioPath[0] == '\0') {
       ImGui::TextDisabled(u8"\u672a\u9009\u62e9\u97f3\u9891");
+    } else if (fileDirectMode) {
+      ImGui::TextDisabled("DirectVmd clock follower (MCI rate control)");
     } else {
       ImGui::TextDisabled(u8"\u53d8\u901f\u65f6\u81ea\u52a8\u5173\u95ed");
     }
@@ -911,7 +1155,7 @@ static void DrawMainPanel() {
       }
     }
 
-    ImGui::PopStyleVar(); 
+    ImGui::PopStyleVar();
     ImGui::EndTabItem();
   }
 
@@ -920,7 +1164,10 @@ static void DrawMainPanel() {
   ImGui::PopStyleColor();
   if (tabOffset) {
     ImGui::Spacing();
+    const bool offsetDirectMode =
+        GuiSelectedMotionBackend() == MotionBackend::DirectVmd;
 
+    if (!offsetDirectMode) {
     ImGui::TextColored(ImVec4(0.90f, 0.75f, 0.20f, 1.0f),
                        u8"\u4f4d\u7f6e\u504f\u79fb");
     ImGui::Separator();
@@ -958,6 +1205,7 @@ static void DrawMainPanel() {
 
     ImGui::Spacing();
     ImGui::Spacing();
+    }
 
     ImGui::TextColored(ImVec4(0.90f, 0.75f, 0.20f, 1.0f),
                        u8"\u955c\u5934\u9ad8\u5ea6\u8865\u507f");
@@ -982,6 +1230,19 @@ static void DrawMainPanel() {
     ImGui::Separator();
     ImGui::Spacing();
 
+    if (offsetDirectMode) {
+      float directMultiplier = DirectVmdRuntime_GetMotionMultiplier();
+      ImGui::SetNextItemWidth(-60);
+      if (ImGui::SliderFloat(u8"VMD\u4f4d\u79fb\u500d\u7387##directscale",
+                             &directMultiplier, 0.25f, 2.0f, "%.3f")) {
+        DirectVmdRuntime_SetMotionMultiplier(directMultiplier);
+      }
+      ImGui::SameLine();
+      if (ImGui::SmallButton(u8"\u91cd\u7f6e##directscale"))
+        DirectVmdRuntime_SetMotionMultiplier(1.0f);
+      ImGui::TextDisabled(
+          u8"\u4e0e Root\u3001Center\u3001Groove \u548c\u8db3 IK \u5171\u7528\u540c\u4e00\u500d\u7387");
+    } else {
     ImGui::SetNextItemWidth(-60);
     ImGui::SliderFloat(u8"\u6574\u4f53##scale", &g_motionScale,
                        0.10f, 2.00f, "%.2f");
@@ -1015,22 +1276,27 @@ static void DrawMainPanel() {
       g_scaleLegs = 1.0f; g_scaleFingers = 1.0f;
       g_splayBlend = 0.7f;
     }
+    }
 
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::Spacing();
 
     if (ImGui::Button(u8"\u5168\u90e8\u91cd\u7f6e", ImVec2(-1, 0))) {
-      g_posOffsetX = 0.0f;
-      g_posOffsetY = 0.0f;
-      g_posOffsetZ = 0.0f;
-      g_yawOffsetDeg = 0.0f;
       g_camHeightBias = 0.0f;
-      g_motionScale = 1.0f;
-      g_scaleSpine = 1.0f; g_scaleHead = 1.0f;
-      g_scaleLArm = 1.0f; g_scaleRArm = 1.0f;
-      g_scaleLegs = 1.0f; g_scaleFingers = 1.0f;
-      g_splayBlend = 0.7f;
+      if (offsetDirectMode) {
+        DirectVmdRuntime_SetMotionMultiplier(1.0f);
+      } else {
+        g_posOffsetX = 0.0f;
+        g_posOffsetY = 0.0f;
+        g_posOffsetZ = 0.0f;
+        g_yawOffsetDeg = 0.0f;
+        g_motionScale = 1.0f;
+        g_scaleSpine = 1.0f; g_scaleHead = 1.0f;
+        g_scaleLArm = 1.0f; g_scaleRArm = 1.0f;
+        g_scaleLegs = 1.0f; g_scaleFingers = 1.0f;
+        g_splayBlend = 0.7f;
+      }
     }
 
     ImGui::EndTabItem();
@@ -1108,11 +1374,11 @@ static void DrawMainPanel() {
   ImGui::SameLine();
 
   if (g_updateChecking) {
-    ImGui::TextDisabled(u8"\u68c0\u67e5\u4e2d..."); 
+    ImGui::TextDisabled(u8"\u68c0\u67e5\u4e2d...");
   } else if (g_updateAvailable) {
     char updateLabel[128];
     snprintf(updateLabel, sizeof(updateLabel),
-             u8"\u65b0\u7248\u672c v%s \u53ef\u7528 - \u70b9\u51fb\u4e0b\u8f7d", g_latestVersion); 
+             u8"\u65b0\u7248\u672c v%s \u53ef\u7528 - \u70b9\u51fb\u4e0b\u8f7d", g_latestVersion);
     ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(80, 60, 0, 200));
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(120, 90, 0, 255));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(60, 45, 0, 255));
@@ -1123,15 +1389,15 @@ static void DrawMainPanel() {
     ImGui::PopStyleColor(4);
   } else if (g_updateIsLatest) {
     ImGui::TextColored(ImVec4(0.3f, 0.85f, 0.4f, 1.0f),
-                       u8"\u5df2\u662f\u6700\u65b0\u7248\u672c"); 
+                       u8"\u5df2\u662f\u6700\u65b0\u7248\u672c");
   } else if (g_updateCheckFailed) {
     ImGui::TextColored(ImVec4(0.9f, 0.35f, 0.3f, 1.0f),
-                       u8"\u68c0\u67e5\u5931\u8d25"); 
+                       u8"\u68c0\u67e5\u5931\u8d25");
   } else {
     ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(50, 53, 65, 200));
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(70, 73, 90, 255));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(40, 42, 55, 255));
-    if (ImGui::SmallButton(u8"\u68c0\u67e5\u66f4\u65b0")) { 
+    if (ImGui::SmallButton(u8"\u68c0\u67e5\u66f4\u65b0")) {
       CreateThread(NULL, 0,
                    [](LPVOID) -> DWORD { CheckForUpdates(); return 0; },
                    NULL, 0, NULL);
@@ -1293,7 +1559,7 @@ static void DrawMainPanel() {
                  ImGuiWindowFlags_NoSavedSettings);
 
     ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.0f, 1.0f),
-                       u8"\u53d1\u73b0\u65b0\u7248\u672c"); 
+                       u8"\u53d1\u73b0\u65b0\u7248\u672c");
     ImGui::Separator();
     ImGui::Spacing();
 
@@ -1387,8 +1653,8 @@ static DWORD WINAPI GuiThread(LPVOID) {
   }
 
   {
-    const DWORD attr = 33; 
-    const DWORD pref = 2;  
+    const DWORD attr = 33;
+    const DWORD pref = 2;
     DwmSetWindowAttribute(g_guiHwnd, attr, &pref, sizeof(pref));
   }
 
@@ -1403,11 +1669,11 @@ static DWORD WINAPI GuiThread(LPVOID) {
     struct ACCENT_POLICY {
       DWORD AccentState;
       DWORD AccentFlags;
-      DWORD GradientColor; 
+      DWORD GradientColor;
       DWORD AnimationId;
     };
     struct WINCOMPATTRDATA {
-      DWORD Attrib; 
+      DWORD Attrib;
       PVOID pvData;
       SIZE_T cbData;
     };
@@ -1423,7 +1689,7 @@ static DWORD WINAPI GuiThread(LPVOID) {
       accent.AccentFlags = 0;
       accent.GradientColor = 0x00FFFFFF;
       WINCOMPATTRDATA data = {};
-      data.Attrib = 19; 
+      data.Attrib = 19;
       data.pvData = &accent;
       data.cbData = sizeof(accent);
       SetWCA(g_guiHwnd, &data);
@@ -1447,28 +1713,28 @@ static DWORD WINAPI GuiThread(LPVOID) {
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
   ImGuiIO &io = ImGui::GetIO();
-  io.IniFilename = nullptr; 
+  io.IniFilename = nullptr;
   io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
   io.MouseDrawCursor = false;
 
   ImGui::StyleColorsDark();
   ImGuiStyle &style = ImGui::GetStyle();
-  style.WindowRounding = 6.0f;      
-  style.FrameRounding = 2.0f;       
+  style.WindowRounding = 6.0f;
+  style.FrameRounding = 2.0f;
   style.GrabRounding = 2.0f;
   style.TabRounding = 0.0f;
-  style.WindowBorderSize = 1.0f;    
-  style.FrameBorderSize = 1.0f;     
+  style.WindowBorderSize = 1.0f;
+  style.FrameBorderSize = 1.0f;
   style.FramePadding = ImVec2(8, 4);
   style.ItemSpacing = ImVec2(8, 6);
-  style.WindowPadding = ImVec2(10, 0); 
+  style.WindowPadding = ImVec2(10, 0);
   style.ScrollbarSize = 12.0f;
   style.ScrollbarRounding = 0.0f;
   style.GrabMinSize = 10.0f;
   style.PopupRounding = 0.0f;
 
   ImVec4 *c = style.Colors;
-  c[ImGuiCol_WindowBg]       = ImVec4(1.00f, 1.00f, 1.00f, 0.02f); 
+  c[ImGuiCol_WindowBg]       = ImVec4(1.00f, 1.00f, 1.00f, 0.02f);
   c[ImGuiCol_ChildBg]        = ImVec4(0.12f, 0.12f, 0.12f, 0.00f);
   c[ImGuiCol_PopupBg]        = ImVec4(0.10f, 0.10f, 0.10f, 0.95f);
   c[ImGuiCol_Border]         = ImVec4(0.55f, 0.55f, 0.58f, 0.40f);
@@ -1478,12 +1744,12 @@ static DWORD WINAPI GuiThread(LPVOID) {
   c[ImGuiCol_FrameBgActive]  = ImVec4(0.30f, 0.30f, 0.30f, 1.00f);
   c[ImGuiCol_Button]         = ImVec4(0.22f, 0.22f, 0.22f, 1.00f);
   c[ImGuiCol_ButtonHovered]  = ImVec4(0.30f, 0.30f, 0.30f, 1.00f);
-  c[ImGuiCol_ButtonActive]   = ImVec4(0.16f, 0.16f, 0.16f, 1.00f); 
+  c[ImGuiCol_ButtonActive]   = ImVec4(0.16f, 0.16f, 0.16f, 1.00f);
   c[ImGuiCol_Header]         = ImVec4(0.22f, 0.22f, 0.22f, 1.00f);
   c[ImGuiCol_HeaderHovered]  = ImVec4(0.32f, 0.32f, 0.30f, 1.00f);
-  c[ImGuiCol_HeaderActive]   = ImVec4(1.00f, 0.85f, 0.00f, 0.80f); 
-  c[ImGuiCol_Text]           = ImVec4(0.08f, 0.08f, 0.10f, 1.00f); 
-  c[ImGuiCol_TextDisabled]   = ImVec4(0.35f, 0.35f, 0.38f, 1.00f); 
+  c[ImGuiCol_HeaderActive]   = ImVec4(1.00f, 0.85f, 0.00f, 0.80f);
+  c[ImGuiCol_Text]           = ImVec4(0.08f, 0.08f, 0.10f, 1.00f);
+  c[ImGuiCol_TextDisabled]   = ImVec4(0.35f, 0.35f, 0.38f, 1.00f);
   c[ImGuiCol_Separator]      = ImVec4(0.60f, 0.60f, 0.62f, 0.50f);
   c[ImGuiCol_SeparatorHovered]= ImVec4(0.40f, 0.40f, 0.40f, 0.80f);
   c[ImGuiCol_SeparatorActive]= ImVec4(1.00f, 0.85f, 0.00f, 1.00f);
@@ -1581,7 +1847,7 @@ static DWORD WINAPI GuiThread(LPVOID) {
       GetWindowThreadProcessId(fg, &fgPid);
       if (g_gameHwnd) GetWindowThreadProcessId(g_gameHwnd, &gamePid);
       if (fgPid != 0 && gamePid != 0 && fgPid != gamePid) {
-        shouldShow = false; 
+        shouldShow = false;
       }
     }
 
@@ -1616,7 +1882,7 @@ static DWORD WINAPI GuiThread(LPVOID) {
     DrawMainPanel();
 
     ImGui::Render();
-    const float clear_color[4] = {0.0f, 0.0f, 0.0f, 0.0f}; 
+    const float clear_color[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     g_pd3dDeviceContext->OMSetRenderTargets(1, &g_pMainRenderTargetView,
                                              nullptr);
     g_pd3dDeviceContext->ClearRenderTargetView(g_pMainRenderTargetView,

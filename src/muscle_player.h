@@ -6,17 +6,17 @@
 #include <vector>
 #include <string>
 
-#define ARM_BONE_COUNT 6    
-#define FINGER_BONE_COUNT 30 
+#define ARM_BONE_COUNT 6
+#define FINGER_BONE_COUNT 30
 #define MAX_BLEND_SHAPES 128
 
 struct MuscleFrame {
-  float bodyPos[3];    
-  float bodyRot[4];    
-  float muscles[95];   
-  float armBoneRots[ARM_BONE_COUNT * 4];       
-  float fingerBoneRots[FINGER_BONE_COUNT * 4]; 
-  float blendShapes[MAX_BLEND_SHAPES];         
+  float bodyPos[3];
+  float bodyRot[4];
+  float muscles[95];
+  float armBoneRots[ARM_BONE_COUNT * 4];
+  float fingerBoneRots[FINGER_BONE_COUNT * 4];
+  float blendShapes[MAX_BLEND_SHAPES];
 };
 
 struct MuscleAnim {
@@ -41,12 +41,12 @@ struct MuscleAnim {
 
     char hdr[4];
     fread(hdr, 1, 4, f);
-    
+
     bool v4 = (memcmp(hdr, "MUS4", 4) == 0);
     bool v3 = (memcmp(hdr, "MUS3", 4) == 0);
     bool v2 = (memcmp(hdr, "MUS2", 4) == 0);
     bool v1 = (memcmp(hdr, "MUSC", 4) == 0);
-    
+
     if (!v1 && !v2 && !v3 && !v4) {
       fclose(f);
       return false;
@@ -105,7 +105,7 @@ struct MuscleAnim {
       fread(frames[i].bodyPos, sizeof(float), 3, f);
       fread(frames[i].bodyRot, sizeof(float), 4, f);
       fread(frames[i].muscles, sizeof(float), 95, f);
-      
+
       if ((v2 || v3 || v4) && armBoneCount > 0) {
         fread(frames[i].armBoneRots, sizeof(float), armBoneCount * 4, f);
       } else {

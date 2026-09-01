@@ -154,6 +154,8 @@ static DWORD WINAPI HotkeyThread(LPVOID) {
 
   LoadEiemConfig();
 
+  bool directTimerResolutionAttempted = false;
+  bool directTimerResolutionActive = false;
   while (g_guiRunning && IsWindowAlive(hwnd)) {
     static bool togglePressed = false;
     if (g_pluginActive && (GetAsyncKeyState(g_guiToggleVK) & 0x8000)) {
@@ -167,13 +169,39 @@ static DWORD WINAPI HotkeyThread(LPVOID) {
 
     AnimationTick();
     MuscleAnimationTick();
+    DirectVmdRuntime_WorkerTick();
 
     if (g_camTestMode && g_cameraActive) {
       ApplyCameraFrame(0.0f);
     }
 
-    bool activelyPlaying = (g_trojanActive && g_musclePlayer && g_musclePlayer->playing);
-    bool holdingPausedOrEndedPose = (g_trojanActive && g_musclePlayer && (g_musclePlayer->currentTime > 0.0f || g_musclePlayer->ended));
+    const bool directPlaying =
+        DirectVmdRuntime_WantsRealtimeWorkerCadence();
+    const bool directHoldingPose =
+        DirectVmdRuntime_WantsResponsiveWorkerCadence();
+    if (directPlaying && !directTimerResolutionAttempted) {
+      directTimerResolutionAttempted = true;
+      const MMRESULT timerResult = timeBeginPeriod(1);
+      directTimerResolutionActive = timerResult == TIMERR_NOERROR;
+      Log("[P3-SAMPLE-TIMER] event=begin periodMs=1 result=%u active=%d "
+          "tid=%lu",
+          static_cast<unsigned>(timerResult),
+          directTimerResolutionActive ? 1 : 0, GetCurrentThreadId());
+    } else if (!directPlaying && directTimerResolutionAttempted) {
+      if (directTimerResolutionActive)
+        timeEndPeriod(1);
+      Log("[P3-SAMPLE-TIMER] event=end periodMs=1 wasActive=%d tid=%lu",
+          directTimerResolutionActive ? 1 : 0, GetCurrentThreadId());
+      directTimerResolutionAttempted = false;
+      directTimerResolutionActive = false;
+    }
+    bool activelyPlaying =
+        (g_trojanActive && g_musclePlayer && g_musclePlayer->playing) ||
+        directPlaying;
+    bool holdingPausedOrEndedPose =
+        (g_trojanActive && g_musclePlayer &&
+         (g_musclePlayer->currentTime > 0.0f || g_musclePlayer->ended)) ||
+        directHoldingPose;
 
     if (activelyPlaying || g_camTestMode) {
       Sleep(1);
@@ -184,9 +212,15 @@ static DWORD WINAPI HotkeyThread(LPVOID) {
     }
   }
 
+  if (directTimerResolutionActive) {
+    timeEndPeriod(1);
+    Log("[P3-SAMPLE-TIMER] event=end-on-thread-exit periodMs=1 tid=%lu",
+        GetCurrentThreadId());
+  }
+  DirectVmdRuntime_WorkerShutdown();
   Log("[INFO] Game window closed, hotkey thread exiting");
   ExitThread(0);
-  return 0; 
+  return 0;
 }
 
 static void DumpTransformHierarchy(void *transform, int depth, FILE *dumpFile) {
@@ -479,7 +513,7 @@ static void DiscoverSkeleton() {
 static DWORD WINAPI InitThread(LPVOID) {
   while (!GetModuleHandleW(L"GameAssembly.dll"))
     Sleep(500);
-  Sleep(3000); 
+  Sleep(3000);
 
   InitializeCriticalSection(&g_logLock);
   g_logHandle =
@@ -537,6 +571,32 @@ static DWORD WINAPI InitThread(LPVOID) {
   if (objectClass) {
     g_object_get_name = FindMethod(objectClass, "get_name", 0);
     Log("[OK] Object.get_name: %p", g_object_get_name);
+  }
+
+  void *physicsClass = FindClass("UnityEngine", "Physics", asms, ac);
+  if (physicsClass) {
+    void *raycast = FindMethod(physicsClass, "Raycast", 6);
+    const char *p0 = nullptr;
+    const char *p2 = nullptr;
+    const char *p5 = nullptr;
+    if (raycast && il2cpp_method_get_param && il2cpp_type_get_name) {
+      void *t0 = il2cpp_method_get_param(raycast, 0);
+      void *t2 = il2cpp_method_get_param(raycast, 2);
+      void *t5 = il2cpp_method_get_param(raycast, 5);
+      p0 = t0 ? il2cpp_type_get_name(t0) : nullptr;
+      p2 = t2 ? il2cpp_type_get_name(t2) : nullptr;
+      p5 = t5 ? il2cpp_type_get_name(t5) : nullptr;
+    }
+    const bool signatureOk = p0 && p2 && p5 &&
+        strstr(p0, "Vector3") && strstr(p2, "RaycastHit") &&
+        strstr(p5, "QueryTriggerInteraction");
+    g_physicsRaycastMethod = signatureOk ? raycast : nullptr;
+    Log("[P7-PHYSICS-FALLBACK-API] Physics.Raycast method=%p signatureOk=%d "
+        "p0=%s p2=%s p5=%s",
+        g_physicsRaycastMethod, signatureOk ? 1 : 0,
+        p0 ? p0 : "?", p2 ? p2 : "?", p5 ? p5 : "?");
+  } else {
+    Log("[P7-PHYSICS-FALLBACK-API] Physics class unavailable");
   }
 
   g_animatorClass = FindClass("UnityEngine", "Animator", asms, ac);
@@ -693,7 +753,7 @@ static DWORD WINAPI InitThread(LPVOID) {
               }
             }
           } __except (1) {
-            continue; 
+            continue;
           }
 
           if (foundMov >= 0) {
@@ -709,7 +769,7 @@ static DWORD WINAPI InitThread(LPVOID) {
                 break;
               }
             }
-            break; 
+            break;
           }
         }
 
@@ -797,6 +857,8 @@ static DWORD WINAPI InitThread(LPVOID) {
     Log("[OK] GameObject.GetComponent: %p", g_gameObject_GetComponent);
   }
 
+  GhostRig_ResolveUnityApis(asms, ac);
+
   g_skinnedMeshRendererClass =
       FindClass("UnityEngine", "SkinnedMeshRenderer", asms, ac);
   if (g_skinnedMeshRendererClass) {
@@ -877,11 +939,36 @@ static DWORD WINAPI InitThread(LPVOID) {
   {
     uintptr_t gaBase2 = (uintptr_t)GetModuleHandleW(L"GameAssembly.dll");
 
+    void *animatorMonoClass = FindClass(
+        "Beyond.Gameplay.View.Animation", "AnimatorMono", asms, ac);
+    void *animatorPreLateTick = animatorMonoClass
+        ? FindMethod(animatorMonoClass, "PreLateTick", 1)
+        : nullptr;
+    if (animatorPreLateTick &&
+        Hook(animatorPreLateTick, "AnimatorMono.PreLateTick",
+             (void *)GhostRig_HookedAnimatorPreLateTick,
+             &s_ghostOrigAnimatorPreLateTick)) {
+      Log("[P0-ORDER] AnimatorMono.PreLateTick probe installed");
+    } else {
+      Log("[P0-ORDER] WARN: AnimatorMono.PreLateTick probe unavailable");
+    }
+    void *animatorMove = animatorMonoClass
+        ? FindMethod(animatorMonoClass, "OnAnimatorMove", 0)
+        : nullptr;
+    if (animatorMove &&
+        Hook(animatorMove, "AnimatorMono.OnAnimatorMove",
+             (void *)GhostRig_HookedAnimatorMove,
+             &s_ghostOrigAnimatorMove)) {
+      Log("[P0-ORDER] AnimatorMono.OnAnimatorMove probe installed");
+    } else {
+      Log("[P0-ORDER] WARN: AnimatorMono.OnAnimatorMove probe unavailable");
+    }
+
     void *moveCompClass = FindClass("Beyond.Gameplay.Core", "MovementComponent", asms, ac);
     if (moveCompClass) {
       void *tickMethod = FindMethod(moveCompClass, "Tick", 1);
       if (tickMethod) {
-        if (Hook(tickMethod, "MovementComponent.Tick", 
+        if (Hook(tickMethod, "MovementComponent.Tick",
                  (void *)Hooked_MovementComponent_Tick, &s_origMoveTick)) {
           Log("[GF2] MovementComponent.Tick hooked via il2cpp");
         } else {
@@ -900,18 +987,43 @@ static DWORD WINAPI InitThread(LPVOID) {
       } else {
         Log("[GF2] WARN: currentFloor field not found, using default 0x2e8");
       }
-      
+
       g_findFloorMethod = FindMethod(moveCompClass, "FindFloor", 3);
       Log("[GF2] FindFloor method = %p", g_findFloorMethod);
-      
-      const char *entityNames[] = {"m_entity", "entity"};
+
+      g_computeFloorDistMethod =
+          FindMethod(moveCompClass, "ComputeFloorDist", 7);
+      Log("[P7-FINDFLOOR-API] ComputeFloorDist method = %p",
+          g_computeFloorDistMethod);
+
+      const char *entityNames[] = {
+          "<entity>k__BackingField",
+          "m_entity",
+          "entity",
+          "<m_entity>k__BackingField",
+          "_entity"
+      };
       const char *entMatch = nullptr;
-      int entOff = FindFieldInHierarchy(moveCompClass, entityNames, 2, &entMatch);
+      int entOff = FindFieldInHierarchy(moveCompClass, entityNames, 5, &entMatch);
       if (entOff >= 0) {
         g_offBaseCompEntity = entOff;
         Log("[GF2] BaseComponent.entity offset = 0x%X (%s)", entOff, entMatch);
       } else {
         Log("[GF2] WARN: entity field not found, using default 0x50");
+      }
+
+      const char *grounderNames[] = {"m_bipedIK"};
+      const char *grounderMatch = nullptr;
+      const int grounderOff = FindFieldInHierarchy(
+          moveCompClass, grounderNames, 1, &grounderMatch);
+      if (grounderOff >= 0) {
+        g_offMovementGrounder = grounderOff;
+        Log("[P7-GROUNDER-API] MovementComponent.%s offset=0x%X",
+            grounderMatch, grounderOff);
+      } else {
+        Log("[P7-GROUNDER-API] WARN: MovementComponent.m_bipedIK "
+            "not found, using verified fallback 0x%X",
+            g_offMovementGrounder);
       }
     } else {
       Log("[GF2] WARN: MovementComponent class not found");
@@ -951,15 +1063,39 @@ static DWORD WINAPI InitThread(LPVOID) {
       }
     }
 
+    void *grounderClass = FindClass(
+        "RootMotion.FinalIK", "GrounderBipedIK", asms, ac);
+    void *grounderOnSolver = grounderClass
+        ? FindMethod(grounderClass, "OnSolverUpdate", 0)
+        : nullptr;
+    void *grounderOnPost = grounderClass
+        ? FindMethod(grounderClass, "OnPostSolverUpdate", 0)
+        : nullptr;
+    const bool grounderSolverHooked = grounderOnSolver &&
+        Hook(grounderOnSolver, "GrounderBipedIK.OnSolverUpdate",
+             (void *)GhostRig_HookedGrounderOnSolverUpdate,
+             &s_ghostOrigGrounderOnSolverUpdate);
+    const bool grounderPostHooked = grounderOnPost &&
+        Hook(grounderOnPost, "GrounderBipedIK.OnPostSolverUpdate",
+             (void *)GhostRig_HookedGrounderOnPostSolverUpdate,
+             &s_ghostOrigGrounderOnPostSolverUpdate);
+    Log("[P7-GROUNDER-API] class=%p OnSolverUpdate=%p hook=%d "
+        "OnPostSolverUpdate=%p hook=%d Update=%p ResetPosition=%p",
+        grounderClass, grounderOnSolver,
+        grounderSolverHooked ? 1 : 0, grounderOnPost,
+        grounderPostHooked ? 1 : 0, s_ghostGrounderUpdate,
+        s_ghostGrounderResetPosition);
+
     void *ikTrigClass = FindClass("RootMotion.FinalIK", "IKSolverTrigonometric", asms, ac);
     void *onUpdateMethod = ikTrigClass ? FindMethod(ikTrigClass, "OnUpdate", 0) : nullptr;
     if (onUpdateMethod && Hook(onUpdateMethod, "IKSolverTrigonometric.OnUpdate",
-                               (void *)Hooked_OnUpdate, &s_origOnUpdate)) {
+                               (void *)Hooked_OnUpdate,
+                               &g_origIkTrigOnUpdate)) {
       Log("[IK] IKSolverTrigonometric.OnUpdate hooked dynamically via IL2CPP");
     } else {
       void *onUpdateAddr = (void *)(gaBase2 + 0x032759E0);
       if (MH_CreateHook(onUpdateAddr, (void *)Hooked_OnUpdate,
-                        &s_origOnUpdate) == MH_OK) {
+                        &g_origIkTrigOnUpdate) == MH_OK) {
         MH_EnableHook(onUpdateAddr);
         Log("[IK] IKSolverTrigonometric.OnUpdate hooked via fallback RVA %p", onUpdateAddr);
       } else {
@@ -998,6 +1134,10 @@ static DWORD WINAPI InitThread(LPVOID) {
 
       struct SetMainCharHook {
         static void __fastcall Hooked(void *self, void *entity, int32_t reason, void *methodInfo) {
+          GhostRig_RequestOwnerChange(entity);
+          GhostRig_TryImmediateCleanupOnCurrentThread(
+              GhostRigCleanupReason::CharacterSwitch);
+
           if (self && !g_playerController) {
             g_playerController = self;
             Log("[HOOK] Captured PlayerController: %p", self);
@@ -1126,6 +1266,7 @@ static DWORD WINAPI InitThread(LPVOID) {
   } else {
     Log("[WARN] PlayerController class NOT found");
   }
+
   void *smcClass = FindClass("Beyond.Gameplay.View.SkeletalMorph",
                              "SkeletalMorphCore", asms, ac);
   if (!smcClass)
@@ -1135,6 +1276,7 @@ static DWORD WINAPI InitThread(LPVOID) {
   if (smcClass) {
     g_skeletalMorphCoreClass = smcClass;
     Log("[FACE] SkeletalMorphCore class found");
+    ResolveSMCOffsets(smcClass);
 
     void *updateMethod = nullptr;
     void *miter = nullptr;
@@ -1207,4 +1349,3 @@ static DWORD WINAPI InitThread(LPVOID) {
 
   return 0;
 }
-

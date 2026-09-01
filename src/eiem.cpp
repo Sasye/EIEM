@@ -9,6 +9,8 @@
 #include <vector>
 
 #include "vmd_parser.h"
+#include "direct_vmd_pose.h"
+#include "motion_backend.h"
 #include "mmd_player.h"
 #include "bone_anim_player.h"
 #include "bone_map.h"
@@ -18,6 +20,7 @@
 
 
 #include "globals.h"
+#include "direct_vmd_runtime.h"
 #include "eiem_config.h"
 #include "update_check.h"
 
@@ -41,6 +44,7 @@ static bool UnboxBool(void *boxed) {
 }
 
 #include "animation.h"
+#include "ghost_rig.h"
 #include "trojan.h"
 #include "gui.h"
 #include "init.h"
@@ -58,7 +62,7 @@ static AP_PluginInfo s_apPluginInfo = {
     "EIEM",
     "Endfield MMD",
     "eiem_config.txt",
-    true 
+    true
 };
 
 APPLEPIE_PLUGIN_EXPORT AP_PluginInfo* AP_GetPluginInfo() {
@@ -72,6 +76,21 @@ APPLEPIE_PLUGIN_EXPORT bool AP_PluginEnable() {
 }
 
 APPLEPIE_PLUGIN_EXPORT bool AP_PluginDisable() {
+  const MotionBackend disabledBackend = g_motionBackend.Current();
+  g_motionBackend.TransitionTo(MotionBackend::Native);
+  Log("[P3-BACKEND-REQUEST] old=%s new=Native reason=plugin-disabled "
+      "backendGeneration=%llu callerTid=%lu",
+      MotionBackendName(disabledBackend),
+      (unsigned long long)g_motionBackend.Generation(),
+      GetCurrentThreadId());
+  DirectVmdRuntime_RequestStop();
+  GhostRig_RequestEnabled(false, GhostRigCleanupReason::PluginDisabled);
+  if (g_gameHwnd) {
+    DWORD_PTR cleanupResult = 0;
+    SendMessageTimeoutW(g_gameHwnd, WM_MMD_GUI_PHASE0_GHOST, 0,
+                        static_cast<LPARAM>(GhostRigCleanupReason::PluginDisabled),
+                        SMTO_ABORTIFHUNG | SMTO_BLOCK, 1000, &cleanupResult);
+  }
   g_pluginActive = false;
   if (g_guiVisible) ToggleGui();
   Log("[AP] Plugin disabled by manager");
@@ -104,6 +123,10 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID reserved) {
   if (reason == DLL_PROCESS_ATTACH) {
     DisableThreadLibraryCalls(hModule);
     g_initThread = CreateThread(NULL, 0, InitThread, NULL, 0, NULL);
+  } else if (reason == DLL_PROCESS_DETACH) {
+    g_motionBackend.RequestProcessDetach();
+    GhostRig_RequestProcessDetach();
+    DirectVmdRuntime_RequestProcessDetach();
   }
   return TRUE;
 }
