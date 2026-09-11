@@ -176,7 +176,10 @@ static void RefreshEntityAnimator() {
   SafeRefreshEntity();
 }
 
+#include "cloth.h"
+
 static void RestoreDisabledComponents() {
+  ClothRelease("muscle-components-restore");
   if (!g_animator_set_enabled)
     return;
 
@@ -220,38 +223,6 @@ static void RestoreDisabledComponents() {
   s_followDamperCount = 0;
   s_animatorMono = nullptr;
 
-  if (s_bbcCount > 0) {
-    if (s_bbc_SetAnimPoseRatio) {
-      float zero = 0.0f;
-      for (int i = 0; i < s_bbcCount; i++) {
-        if (!s_bbcInstances[i]) continue;
-        __try {
-          void *args[] = {&zero};
-          void *exc = nullptr;
-          il2cpp_runtime_invoke(s_bbc_SetAnimPoseRatio, s_bbcInstances[i],
-                                args, &exc);
-        } __except (1) {}
-      }
-    }
-    if (s_bbc_ResetCloth) {
-      float resetTime = 0.0f;
-      for (int i = 0; i < s_bbcCount; i++) {
-        if (!s_bbcInstances[i]) continue;
-        __try {
-          void *args[] = {&resetTime};
-          void *exc = nullptr;
-          il2cpp_runtime_invoke(s_bbc_ResetCloth, s_bbcInstances[i],
-                                args, &exc);
-        } __except (1) {}
-      }
-    }
-    Log("[BBC] Restored %d cloth instances (ratio=0, reset)", s_bbcCount);
-  }
-  s_bbcCount = 0;
-  s_skirtBBCIndex = -1;
-  ResetSkirtState();
-  memset(s_bbcInstances, 0, sizeof(s_bbcInstances));
-
   Log("[IK-RESTORE] All components restored");
 }
 
@@ -275,7 +246,6 @@ static void SafeSetLocalPosition(void *transform, Vec3 p) {
   }
 }
 
-#include "cloth.h"
 
 
 

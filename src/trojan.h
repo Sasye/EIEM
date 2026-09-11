@@ -700,6 +700,16 @@ static void *g_hipsTransform = nullptr;
 static volatile bool g_bonesReady = false;
 static volatile int g_boneGeneration = 0;
 
+static bool Muscle_ClothMayOwnAnchor(void *transform) {
+  if (!g_motionBackend.Is(MotionBackend::Muscle) || transform == g_hipsTransform) return false;
+  for (const auto &bone : g_cachedBones)
+    if (bone.valid && bone.transform == transform) return false;
+  if (g_resolvedMappings)
+    for (const auto &mapping : *g_resolvedMappings)
+      if (mapping.transform == transform) return false;
+  return true;
+}
+
 static volatile int g_debugMuscleIdx = 0;
 static volatile float g_debugMuscleVal = 0.0f;
 static volatile bool g_debugMode = false;
@@ -1143,6 +1153,7 @@ static void __fastcall Hooked_SolverManager_LateUpdate(void *self, void *methodI
   if (s_origLateUpdate) {
     ((fn)s_origLateUpdate)(self, methodInfo);
   }
+  ClothTick("SolverManager.after-LateUpdate");
   DirectVmdCamera_UpdateMainThread(GhostRig_GetFrameCount());
   DirectVmdAudio_UpdateMainThread(GhostRig_GetFrameCount());
 }
@@ -1358,6 +1369,7 @@ static void ApplyMmdPoseOnMainThread() {
           s_musclePtr[idx], name);
       g_debugDirty = false;
     }
+    if (!setExc) ClothTick("Muscle.WndProc.debug-after-pose", true, Muscle_ClothMayOwnAnchor);
     return;
   }
 
@@ -2207,37 +2219,6 @@ static void ApplyMmdPoseOnMainThread() {
                         Log("[IK-DISABLE] Found AnimatorMono: %p GO='%s'",
                             s_animatorMono, amGoName);
                       }
-                      if (strcmp(clsName, "BeyondBoneCloth") == 0 &&
-                          s_bbcCount < MAX_BBC) {
-                        int idx = s_bbcCount;
-                        s_bbcInstances[s_bbcCount++] = data[i];
-                        Log("[BBC] Found BeyondBoneCloth #%d: %p",
-                            s_bbcCount, data[i]);
-                        __try {
-                          if (g_component_get_gameObject && g_object_get_name) {
-                            void *go = Invoke(g_component_get_gameObject, data[i]);
-                            if (go) {
-                              void *nameStr = Invoke(g_object_get_name, go);
-                              char goName[64] = "";
-                              if (nameStr) ReadStrUtf8(nameStr, goName, sizeof(goName));
-                              Log("[BBC] #%d GO name='%s'", idx + 1, goName);
-                              if (_stricmp(goName, "MC_skirt") == 0 ||
-                                  _stricmp(goName, "MC_Skirt") == 0 ||
-                                  strstr(goName, "skirt") || strstr(goName, "Skirt")) {
-                                s_skirtBBCIndex = idx;
-                                Log("[BBC] MC_Skirt identified at index %d (by name '%s')", idx, goName);
-                              }
-                            } else {
-                              Log("[BBC] #%d get_gameObject returned null", idx + 1);
-                            }
-                          } else {
-                            Log("[BBC] #%d name resolve skipped: getGO=%p getName=%p",
-                                idx + 1, g_component_get_gameObject, g_object_get_name);
-                          }
-                        } __except (1) {
-                          Log("[BBC] #%d name resolve exception", idx + 1);
-                        }
-                      }
                     }
                   }
                 }
@@ -2304,90 +2285,8 @@ static void ApplyMmdPoseOnMainThread() {
           else
             ConfigureIKComponents(g_footIKEnabled);
 
-          if (s_bbcCount > 0 && !s_bbcMethodsResolved) {
-            s_bbcMethodsResolved = true;
-            void *bbcCls = il2cpp_object_get_class(s_bbcInstances[0]);
-            if (bbcCls) {
-              void *miter2 = nullptr;
-              void *m2 = nullptr;
-              while ((m2 = il2cpp_class_get_methods(bbcCls, &miter2))) {
-                const char *mn2 = il2cpp_method_get_name(m2);
-                if (!mn2) continue;
-                if (strcmp(mn2, "ResetCloth") == 0)
-                  s_bbc_ResetCloth = m2;
-                if (strcmp(mn2, "SetAnimationPoseRatio") == 0)
-                  s_bbc_SetAnimPoseRatio = m2;
-                if (strcmp(mn2, "SetClothSimulateWeight") == 0)
-                  s_bbc_SetSimWeight = m2;
-                if (strcmp(mn2, "BuildAndRun") == 0)
-                  s_bbc_BuildAndRun = m2;
-                if (strcmp(mn2, "SetSkipWriting") == 0)
-                  s_bbc_SetSkipWriting = m2;
-                if (strcmp(mn2, "SetTimeScale") == 0)
-                  s_bbc_SetTimeScale = m2;
-              }
-              Log("[BBC] Methods: Reset=%p Ratio=%p Weight=%p Build=%p Skip=%p",
-                  s_bbc_ResetCloth, s_bbc_SetAnimPoseRatio, s_bbc_SetSimWeight,
-                  s_bbc_BuildAndRun, s_bbc_SetSkipWriting);
-            }
-          }
-          if (s_bbcCount > 0 && g_animator_set_enabled) {
-            int falseVal = 0, trueVal = 1;
-            float one = 1.0f;
-            int offProc = (OFF_bbc_process >= 0) ? OFF_bbc_process : 0xA8;
-            int rebuilt = 0, kept = 0;
-
-            for (int bi = 0; bi < s_bbcCount; bi++) {
-              if (!s_bbcInstances[bi]) continue;
-              __try {
-                void *process = *(void **)((char *)s_bbcInstances[bi] + offProc);
-                bool needsRebuild = (!process || (uintptr_t)process < 0x10000);
-
-                if (needsRebuild) {
-                  void *offArgs[] = {&falseVal};
-                  Invoke(g_animator_set_enabled, s_bbcInstances[bi], offArgs);
-                  void *onArgs[] = {&trueVal};
-                  Invoke(g_animator_set_enabled, s_bbcInstances[bi], onArgs);
-                }
-                if (s_bbc_SetSkipWriting) {
-                  void *skipArgs[] = {&falseVal};
-                  void *exc = nullptr;
-                  il2cpp_runtime_invoke(s_bbc_SetSkipWriting,
-                                       s_bbcInstances[bi], skipArgs, &exc);
-                }
-                if (s_bbc_SetSimWeight) {
-                  void *swArgs[] = {&one};
-                  void *exc = nullptr;
-                  il2cpp_runtime_invoke(s_bbc_SetSimWeight,
-                                       s_bbcInstances[bi], swArgs, &exc);
-                }
-                if (needsRebuild && s_bbc_BuildAndRun) {
-                  void *exc = nullptr;
-                  il2cpp_runtime_invoke(s_bbc_BuildAndRun,
-                                       s_bbcInstances[bi], nullptr, &exc);
-                  rebuilt++;
-                } else {
-                  kept++;
-                }
-              } __except (1) {}
-            }
-
-            s_skirtScaleResolved = false;
-            s_skirtDirty = true;
-            ApplySkirtColliderScale();
-            s_skirtRetryFrames = 30;
-
-            Log("[BBC] Activated %d instances: %d rebuilt, %d kept running",
-                s_bbcCount, rebuilt, kept);
-          }
         }
       }
-    }
-    if (s_skirtRetryFrames > 0) {
-      s_skirtRetryFrames--;
-      s_skirtScaleResolved = false;
-      s_skirtDirty = true;
-      ApplySkirtColliderScale();
     }
   if (g_mmdHasFingerBones && g_muscleAnim && g_muscleAnim->hasFingerBones) {
     if (!g_fingerTransformsResolved) {
@@ -2669,6 +2568,7 @@ static void ApplyMmdPoseOnMainThread() {
     }
     ApplyCameraFrame(g_musclePlayer->currentTime);
   }
+  if (!setExc) ClothTick("Muscle.WndProc.after-pose", true, Muscle_ClothMayOwnAnchor);
 }
 
 static void ReapplyBoneTransforms() {
@@ -3032,6 +2932,7 @@ static bool MotionBackend_PublishMainThread(MotionBackend next,
     return false;
   const MotionBackend previous = g_motionBackend.Current();
   const bool changed = g_motionBackend.TransitionTo(next);
+  if (changed) ClothRelease(reason);
   Log("[P3-BACKEND] frame=%d seq=%llu tid=%lu old=%s new=%s "
       "changed=%d backendGeneration=%llu ghostGeneration=%llu reason=%s",
       GhostRig_GetFrameCount(),
@@ -3090,7 +2991,6 @@ static void MotionBackend_ReleaseMuscleMainThread(const char *reason) {
   ClearActiveFootIKSolverWeights();
   ResetFootIKRuntimeState();
   RestoreDisabledComponents();
-  RestoreSkirtColliders();
   SafeSetAnimatorEnabled(true);
 
   if (g_cameraActive)
@@ -3121,6 +3021,7 @@ static void MotionBackend_ReleaseMuscleMainThread(const char *reason) {
 
 static void MotionBackend_DisableDirectMainThread(
     GhostRigCleanupReason cleanupReason, const char *reason) {
+  ClothRelease(reason ? reason : "direct-release");
   DirectVmdRuntime_RequestStop();
   DirectVmdMorph_ResetMainThread(reason ? reason : "direct-release");
   DirectVmdCamera_ResetMainThread(reason ? reason : "direct-release");
@@ -3164,6 +3065,7 @@ static void MotionBackend_EnterNativeMainThread(
        MotionBackend_HasMuscleOwnership())) {
     MotionBackend_ReleaseMuscleMainThread(reason);
   }
+  ClothRelease(reason);
   SafeSetAnimatorEnabled(true);
   if (previous == MotionBackend::DirectVmd) {
     Log("[P4-NATIVE-ANIMATOR] enabled=1 route=native-restore "
@@ -3185,6 +3087,8 @@ static bool MotionBackend_EnterMuscleMainThread(const char *reason) {
     MotionBackend_DisableDirectMainThread(GhostRigCleanupReason::Stop,
                                           "switch-to-muscle");
   }
+  RefreshEntityAnimator();
+  ClothBegin(MotionBackend::Muscle, true);
   return true;
 }
 
@@ -3219,6 +3123,7 @@ static bool MotionBackend_EnterDirectMainThread(bool play,
       DirectVmdRuntime_RequestMorphOverride(
           g_morphVmdPath[0] ? g_morphVmdPath : nullptr);
     }
+    ClothBegin(MotionBackend::DirectVmd, play);
     SafeSetAnimatorEnabled(false);
     DirectVmdRuntime_SetSpeed(g_playbackSpeed);
     DirectVmdRuntime_SetLoop(g_playbackLoop);
@@ -3253,6 +3158,9 @@ static bool MotionBackend_EnterDirectMainThread(bool play,
     return false;
   }
 
+  GhostRig_RequestOwnerChange(g_mainCharEntity);
+  ClothBegin(MotionBackend::DirectVmd, play);
+
   SafeSetAnimatorEnabled(false);
   Log("[P4-NATIVE-ANIMATOR] enabled=0 "
       "route=Muscle.SafeSetAnimatorEnabled reason=%s entity=%p "
@@ -3262,7 +3170,6 @@ static bool MotionBackend_EnterDirectMainThread(bool play,
       reason ? reason : "unspecified", g_mainCharEntity,
       g_cachedAnimator, GetCurrentThreadId());
 
-  GhostRig_RequestOwnerChange(g_mainCharEntity);
   GhostRig_RequestEnabled(true, GhostRigCleanupReason::None);
   DirectVmdRuntime_RequestCameraOverride(
       g_cameraOverrideExplicit && g_cameraVmdPath[0]
@@ -3294,6 +3201,10 @@ static bool MotionBackend_EnterDirectMainThread(bool play,
 
 static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
                                    LPARAM lParam) {
+  if (s_cloth.releasing || (s_cloth.active &&
+      (s_cloth.invalidation != s_clothInvalidation.load(std::memory_order_acquire) ||
+       s_cloth.owner.generation != g_motionBackend.Generation())))
+    ClothTick("WndProc.lifecycle");
   if (msg == WM_CLOSE || msg == WM_DESTROY) {
     Log("[WNDPROC] Game window closing (msg=0x%X), signaling threads to exit",
         msg);
@@ -3322,6 +3233,7 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
       Log("[WNDPROC] WM_MMD_APPLY_POSE received on main thread!");
       s_firstLog = true;
     }
+    ClothBegin(MotionBackend::Muscle);
     if (!s_poseReady) {
       InitMmdPoseOnMainThread();
     }
@@ -3616,7 +3528,6 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
         ClearActiveFootIKSolverWeights();
         ResetFootIKRuntimeState();
         RestoreDisabledComponents();
-        RestoreSkirtColliders();
         SafeSetAnimatorEnabled(true);
         if (g_cameraActive) {
           RestoreCinemachine();

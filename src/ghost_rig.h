@@ -426,6 +426,17 @@ struct GhostRigRuntime {
 
 static GhostRigRuntime s_ghostRig = {};
 
+static bool GhostRig_ClothMayOwnAnchor(void *transform) {
+  if (!g_motionBackend.Is(MotionBackend::DirectVmd)) return false;
+  if (s_ghostRig.ownerRootHandle && il2cpp_gchandle_get_target(s_ghostRig.ownerRootHandle) == transform) return false;
+  for (const auto &target : s_ghostRig.targets)
+    if (target.transformHandle && il2cpp_gchandle_get_target(target.transformHandle) == transform) return false;
+  for (const auto &channel : s_ghostRig.twistChannels)
+    for (const auto &target : channel.targets)
+      if (target.transformHandle && il2cpp_gchandle_get_target(target.transformHandle) == transform) return false;
+  return true;
+}
+
 static std::atomic<bool> s_ghostDesiredEnabled{false};
 static std::atomic<bool> s_directVmdTerrainDesiredEnabled{false};
 static std::atomic<bool> s_ghostOwnerKnown{false};
@@ -571,6 +582,7 @@ static void GhostRig_RequestEnabled(bool enabled,
 }
 
 static uint64_t GhostRig_RequestVmdReload(const char *path) {
+  ClothRequestInvalidation();
   DirectVmdRuntime_BeginLifecycleMutation();
   DirectVmdRuntime_RequestLoad(path);
   const GhostRigCleanupReason reason = GhostRigCleanupReason::VmdReload;
@@ -1972,6 +1984,8 @@ static void GhostRig_DestroyMainThread(GhostRigCleanupReason reason) {
   if (!GhostRig_RequireMainThread("GhostRig.Destroy", false))
     return;
 
+  if (s_cloth.owner.backend == static_cast<uint32_t>(MotionBackend::DirectVmd))
+    ClothRelease("ghost-lifecycle-cleanup");
   if (s_ghostRig.state == GhostRigState::Empty) {
     GhostRig_ClearPhase5FinalIkOwnership(reason);
     GhostRig_RestoreEyeLookAtOwnership(reason);
@@ -7645,6 +7659,8 @@ static void GhostRig_BeforeFinalIK(void *bipedIK) {
   if (!owner || reinterpret_cast<uintptr_t>(g_mainCharEntity) != owner)
     return;
 
+  ClothBegin(MotionBackend::DirectVmd);
+
   SafeSetAnimatorEnabled(false);
 
   void *ownerRoot = GhostRig_GetOwnerRoot(owner);
@@ -8173,6 +8189,7 @@ static void GhostRig_AfterFinalIK(void *bipedIK) {
   }
   if (frame != s_ghostRig.lastTargetAppliedFrame)
     return;
+  ClothTick("DirectVmd.after-owner-FinalIK", true, GhostRig_ClothMayOwnAnchor);
   const bool periodic = frame >= 0
       ? (s_ghostRig.lastPostFinalIkLogFrame == INT_MIN ||
          frame - s_ghostRig.lastPostFinalIkLogFrame >= 120)

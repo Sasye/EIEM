@@ -217,20 +217,6 @@ static void ResetCameraState() {
 }
 static void RestoreCinemachine();
 static void ApplyCameraFrame(float timeSec);
-static void ResetSkirtState();
-
-#define MAX_BBC 16
-static void *s_bbcInstances[MAX_BBC] = {};
-static int s_bbcCount = 0;
-static bool s_bbcMethodsResolved = false;
-static int s_skirtBBCIndex = -1;
-static void *s_bbc_ResetCloth = nullptr;
-static void *s_bbc_SetAnimPoseRatio = nullptr;
-static void *s_bbc_SetSimWeight = nullptr;
-static void *s_bbc_BuildAndRun = nullptr;
-static void *s_bbc_SetSkipWriting = nullptr;
-static void *s_bbc_SetTimeScale = nullptr;
-
 static void **g_slotAddr =
     nullptr;
 static void *g_slotOrigGet = nullptr;

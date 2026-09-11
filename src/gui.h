@@ -691,9 +691,11 @@ static void DrawMainPanel() {
   ImGui::PopStyleColor();
   if (skirtOpen) {
     ImGui::SetNextItemWidth(-1);
-    if (ImGui::SliderFloat(u8"\u5927\u817f\u6839\u534a\u5f84\u8865\u5145", &s_skirtHipRadiusDelta,
+    float skirtDelta = s_skirtHipRadiusDelta.load(std::memory_order_acquire);
+    if (ImGui::SliderFloat(u8"\u5927\u817f\u6839\u534a\u5f84\u8865\u5145", &skirtDelta,
                            0.0f, 0.4f, "%.3f")) {
-      s_skirtDirty = true;
+      s_skirtHipRadiusDelta.store(skirtDelta, std::memory_order_release);
+      s_skirtDirty.store(true, std::memory_order_release);
     }
     ImGui::TextDisabled(u8"\u539f\u59cb\u503c: 0.124  \u6548\u679c: \u52a0\u5927\u2192\u51cf\u5c11\u7a7f\u6a21");
   }

@@ -1134,6 +1134,15 @@ static DWORD WINAPI InitThread(LPVOID) {
 
       struct SetMainCharHook {
         static void __fastcall Hooked(void *self, void *entity, int32_t reason, void *methodInfo) {
+          ClothRequestInvalidation();
+          HWND ownerWindow = g_gameHwnd ? g_gameHwnd : FindGameWindow();
+          if (!ownerWindow || GetWindowThreadProcessId(ownerWindow, nullptr) != GetCurrentThreadId()) {
+            GhostRig_RequestOwnerChange(entity);
+            if (orig_SetMainCharacter) orig_SetMainCharacter(self, entity, reason, methodInfo);
+            if (g_gameHwnd) PostMessageW(g_gameHwnd, WM_USER + 106, 0, 0);
+            return;
+          }
+          ClothRelease("character-switch-before-old-owner-replacement");
           GhostRig_RequestOwnerChange(entity);
           GhostRig_TryImmediateCleanupOnCurrentThread(
               GhostRigCleanupReason::CharacterSwitch);
@@ -1231,11 +1240,6 @@ static DWORD WINAPI InitThread(LPVOID) {
           memset(s_followDamper, 0, sizeof(s_followDamper));
           s_followDamperCount = 0;
           s_animatorMono = nullptr;
-          s_bbcCount = 0;
-          s_bbcMethodsResolved = false;
-          s_skirtBBCIndex = -1;
-          memset(s_bbcInstances, 0, sizeof(s_bbcInstances));
-
           s_cachedMovementComp = nullptr;
           s_cachedEntity = nullptr;
           s_initialRootCaptured = false;
@@ -1248,7 +1252,6 @@ static DWORD WINAPI InitThread(LPVOID) {
           g_skeletalMorphCore = nullptr;
           g_boneMapReady = false;
           ResetFaceCache();
-          ResetSkirtState();
           s_firstFrame = true;
           Log("[SWITCH] Full character state reset for new character: Entity=%p Animator=%p",
               g_mainCharEntity, g_cachedAnimator);
