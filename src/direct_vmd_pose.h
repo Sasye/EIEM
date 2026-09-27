@@ -475,6 +475,45 @@ static inline DirectVmdAudioTimelineTarget DirectVmdComputeAudioTarget(
   return result;
 }
 
+static constexpr double kDirectVmdAudioLockSnapSeconds = 0.25;
+static constexpr double kDirectVmdAudioLockTimeConstantSeconds = 0.2;
+static constexpr double kDirectVmdAudioStartHoldSeconds = 0.5;
+
+struct DirectVmdAudioLockResult {
+  double frame = 0.0;
+  double errorSeconds = 0.0;
+  uint8_t snapped = 0;
+};
+
+static inline DirectVmdAudioLockResult DirectVmdAudioLockClockFrame(
+    double clockFrame, double audibleMediaSeconds, double offsetSeconds,
+    double elapsedSeconds, double durationFrames) {
+  DirectVmdAudioLockResult result;
+  result.frame = clockFrame;
+  if (!std::isfinite(clockFrame) || !std::isfinite(audibleMediaSeconds) ||
+      !std::isfinite(offsetSeconds))
+    return result;
+  const double audioFrame =
+      (audibleMediaSeconds - offsetSeconds) * kVmdFramesPerSecond;
+  const double errorFrames = audioFrame - clockFrame;
+  result.errorSeconds = errorFrames / kVmdFramesPerSecond;
+  if (std::fabs(result.errorSeconds) > kDirectVmdAudioLockSnapSeconds) {
+    result.frame = audioFrame;
+    result.snapped = 1;
+  } else {
+    const double safeElapsed =
+        std::isfinite(elapsedSeconds) ? (std::max)(0.0, elapsedSeconds) : 0.0;
+    const double gain = (std::min)(
+        1.0, safeElapsed / kDirectVmdAudioLockTimeConstantSeconds);
+    result.frame = clockFrame + errorFrames * gain;
+  }
+  const double limit =
+      std::isfinite(durationFrames) && durationFrames > 0.0 ? durationFrames
+                                                            : 0.0;
+  result.frame = (std::max)(0.0, (std::min)(result.frame, limit));
+  return result;
+}
+
 static inline bool DirectVmdFinite(float value) {
   return std::isfinite(value) != 0;
 }

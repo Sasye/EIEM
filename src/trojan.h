@@ -2,7 +2,6 @@
 
 static void DirectVmdCamera_UpdateMainThread(int frame);
 static void DirectVmdCamera_ResetMainThread(const char *reason);
-static void DirectVmdAudio_UpdateMainThread(int frame);
 static void DirectVmdAudio_ResetMainThread(const char *reason,
                                            bool closeResource = false);
 
@@ -1159,7 +1158,6 @@ static void __fastcall Hooked_SolverManager_LateUpdate(void *self, void *methodI
   }
   ClothTick("SolverManager.after-LateUpdate");
   DirectVmdCamera_UpdateMainThread(GhostRig_GetFrameCount());
-  DirectVmdAudio_UpdateMainThread(GhostRig_GetFrameCount());
 }
 
 static void __fastcall Hooked_OnUpdate(void *self, void *methodInfo) {
@@ -2648,25 +2646,30 @@ static void AudioStartFresh() {
       startMs, g_audioOffset, g_audioIsClock ? 1 : 0);
 }
 
-struct DirectVmdAudioRuntimeState {
+struct DirectVmdAudioFollower {
   bool initialized = false;
-  bool ownsDevice = false;
-  uint64_t sequence = 0;
-  uint64_t rigGeneration = 0;
+  bool owns = false;
+  bool locked = false;
+  bool holding = false;
   uint64_t clipGeneration = 0;
-  uint64_t playbackCycle = 0;
   uint64_t seekRevision = 0;
-  uintptr_t ownerCharacter = 0;
+  uint64_t loopCycle = 0;
+  uint64_t resetRevision = 0;
+  uint32_t loadGeneration = 0;
+  uint32_t holdEpoch = 0;
   DirectVmdPlaybackState playback = DirectVmdPlaybackState::Stopped;
   DirectVmdAudioRange range = DirectVmdAudioRange::Delayed;
   float offsetSeconds = 0.0f;
-  float speed = 1.0f;
   int targetMilliseconds = 0;
-  ULONGLONG lastDriftCheckTick = 0;
-  int lastHeartbeatFrame = -300;
+  double holdSeconds = 0.0;
+  double heartbeatSeconds = 0.0;
+  double maxAbsErrorSeconds = 0.0;
+  uint32_t snaps = 0;
 };
 
-static DirectVmdAudioRuntimeState s_directVmdAudio;
+static DirectVmdAudioFollower s_directVmdAudioFollower;
+static std::atomic<uint64_t> s_directVmdAudioResetRevision{0};
+static std::atomic<bool> s_directVmdAudioOwnsDevice{false};
 
 static const char *DirectVmdAudio_RangeName(DirectVmdAudioRange range) {
   switch (range) {
@@ -2676,28 +2679,12 @@ static const char *DirectVmdAudio_RangeName(DirectVmdAudioRange range) {
   }
 }
 
-static void DirectVmdAudio_RecordFrame(
-    const DirectVmdSampleFrame &frame,
-    const DirectVmdAudioTimelineTarget &target, float speed) {
-  s_directVmdAudio.initialized = true;
-  s_directVmdAudio.sequence = frame.sequence;
-  s_directVmdAudio.rigGeneration = frame.rigGeneration;
-  s_directVmdAudio.clipGeneration = frame.clipGeneration;
-  s_directVmdAudio.playbackCycle = frame.playbackCycle;
-  s_directVmdAudio.seekRevision = frame.seekRevision;
-  s_directVmdAudio.ownerCharacter = frame.ownerCharacter;
-  s_directVmdAudio.playback = frame.playback;
-  s_directVmdAudio.range = target.range;
-  s_directVmdAudio.offsetSeconds = g_audioOffset;
-  s_directVmdAudio.speed = speed;
-  s_directVmdAudio.targetMilliseconds = target.mediaMilliseconds;
-}
-
 static void DirectVmdAudio_ResetMainThread(const char *reason,
                                            bool closeResource) {
   if (!GhostRig_RequireMainThread("P6.Audio.Reset", true))
     return;
-  const bool hadOwnership = s_directVmdAudio.ownsDevice;
+  const bool hadOwnership =
+      s_directVmdAudioOwnsDevice.exchange(false, std::memory_order_acq_rel);
   const bool wasLoaded = g_audioPlayer && g_audioPlayer->loaded;
   const bool wasPlaying = wasLoaded && g_audioPlayer->playing;
   if (hadOwnership && wasLoaded) {
@@ -2706,7 +2693,7 @@ static void DirectVmdAudio_ResetMainThread(const char *reason,
   }
   if (closeResource && g_audioPlayer)
     g_audioPlayer->Close();
-  s_directVmdAudio = DirectVmdAudioRuntimeState{};
+  s_directVmdAudioResetRevision.fetch_add(1, std::memory_order_acq_rel);
   g_audioIsClock = false;
   g_audioPendingStart = false;
   Log("[P6-AUDIO-LIFECYCLE] event=reset reason=%s hadOwnership=%d "
@@ -2716,231 +2703,237 @@ static void DirectVmdAudio_ResetMainThread(const char *reason,
       GetCurrentThreadId());
 }
 
-static void DirectVmdAudio_UpdateMainThread(int frameNumber) {
-  if (!GhostRig_RequireMainThread("P6.Audio.Update", false))
-    return;
-  if (!g_motionBackend.Is(MotionBackend::DirectVmd)) {
-    if (s_directVmdAudio.ownsDevice || s_directVmdAudio.initialized)
-      DirectVmdAudio_ResetMainThread("backend-not-direct", false);
+static void DirectVmdAudio_WorkerSync(DirectVmdClock *clock,
+                                      const DirectVmdAudioWorkerTick &tick) {
+  DirectVmdAudioFollower &f = s_directVmdAudioFollower;
+  const uint64_t resetRevision =
+      s_directVmdAudioResetRevision.load(std::memory_order_acquire);
+  if (resetRevision != f.resetRevision) {
+    f = DirectVmdAudioFollower{};
+    f.resetRevision = resetRevision;
+  }
+
+  AudioPlayer *audio = g_audioPlayer;
+  const bool directBackend = g_motionBackend.Is(MotionBackend::DirectVmd);
+  const bool audioReady = g_audioEnabled && audio && audio->loaded;
+  if (!clock || !directBackend || !tick.clipLoaded || !audioReady) {
+    if (f.owns && audio &&
+        s_directVmdAudioOwnsDevice.exchange(false,
+                                            std::memory_order_acq_rel)) {
+      audio->SetPlaybackSpeed(1.0f);
+      audio->Stop();
+      Log("[P6-AUDIO-SYNC] event=release reason=%s tid=%lu",
+          !directBackend ? "backend-not-direct"
+                         : (!tick.clipLoaded ? "clip-unloaded"
+                                             : (g_audioEnabled
+                                                    ? "audio-unloaded"
+                                                    : "audio-disabled")),
+          GetCurrentThreadId());
+    }
+    if (f.initialized) {
+      f = DirectVmdAudioFollower{};
+      f.resetRevision = resetRevision;
+    }
     return;
   }
 
-  DirectVmdSampleFrame frame;
-  const bool copied = DirectVmdRuntime_CopyLatestFrame(&frame);
-  const uint64_t targetGeneration =
-      DirectVmdRuntime_PublicTargetGeneration();
-  const uint64_t clipGeneration =
-      DirectVmdRuntime_PublicClipGeneration();
-  const uintptr_t targetOwner = DirectVmdRuntime_PublicTargetOwner();
-  uint64_t ghostGeneration = 0;
-  uintptr_t ghostOwner = 0;
-  const bool ghostIdentityValid = GhostRig_GetDirectChannelIdentity(
-      &ghostGeneration, &ghostOwner);
-  const bool identityValid =
-      copied && frame.valid && ghostIdentityValid &&
-      targetGeneration != 0 && targetOwner != 0 &&
-      frame.rigGeneration == targetGeneration &&
-      frame.clipGeneration == clipGeneration &&
-      frame.ownerCharacter == targetOwner &&
-      frame.rigGeneration == ghostGeneration &&
-      frame.ownerCharacter == ghostOwner;
-  if (!identityValid) {
-    if (s_directVmdAudio.ownsDevice || s_directVmdAudio.initialized)
-      DirectVmdAudio_ResetMainThread("invalid-generation-or-frame", false);
-    return;
-  }
-
-  if (!g_audioEnabled || !g_audioPlayer || !g_audioPlayer->loaded) {
-    if (s_directVmdAudio.ownsDevice || s_directVmdAudio.initialized)
-      DirectVmdAudio_ResetMainThread(
-          g_audioEnabled ? "audio-resource-unloaded" : "audio-disabled",
-          false);
-    return;
-  }
-  if (s_directVmdAudio.initialized &&
-      frame.sequence == s_directVmdAudio.sequence)
-    return;
-
-  g_audioIsClock = false;
-  g_audioPendingStart = false;
-  const float speed = DirectVmdRuntime_GetSpeed();
+  const float offset = g_audioOffset;
+  const float speed = static_cast<float>(clock->speed);
+  const uint32_t loadGeneration = audio->LoadGeneration();
+  const DirectVmdPlaybackState state = clock->state;
   const DirectVmdAudioTimelineTarget target = DirectVmdComputeAudioTarget(
-      frame.sourceFrame, static_cast<double>(g_audioOffset),
-      g_audioPlayer->GetLengthMs());
+      clock->frame, static_cast<double>(offset), audio->GetLengthMs());
 
-  const bool identityChanged =
-      !s_directVmdAudio.initialized ||
-      frame.rigGeneration != s_directVmdAudio.rigGeneration ||
-      frame.clipGeneration != s_directVmdAudio.clipGeneration ||
-      frame.ownerCharacter != s_directVmdAudio.ownerCharacter;
+  const bool identityChanged = !f.initialized ||
+                               tick.clipGeneration != f.clipGeneration ||
+                               loadGeneration != f.loadGeneration;
   const bool seekChanged =
-      s_directVmdAudio.initialized &&
-      frame.seekRevision != s_directVmdAudio.seekRevision;
-  const bool cycleChanged =
-      s_directVmdAudio.initialized &&
-      frame.playbackCycle != s_directVmdAudio.playbackCycle;
-  const bool playbackChanged =
-      !s_directVmdAudio.initialized ||
-      frame.playback != s_directVmdAudio.playback;
+      f.initialized && tick.seekRevision != f.seekRevision;
+  const bool cycleChanged = f.initialized && clock->loopCycle != f.loopCycle;
+  const bool playbackChanged = !f.initialized || state != f.playback;
   const bool offsetChanged =
-      s_directVmdAudio.initialized &&
-      fabsf(g_audioOffset - s_directVmdAudio.offsetSeconds) > 0.0005f;
-  const bool rangeChanged =
-      !s_directVmdAudio.initialized || target.range != s_directVmdAudio.range;
-  const bool speedChanged =
-      !s_directVmdAudio.initialized ||
-      fabsf(speed - s_directVmdAudio.speed) > 0.0005f;
+      f.initialized && fabsf(offset - f.offsetSeconds) > 0.0005f;
+  const bool rangeChanged = !f.initialized || target.range != f.range;
   const bool timelineJump = identityChanged || seekChanged || cycleChanged ||
                             offsetChanged || rangeChanged;
 
-  if (identityChanged && s_directVmdAudio.ownsDevice) {
-    g_audioPlayer->Stop();
-    s_directVmdAudio.ownsDevice = false;
-  }
+  auto claim = [&]() {
+    f.owns = true;
+    s_directVmdAudioOwnsDevice.store(true, std::memory_order_release);
+  };
+  auto record = [&]() {
+    f.initialized = true;
+    f.clipGeneration = tick.clipGeneration;
+    f.seekRevision = tick.seekRevision;
+    f.loopCycle = clock->loopCycle;
+    f.playback = state;
+    f.range = target.range;
+    f.offsetSeconds = offset;
+    f.targetMilliseconds = target.mediaMilliseconds;
+    f.loadGeneration = loadGeneration;
+  };
 
-  if (frame.playback == DirectVmdPlaybackState::Stopped) {
-    if (s_directVmdAudio.ownsDevice) {
-      g_audioPlayer->Stop();
-      Log("[P6-AUDIO-SYNC] event=stop sourceFrame=%.6f sequence=%llu "
-          "generation=%llu owner=%p sameClock=1 tid=%lu",
-          frame.sourceFrame, (unsigned long long)frame.sequence,
-          (unsigned long long)frame.rigGeneration,
-          reinterpret_cast<void *>(frame.ownerCharacter),
-          GetCurrentThreadId());
+  g_audioIsClock = false;
+  g_audioPendingStart = false;
+  audio->SetPlaybackSpeed(speed);
+
+  if (state == DirectVmdPlaybackState::Stopped) {
+    if (f.owns) {
+      audio->Stop();
+      Log("[P6-AUDIO-SYNC] event=stop sourceFrame=%.6f tid=%lu",
+          clock->frame, GetCurrentThreadId());
     }
-    s_directVmdAudio.ownsDevice = false;
-    DirectVmdAudio_RecordFrame(frame, target, speed);
+    f.owns = false;
+    s_directVmdAudioOwnsDevice.store(false, std::memory_order_release);
+    f.locked = f.holding = false;
+    record();
     return;
   }
 
-  if (frame.playback == DirectVmdPlaybackState::Ended) {
-    if (timelineJump || playbackChanged || g_audioPlayer->playing) {
-      g_audioPlayer->SeekTo(target.mediaMilliseconds);
-      Log("[P6-AUDIO-SYNC] event=ended-hold sourceFrame=%.6f "
-          "audioMs=%d range=%s cycle=%llu seekRevision=%llu "
-          "sequence=%llu generation=%llu owner=%p sameClock=1 tid=%lu",
-          frame.sourceFrame, target.mediaMilliseconds,
+  if (state == DirectVmdPlaybackState::Paused ||
+      state == DirectVmdPlaybackState::Ended) {
+    if (audio->playing)
+      audio->Pause();
+    const bool jump = timelineJump || playbackChanged;
+    if (jump || target.mediaMilliseconds != f.targetMilliseconds)
+      audio->SeekTo(target.mediaMilliseconds);
+    if (jump) {
+      Log("[P6-AUDIO-SYNC] event=%s sourceFrame=%.6f audioMs=%d range=%s "
+          "cycle=%llu seekRevision=%llu tid=%lu",
+          state == DirectVmdPlaybackState::Ended ? "ended-hold"
+                                                 : "paused-seek",
+          clock->frame, target.mediaMilliseconds,
           DirectVmdAudio_RangeName(target.range),
-          (unsigned long long)frame.playbackCycle,
-          (unsigned long long)frame.seekRevision,
-          (unsigned long long)frame.sequence,
-          (unsigned long long)frame.rigGeneration,
-          reinterpret_cast<void *>(frame.ownerCharacter),
-          GetCurrentThreadId());
+          (unsigned long long)clock->loopCycle,
+          (unsigned long long)tick.seekRevision, GetCurrentThreadId());
     }
-    s_directVmdAudio.ownsDevice = true;
-    DirectVmdAudio_RecordFrame(frame, target, speed);
-    return;
-  }
-
-  if (frame.playback == DirectVmdPlaybackState::Paused) {
-    const bool needsPausedSeek =
-        timelineJump || playbackChanged ||
-        target.mediaMilliseconds != s_directVmdAudio.targetMilliseconds;
-    if (needsPausedSeek) {
-      g_audioPlayer->SeekTo(target.mediaMilliseconds);
-      Log("[P6-AUDIO-SYNC] event=paused-seek sourceFrame=%.6f "
-          "audioMs=%d range=%s cycle=%llu seekRevision=%llu "
-          "sequence=%llu generation=%llu owner=%p sameClock=1 tid=%lu",
-          frame.sourceFrame, target.mediaMilliseconds,
-          DirectVmdAudio_RangeName(target.range),
-          (unsigned long long)frame.playbackCycle,
-          (unsigned long long)frame.seekRevision,
-          (unsigned long long)frame.sequence,
-          (unsigned long long)frame.rigGeneration,
-          reinterpret_cast<void *>(frame.ownerCharacter),
-          GetCurrentThreadId());
-    } else if (s_directVmdAudio.ownsDevice && g_audioPlayer->playing) {
-      g_audioPlayer->Pause();
-    }
-    s_directVmdAudio.ownsDevice = true;
-    DirectVmdAudio_RecordFrame(frame, target, speed);
+    claim();
+    f.locked = f.holding = false;
+    record();
     return;
   }
 
   if (target.range != DirectVmdAudioRange::Audible) {
-    if (timelineJump || playbackChanged || g_audioPlayer->playing) {
-      g_audioPlayer->SeekTo(target.mediaMilliseconds);
+    const bool jump = timelineJump || playbackChanged;
+    if (audio->playing || jump)
+      audio->SeekTo(target.mediaMilliseconds);
+    if (jump) {
       Log("[P6-AUDIO-SYNC] event=%s sourceFrame=%.6f audioMs=%d "
-          "cycle=%llu seekRevision=%llu sequence=%llu generation=%llu "
-          "owner=%p sameClock=1 tid=%lu",
-          target.range == DirectVmdAudioRange::Delayed
-              ? "offset-delay"
-              : "audio-past-end",
-          frame.sourceFrame, target.mediaMilliseconds,
-          (unsigned long long)frame.playbackCycle,
-          (unsigned long long)frame.seekRevision,
-          (unsigned long long)frame.sequence,
-          (unsigned long long)frame.rigGeneration,
-          reinterpret_cast<void *>(frame.ownerCharacter),
-          GetCurrentThreadId());
+          "cycle=%llu seekRevision=%llu clock=qpc tid=%lu",
+          target.range == DirectVmdAudioRange::Delayed ? "offset-delay"
+                                                       : "audio-past-end",
+          clock->frame, target.mediaMilliseconds,
+          (unsigned long long)clock->loopCycle,
+          (unsigned long long)tick.seekRevision, GetCurrentThreadId());
     }
-    s_directVmdAudio.ownsDevice = true;
-    DirectVmdAudio_RecordFrame(frame, target, speed);
+    claim();
+    f.locked = f.holding = false;
+    record();
     return;
   }
 
-  if (speedChanged || timelineJump || playbackChanged)
-    g_audioPlayer->SetPlaybackSpeed(speed);
   const bool needsStart =
-      timelineJump || playbackChanged || !s_directVmdAudio.ownsDevice ||
-      !g_audioPlayer->playing;
+      timelineJump || playbackChanged || !f.owns ||
+      (!audio->playing && !audio->EndedNaturally());
   if (needsStart) {
-    if (g_audioPlayer->playing)
-      g_audioPlayer->Pause();
-    g_audioPlayer->PlayFrom(target.mediaMilliseconds);
-    g_audioPlayer->SetVolume(g_audioVolume);
-    s_directVmdAudio.ownsDevice = true;
-    s_directVmdAudio.lastDriftCheckTick = GetTickCount64();
-    Log("[P6-AUDIO-SYNC] event=%s sourceFrame=%.6f audioMs=%d "
-        "speed=%.3f cycle=%llu seekRevision=%llu sequence=%llu "
-        "generation=%llu owner=%p sameClock=1 audioDrivesVmd=0 tid=%lu",
-        cycleChanged ? "loop-restart"
-                     : (seekChanged ? "seek" :
-                        (playbackChanged ? "play-or-resume" : "start")),
-        frame.sourceFrame, target.mediaMilliseconds, speed,
-        (unsigned long long)frame.playbackCycle,
-        (unsigned long long)frame.seekRevision,
-        (unsigned long long)frame.sequence,
-        (unsigned long long)frame.rigGeneration,
-        reinterpret_cast<void *>(frame.ownerCharacter),
+    audio->PlayFrom(target.mediaMilliseconds);
+    audio->SetVolume(g_audioVolume);
+    claim();
+    f.locked = false;
+    f.holding =
+        identityChanged || seekChanged || cycleChanged || playbackChanged;
+    f.holdSeconds = 0.0;
+    AudioClockSample started;
+    audio->QueryClock(&started);
+    f.holdEpoch = started.commandEpoch;
+    Log("[P6-AUDIO-SYNC] event=%s sourceFrame=%.6f audioMs=%d speed=%.3f "
+        "cycle=%llu seekRevision=%llu hold=%d nonBlocking=1 tid=%lu",
+        identityChanged ? "start"
+                        : (cycleChanged ? "loop-restart"
+                                        : (seekChanged ? "seek"
+                                                       : (playbackChanged
+                                                              ? "play-or-resume"
+                                                              : "retarget"))),
+        clock->frame, target.mediaMilliseconds, speed,
+        (unsigned long long)clock->loopCycle,
+        (unsigned long long)tick.seekRevision, f.holding ? 1 : 0,
         GetCurrentThreadId());
-  } else {
-    const ULONGLONG now = GetTickCount64();
-    if (now - s_directVmdAudio.lastDriftCheckTick >= 500) {
-      s_directVmdAudio.lastDriftCheckTick = now;
-      const int actual = g_audioPlayer->GetPositionMs();
-      const int drift = actual >= 0 ? actual - target.mediaMilliseconds : 0;
-      if (actual >= 0 && abs(drift) > 120) {
-        g_audioPlayer->Pause();
-        g_audioPlayer->PlayFrom(target.mediaMilliseconds);
-        Log("[P6-AUDIO-DRIFT] action=correct sourceFrame=%.6f "
-            "desiredMs=%d actualMs=%d driftMs=%d speed=%.3f "
-            "sequence=%llu sameClock=1 audioDrivesVmd=0 tid=%lu",
-            frame.sourceFrame, target.mediaMilliseconds, actual, drift,
-            speed, (unsigned long long)frame.sequence,
-            GetCurrentThreadId());
-      }
+    record();
+    return;
+  }
+
+  AudioClockSample sample;
+  const bool clockValid = audio->QueryClock(&sample);
+  const bool newestAudible = clockValid && sample.audibleMedia &&
+                             sample.audibleEpoch == sample.commandEpoch;
+  if (f.holding) {
+    f.holdSeconds += tick.elapsedSeconds;
+    if (newestAudible && sample.commandEpoch == f.holdEpoch) {
+      f.holding = false;
+      Log("[P6-AUDIO-SYNC] event=audible heldMs=%.1f latencyMs=%.1f "
+          "audibleMs=%.1f sourceFrame=%.6f tid=%lu",
+          f.holdSeconds * 1000.0, sample.latencySeconds * 1000.0,
+          sample.mediaSeconds * 1000.0, clock->frame, GetCurrentThreadId());
+    } else if ((!clockValid && !audio->DevicePending()) ||
+               f.holdSeconds >= kDirectVmdAudioStartHoldSeconds) {
+      f.holding = false;
+      Log("[P6-AUDIO-SYNC] event=hold-abandoned reason=%s heldMs=%.1f "
+          "clock=qpc tid=%lu",
+          clockValid ? "timeout" : "no-device-clock",
+          f.holdSeconds * 1000.0, GetCurrentThreadId());
+    } else {
+      if (clock->loopCycle == tick.cycleBeforeAdvance)
+        clock->frame = tick.frameBeforeAdvance;
+      record();
+      return;
     }
   }
 
-  if (frameNumber - s_directVmdAudio.lastHeartbeatFrame >= 300) {
-    s_directVmdAudio.lastHeartbeatFrame = frameNumber;
-    const int actual = g_audioPlayer->GetPositionMs();
-    Log("[P6-AUDIO-HEARTBEAT] hookFrame=%d sourceFrame=%.6f "
-        "desiredMs=%d actualMs=%d speed=%.3f playback=%u cycle=%llu "
-        "seekRevision=%llu sequence=%llu generation=%llu owner=%p "
-        "sameClock=1 audioDrivesVmd=0 tid=%lu",
-        frameNumber, frame.sourceFrame, target.mediaMilliseconds, actual,
-        speed, static_cast<unsigned>(frame.playback),
-        (unsigned long long)frame.playbackCycle,
-        (unsigned long long)frame.seekRevision,
-        (unsigned long long)frame.sequence,
-        (unsigned long long)frame.rigGeneration,
-        reinterpret_cast<void *>(frame.ownerCharacter),
-        GetCurrentThreadId());
+  if (newestAudible && clock->loopCycle == tick.cycleBeforeAdvance) {
+    const DirectVmdAudioLockResult lock = DirectVmdAudioLockClockFrame(
+        clock->frame, sample.mediaSeconds, static_cast<double>(offset),
+        tick.elapsedSeconds, clock->durationFrames);
+    clock->frame = lock.frame;
+    if (!f.locked) {
+      f.locked = true;
+      Log("[P6-AUDIO-LOCK] event=acquired errorMs=%.1f latencyMs=%.1f "
+          "sourceFrame=%.6f tid=%lu",
+          lock.errorSeconds * 1000.0, sample.latencySeconds * 1000.0,
+          clock->frame, GetCurrentThreadId());
+    }
+    if (lock.snapped) {
+      if (++f.snaps <= 5 || f.snaps % 100 == 0)
+        Log("[P6-AUDIO-LOCK] event=snap errorMs=%.1f snaps=%u "
+            "sourceFrame=%.6f tid=%lu",
+            lock.errorSeconds * 1000.0, f.snaps, clock->frame,
+            GetCurrentThreadId());
+    } else {
+      f.maxAbsErrorSeconds =
+          (std::max)(f.maxAbsErrorSeconds, std::fabs(lock.errorSeconds));
+    }
+  } else if (f.locked) {
+    f.locked = false;
+    Log("[P6-AUDIO-LOCK] event=released reason=%s sourceFrame=%.6f tid=%lu",
+        !clockValid ? "no-device-clock"
+                    : (!sample.audibleMedia ? "silence" : "command-pending"),
+        clock->frame, GetCurrentThreadId());
   }
-  DirectVmdAudio_RecordFrame(frame, target, speed);
+
+  f.heartbeatSeconds += tick.elapsedSeconds;
+  if (f.heartbeatSeconds >= 5.0) {
+    f.heartbeatSeconds = 0.0;
+    Log("[P6-AUDIO-HEARTBEAT] sourceFrame=%.3f desiredMs=%d audibleMs=%.1f "
+        "maxErrorMs=%.2f latencyMs=%.1f locked=%d snaps=%u speed=%.3f "
+        "clock=%s tid=%lu",
+        clock->frame, target.mediaMilliseconds,
+        clockValid ? sample.mediaSeconds * 1000.0 : -1.0,
+        f.maxAbsErrorSeconds * 1000.0,
+        clockValid ? sample.latencySeconds * 1000.0 : -1.0,
+        f.locked ? 1 : 0, f.snaps, speed,
+        f.locked ? "audio-device" : "qpc", GetCurrentThreadId());
+    f.maxAbsErrorSeconds = 0.0;
+  }
+  record();
 }
 
 static bool MotionBackend_RequireCommandThread(const char *stage) {
@@ -3086,6 +3079,11 @@ static void MotionBackend_EnterNativeMainThread(
        MotionBackend_HasMuscleOwnership())) {
     MotionBackend_ReleaseMuscleMainThread(reason);
   }
+  if ((cleanupReason == GhostRigCleanupReason::PluginDisabled ||
+       cleanupReason == GhostRigCleanupReason::PluginUnload ||
+       cleanupReason == GhostRigCleanupReason::WindowClosing) &&
+      g_audioPlayer)
+    g_audioPlayer->Close();
   ClothRelease(reason);
   SafeSetAnimatorEnabled(true);
   if (previous == MotionBackend::DirectVmd) {

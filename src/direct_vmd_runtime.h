@@ -65,6 +65,18 @@ struct DirectVmdWorkerState {
 
 static DirectVmdWorkerState s_directVmdWorker;
 
+struct DirectVmdAudioWorkerTick {
+  uint64_t clipGeneration = 0;
+  uint64_t seekRevision = 0;
+  uint64_t cycleBeforeAdvance = 0;
+  double frameBeforeAdvance = 0.0;
+  double elapsedSeconds = 0.0;
+  bool clipLoaded = false;
+};
+
+static void DirectVmdAudio_WorkerSync(DirectVmdClock *clock,
+                                      const DirectVmdAudioWorkerTick &tick);
+
 static void DirectVmdRuntime_PublishFrame(
     const DirectVmdSampleFrame &frame) {
   AcquireSRWLockExclusive(&s_directVmdFrameLock);
@@ -565,6 +577,9 @@ static void DirectVmdRuntime_WorkerTick() {
   s_directVmdWorker.clock.speed =
       s_directVmdSpeed.load(std::memory_order_acquire);
 
+  DirectVmdAudioWorkerTick audioTick;
+  audioTick.frameBeforeAdvance = s_directVmdWorker.clock.frame;
+  audioTick.cycleBeforeAdvance = s_directVmdWorker.clock.loopCycle;
   LARGE_INTEGER now = {};
   QueryPerformanceCounter(&now);
   if (!s_directVmdWorker.qpcReady) {
@@ -575,9 +590,15 @@ static void DirectVmdRuntime_WorkerTick() {
                      static_cast<double>(s_directVmdWorker.frequency.QuadPart);
     s_directVmdWorker.previousTick = now;
     elapsed = (std::max)(0.0, (std::min)(elapsed, 0.25));
-    if (active)
+    if (active) {
       s_directVmdWorker.clock.AdvanceSeconds(elapsed);
+      audioTick.elapsedSeconds = elapsed;
+    }
   }
+  audioTick.clipGeneration = s_directVmdWorker.resource.generation;
+  audioTick.seekRevision = s_directVmdWorker.handledSeekRevision;
+  audioTick.clipLoaded = s_directVmdWorker.resource.IsLoaded();
+  DirectVmdAudio_WorkerSync(&s_directVmdWorker.clock, audioTick);
 
   const VmdFile *clip = s_directVmdWorker.resource.Get();
   if (!clip || !clip->loaded) {
