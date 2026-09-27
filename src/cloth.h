@@ -1,9 +1,11 @@
 #pragma once
-#include "cloth_state.h"
+#include "cloth/core/cloth_state.h"
+#include "cloth/core/cloth_writer_state.h"
 #include <cmath>
 
 static std::atomic<float> s_skirtHipRadiusDelta{0.124f};
 static std::atomic<bool> s_skirtDirty{true};
+static std::atomic<int> s_collisionGeometry{1};
 static std::atomic<uint64_t> s_clothInvalidation{1};
 using ClothFreeNameFn = void (*)(void *);
 using ClothMethodFlagsFn = uint32_t (*)(void *, uint32_t *);
@@ -227,6 +229,9 @@ struct ClothInstance {
   uint32_t weightSerializeHandle = 0;
   float originalWeight = NAN, originalPropertyWeight = NAN;
   bool changedWeight = false;
+  eiem_cloth::WeightWriterEvidence weightWriter{};
+  void *writerProcessClass = nullptr;
+  void *writerStateMethods[7]{};
   float originalRatio = NAN, originalPropertyRatio = NAN;
   bool capturedRatio = false, changedRatio = false;
   bool poseProbesAttempted = false, poseSubmissionLogged = false;
@@ -263,13 +268,24 @@ struct ClothAnchor {
   int lastFrame = -1;
 };
 constexpr size_t ClothAnchorCapacity = 128;
+constexpr int ClothDiscoveryDepthLimit = 64, ClothDiscoveryNodeLimit = 4096;
+struct ClothDiscoveryReport {
+  int nodes = 0, maxDepth = 0, depthCuts = 0, nodeCuts = 0;
+  int readFailures = 0, capacityCuts = 0, pending = 0;
+  bool complete = false;
+  const char *firstFailure = "none";
+};
 struct ClothSession {
   eiem_cloth::Owner owner{};
   ClothRef animator{};
+  ClothBoneGuard bodyGuard = nullptr;
   uint64_t invalidation = 0, nextDiscovery = 0;
   unsigned scans = 0;
   int scene = 0, lastFrame = -1, count = 0;
   bool active = false, releasing = false, failed = false;
+  bool emptySourceReported = false;
+  const char *failureReason = "none";
+  ClothDiscoveryReport discovery{};
   unsigned restoreAttempts = 0;
   uint64_t nextRestore = 0;
   ClothInstance instances[ClothCapacity]{};
@@ -384,6 +400,8 @@ static bool ClothRead(ClothInstance &i, ClothReadback &r) {
   return ok;
 }
 
+#include "cloth/core/cloth_writer.h"
+
 static bool ClothCaptureWeight(ClothInstance &i) {
   if (i.weightSerializeHandle) return true;
   const auto &r = i.last;
@@ -405,8 +423,15 @@ static bool ClothWriteWeight(ClothInstance &i) {
   float value = eiem_cloth::PlaybackWeight;
   void *args[] = {&value};
   i.changedWeight = true;
-  const bool invoked = ClothInvoke(i.api.weight, obj, args, unused);
+  const bool invoked = ClothInvokeWeightCommand(i.api.weight, obj, args, unused);
   const bool pushed = invoked && ClothOwns(work) && ClothInvoke(i.api.changed, obj, nullptr, unused);
+  float actual = NAN, property = NAN;
+  const bool read = ClothField(sd, "clothSimulateWeight", "System.Single", actual) &&
+      ClothField(obj, "clothSimulateWeightProperty", "System.Single", property);
+  i.weightWriter.ownWriteConfirmed = pushed && read && eiem_cloth::WeightAtTarget(actual);
+  Log("[CLOTH-WRITER-OWN] session=%llu instance=%d frame=%d command=%d read=%d serialized=%g property=%g targetConfirmed=%d",
+      (unsigned long long)work.session, i.ref.id.instance, ClothFrame(), pushed, read, actual,
+      property, i.weightWriter.ownWriteConfirmed);
   ClothLog("WEIGHT-COMMAND", &i, pushed ? "setter-and-parameter-push-issued-awaiting-later-readback" : "setter-or-parameter-push-failed");
   return pushed;
 }
@@ -469,7 +494,7 @@ static bool ClothRestoreWeight(ClothInstance &i, void *obj) {
   }
   float value = i.originalWeight;
   void *args[] = {&value};
-  const bool issued = ClothInvoke(i.api.weight, obj, args, unused) &&
+  const bool issued = ClothInvokeWeightCommand(i.api.weight, obj, args, unused) &&
       ClothInvoke(i.api.changed, obj, nullptr, unused);
   float actual = NAN, property = NAN;
   const bool read = ClothField(sd, "clothSimulateWeight", "System.Single", actual) &&
@@ -549,7 +574,7 @@ static void ClothLogPoseProbes(ClothInstance &i, const char *stage) {
   }
 }
 
-#include "cloth_anchor.h"
+#include "cloth/core/cloth_anchor.h"
 
 static bool ClothWriteCollider(ClothColliderOriginal &c, bool restore) {
   if (!restore && !ClothOwns(s_cloth.owner)) return false;
@@ -560,11 +585,17 @@ static bool ClothWriteCollider(ClothColliderOriginal &c, bool restore) {
   Vector3 size = c.size, center = c.center;
   bool separation = c.separation;
   if (!restore) {
-    if (fabsf(c.center.x) <= 0.1f) { c.applied = true; return true; }
-    const float hs = g_charHeight > 0.1f ? g_charHeight / 1.245f : 1.0f;
-    float hip = c.size.x + s_skirtHipRadiusDelta.load(std::memory_order_acquire) * hs;
-    size.y = (hip < c.size.x * 3.0f) ? hip : c.size.x * 3.0f;
-    separation = true;
+    if (s_collisionGeometry.load(std::memory_order_acquire) == 1) {
+      if (!c.changed) { c.applied = true; return true; }
+    } else {
+      if (fabsf(c.center.x) <= 0.1f && !c.changed) { c.applied = true; return true; }
+      if (fabsf(c.center.x) > 0.1f) {
+        const float hs = g_charHeight > 0.1f ? g_charHeight / 1.245f : 1.0f;
+        float hip = c.size.x + s_skirtHipRadiusDelta.load(std::memory_order_acquire) * hs;
+        size.y = (hip < c.size.x * 3.0f) ? hip : c.size.x * 3.0f;
+        separation = true;
+      }
+    }
   }
   c.changed = true;
   __try {
@@ -695,7 +726,10 @@ static bool ClothApplyColliders(ClothInstance &i, bool dirty, uint64_t now) {
   return true;
 }
 
+#include "cloth/core/cloth_collision.h"
+
 static bool ClothRestore() {
+  if (ClothBoneLeased()) return false;
   bool ok = true, parametersChanged = false;
   for (size_t n = 0; n < s_cloth.anchors.count; ++n)
     ok &= ClothRestoreAnchor(s_cloth.anchors.entries[n].value);
@@ -759,16 +793,22 @@ static bool ClothRestore() {
     ClothLog("RELEASED", nullptr, "restored-before-cache-clear-native-producers-unblocked-no-reset");
     const auto owner = s_cloth.owner;
     const bool failed = s_cloth.failed;
+    const char *failureReason = s_cloth.failureReason;
+    const auto discovery = s_cloth.discovery;
     const uint64_t invalidation = s_cloth.invalidation;
     s_cloth = {};
     s_cloth.owner = owner;
     s_cloth.failed = failed;
+    s_cloth.failureReason = failureReason;
+    s_cloth.discovery = discovery;
     s_cloth.invalidation = invalidation;
   }
   return ok;
 }
 static void ClothReleaseImpl(const char *reason) {
   if (!ClothOnMainThread()) { ClothRequestInvalidation(); return; }
+  ClothInputClear();
+  ClothCollisionRelease(reason);
   if (!s_cloth.active) return;
   s_cloth.active = false;
   s_cloth.releasing = true;
@@ -779,27 +819,41 @@ static void ClothReleaseImpl(const char *reason) {
 }
 static void ClothFail(const char *reason) {
   s_cloth.failed = true;
+  s_cloth.failureReason = reason;
   ClothLog("FAILED", nullptr, reason);
   ClothReleaseImpl(reason);
 }
 
 static bool ClothDiscover(uint64_t now) {
+  auto &report = s_cloth.discovery;
+  report = {};
+  auto failure = [&](const char *reason) {
+    if (!strcmp(report.firstFailure, "none")) report.firstFailure = reason;
+  };
   void *animator = ClothTarget(s_cloth.animator), *root = nullptr;
-  if (!animator || !ClothInvoke(s_clothUnity.getTransform, animator, nullptr, root) || !root) return false;
-  struct Node { void *transform; int depth; } stack[512]{};
+  if (!animator || !ClothInvoke(s_clothUnity.getTransform, animator, nullptr, root) || !root) {
+    ++report.readFailures; failure("owner-root-unreadable"); return false;
+  }
+  struct Node { void *transform; int depth; } stack[ClothDiscoveryNodeLimit]{};
   int top = 1, visited = 0, added = 0;
   bool complete = true;
   stack[0] = {root, 0};
   void *type = il2cpp_type_get_object(il2cpp_class_get_type(g_componentClass));
-  if (!type) return false;
-  while (top && visited < 512) {
+  if (!type) { ++report.readFailures; failure("component-type-unavailable"); return false; }
+  while (top && visited < ClothDiscoveryNodeLimit) {
     const Node node = stack[--top];
     ++visited;
+    if (ClothOwnedRoot(node.transform)) continue;
+    report.maxDepth = (std::max)(report.maxDepth, node.depth);
     void *go = nullptr, *array = nullptr, *args[] = {type};
     if (!ClothInvoke(s_clothUnity.getGO, node.transform, nullptr, go) || !go ||
-        !ClothInvoke(s_clothUnity.components, go, args, array) || !array) { complete = false; continue; }
+        !ClothInvoke(s_clothUnity.components, go, args, array) || !array) {
+      complete = false; ++report.readFailures; failure("components-unreadable"); continue;
+    }
     uintptr_t count = *reinterpret_cast<uintptr_t *>((char *)array + 24);
-    if (count > 256) return false;
+    if (count > 256) {
+      complete = false; ++report.capacityCuts; failure("component-array-limit"); continue;
+    }
     void **data = reinterpret_cast<void **>((char *)array + 32);
     for (uintptr_t n = 0; n < count; ++n) {
       void *obj = data[n];
@@ -812,13 +866,14 @@ static bool ClothDiscover(uint64_t now) {
       bool seen = false;
       for (int k = 0; k < s_cloth.count; ++k) seen |= s_cloth.instances[k].ref.id.instance == id;
       if (seen) continue;
-      if (s_cloth.count == ClothCapacity) { complete = false; continue; }
+      if (s_cloth.count == ClothCapacity) { complete = false; ++report.capacityCuts; failure("cloth-capacity-limit"); continue; }
       ClothInstance &i = s_cloth.instances[s_cloth.count];
       i.ref = ClothProtect(obj);
-      if (!i.ref.handle) { complete = false; continue; }
+      if (!i.ref.handle) { complete = false; ++report.readFailures; failure("cloth-identity-unreadable"); continue; }
       ++s_cloth.count;
       ++added;
       i.api = ClothResolve(obj);
+      if (s_clothWeightHookInstaller) s_clothWeightHookInstaller(i.api.weight);
       void *str = nullptr;
       if (ClothInvoke(s_clothUnity.name, go, nullptr, str)) ReadStrUtf8(str, i.name, sizeof(i.name));
       i.skirt = strstr(i.name, "Skirt") || strstr(i.name, "skirt");
@@ -841,21 +896,31 @@ static bool ClothDiscover(uint64_t now) {
       }
     }
     int children = 0;
-    if (!ClothValue(s_clothUnity.childCount, node.transform, children) || children < 0) { complete = false; continue; }
-    if (node.depth >= 16 && children) { complete = false; continue; }
+    if (!ClothValue(s_clothUnity.childCount, node.transform, children) || children < 0) {
+      complete = false; ++report.readFailures; failure("child-count-unreadable"); continue;
+    }
+    if (node.depth >= ClothDiscoveryDepthLimit && children) {
+      complete = false; ++report.depthCuts; failure("hierarchy-depth-limit"); continue;
+    }
     for (int n = 0; n < children; ++n) {
       void *child = nullptr, *childArgs[] = {&n};
-      if (top == 512) { complete = false; break; }
-      if (!ClothInvoke(s_clothUnity.child, node.transform, childArgs, child) || !child) { complete = false; continue; }
+      if (top == ClothDiscoveryNodeLimit) { complete = false; ++report.nodeCuts; failure("pending-node-limit"); break; }
+      if (!ClothInvoke(s_clothUnity.child, node.transform, childArgs, child) || !child) {
+        complete = false; ++report.readFailures; failure("child-unreadable"); continue;
+      }
       stack[top++] = {child, node.depth + 1};
     }
   }
   complete &= top == 0;
+  if (top) { ++report.nodeCuts; failure("visited-node-limit"); }
+  report.nodes = visited; report.pending = top; report.complete = complete;
   ++s_cloth.scans;
   s_cloth.nextDiscovery = now + eiem_cloth::DiscoveryMs;
   ClothLog("DISCOVERY", nullptr, !complete ? "truncated-or-read-failure-not-complete" : s_cloth.count ? "bounded-owner-hierarchy-scanned" : "no-cloth-retry-pending");
-  Log("[CLOTH-COVERAGE] session=%llu scan=%u nodes=%d added=%d total=%d complete=%d limits=depth16/nodes512/cloth64",
-      (unsigned long long)s_cloth.owner.session, s_cloth.scans, visited, added, s_cloth.count, complete);
+  Log("[CLOTH-COVERAGE] session=%llu scan=%u nodes=%d added=%d total=%d complete=%d maxDepth=%d depthCuts=%d nodeCuts=%d readFailures=%d capacityCuts=%d pending=%d firstFailure=%s limits=depth%d/nodes%d/cloth%zu",
+      (unsigned long long)s_cloth.owner.session, s_cloth.scans, visited, added, s_cloth.count, complete,
+      report.maxDepth, report.depthCuts, report.nodeCuts, report.readFailures, report.capacityCuts,
+      report.pending, report.firstFailure, ClothDiscoveryDepthLimit, ClothDiscoveryNodeLimit, ClothCapacity);
   return complete;
 }
 
@@ -870,6 +935,7 @@ static void ClothBeginImpl(MotionBackend backend, bool explicitPlay) {
   if (same && s_cloth.failed && !explicitPlay) return;
   if (s_cloth.active) ClothReleaseImpl("begin-owner-change");
   if (s_cloth.releasing) {
+    if (ClothBoneLeased()) return;
     if (!explicitPlay) return;
     s_cloth.restoreAttempts = 1;
     s_cloth.nextRestore = GetTickCount64() + eiem_cloth::PollMs;
@@ -915,8 +981,12 @@ static bool ClothSameFloat(float a, float b) {
 }
 static void ClothTickImpl(const char *stage, bool poseSubmitted, ClothBoneGuard boneGuard) {
   if (!ClothOnMainThread()) return;
+  ClothShoulderDriverMaintenance();
+  ClothCollisionServiceUi();
+  ClothCollisionMaintenance();
   const uint64_t now = GetTickCount64();
   if (s_cloth.releasing) {
+    if (ClothBoneLeased()) return;
     if (s_cloth.restoreAttempts < eiem_cloth::RestoreAttempts && now >= s_cloth.nextRestore) {
       ++s_cloth.restoreAttempts;
       s_cloth.nextRestore = now + eiem_cloth::PollMs;
@@ -937,6 +1007,7 @@ static void ClothTickImpl(const char *stage, bool poseSubmitted, ClothBoneGuard 
     return;
   }
   if (!poseSubmitted) return;
+  s_cloth.bodyGuard = boneGuard;
   int frame = ClothFrame();
   if (frame < 0) { ClothFail("unity-frame-unavailable"); return; }
   if (frame == s_cloth.lastFrame) return;
@@ -945,7 +1016,11 @@ static void ClothTickImpl(const char *stage, bool poseSubmitted, ClothBoneGuard 
     if (!ClothDiscover(now)) { ClothFail("discovery-incomplete"); return; }
   }
   if (!s_cloth.count && s_cloth.scans == eiem_cloth::DiscoveryAttempts) {
-    ClothFail("no-cloth-found-coverage-not-proven"); return;
+    if (!s_cloth.discovery.complete) { ClothFail("discovery-incomplete"); return; }
+    if (!s_cloth.emptySourceReported) {
+      s_cloth.emptySourceReported = true;
+      ClothLog("DISCOVERY", nullptr, "no-source-BBC-owner-retained-for-runtime-asset-discovery");
+    }
   }
   const bool dirty = s_skirtDirty.exchange(false, std::memory_order_acq_rel);
   for (int n = 0; n < s_cloth.count; ++n) {
@@ -956,6 +1031,10 @@ static void ClothTickImpl(const char *stage, bool poseSubmitted, ClothBoneGuard 
     const char *oldReason = i.startup.reason;
     ClothReadback r{};
     ClothRead(i, r);
+    if (ClothBoneLeasedInstance(i)) {
+      i.last=r;
+      i.nextPoll=now+eiem_cloth::AuditMs; continue;
+    }
     if (r.serialize && i.weightSerializeHandle &&
         r.serialize != il2cpp_gchandle_get_target(i.weightSerializeHandle)) {
       ClothLog("WEIGHT-IDENTITY", &i, "serialize-replaced-cancel-old-weight-transaction");
@@ -978,6 +1057,8 @@ static void ClothTickImpl(const char *stage, bool poseSubmitted, ClothBoneGuard 
       if (i.processHandle) il2cpp_gchandle_free(i.processHandle);
       i.processHandle = r.process ? il2cpp_gchandle_new(r.process, false) : 0;
       i.changedSkip = i.capturedSkip = false;
+      i.weightWriter = {};
+      i.writerProcessClass = nullptr;
       i.startup.readyReads = 0;
       i.startup.skipSent = false;
       for (size_t c = 0; c < s_cloth.colliders.count; ++c)
@@ -1011,7 +1092,10 @@ static void ClothTickImpl(const char *stage, bool poseSubmitted, ClothBoneGuard 
       ClothLog("POSE-READBACK", &i, i.startup.weightSent ? "initial-reference-input-confirmed-game-visuals-unverified" : "native-reference-retained-normal-start");
       ClothLogPoseProbes(i, "startup-inputs-confirmed");
     }
-    if (action == eiem_cloth::Action::Fail) { ClothFail(i.startup.reason); return; }
+    if (action == eiem_cloth::Action::Fail) {
+      ClothLog("FAILED-INSTANCE", &i, i.startup.reason);
+      ClothFail(i.startup.reason); return;
+    }
     void *obj = ClothTarget(i.ref), *result = nullptr;
     if (!ClothOwns(work)) { ClothReleaseImpl("stale-before-command"); return; }
     bool ok = true;
@@ -1043,6 +1127,7 @@ static void ClothTickImpl(const char *stage, bool poseSubmitted, ClothBoneGuard 
     ClothLog("COMMAND", &i, ok ? "issued-awaiting-readback" : "failed");
     if (!ok) { ClothFail("command-failed-or-managed-exception"); return; }
   }
+  ClothCollisionAfterPose(stage, frame);
   if (s_cloth.lastFrame == frame && frame % 300 == 0)
     ClothLog("SCHEDULE", nullptr, stage);
 }
@@ -1052,6 +1137,7 @@ static void ClothRuntimeFault() {
   s_cloth.active = false;
   s_cloth.releasing = true;
   s_cloth.failed = true;
+  s_cloth.failureReason = "native-access-exception";
   s_cloth.nextRestore = GetTickCount64() + eiem_cloth::PollMs;
   Log("[CLOTH-FAILED] session=%llu reason=native-access-exception snapshotsRetained=1 restoreAttempts=%u",
       (unsigned long long)s_cloth.owner.session, s_cloth.restoreAttempts);
@@ -1069,10 +1155,15 @@ static void ClothBegin(MotionBackend backend, bool explicitPlay = false) {
   __except (EXCEPTION_EXECUTE_HANDLER) { ClothRuntimeFault(); }
   s_clothBusy = false;
 }
-static void ClothTick(const char *stage, bool poseSubmitted = false, ClothBoneGuard boneGuard = nullptr) {
+static void ClothTick(const char *stage, bool poseSubmitted = false, ClothBoneGuard boneGuard = nullptr,
+                      double sourceFrame = NAN) {
   if (!ClothOnMainThread() || s_clothBusy) return;
   s_clothBusy = true;
-  __try { ClothTickImpl(stage, poseSubmitted, boneGuard); ClothDrainCancellation(); }
+  __try {
+    ClothTickImpl(stage, poseSubmitted, boneGuard);
+    if (poseSubmitted) ClothInputSubmit(stage, sourceFrame);
+    ClothDrainCancellation();
+  }
   __except (EXCEPTION_EXECUTE_HANDLER) { ClothRuntimeFault(); }
   s_clothBusy = false;
 }

@@ -33,8 +33,10 @@ D(int, il2cpp_field_get_flags, void *);
 D(void *, il2cpp_class_get_method_from_name, void *, const char *, int);
 D(void *, il2cpp_runtime_invoke, void *, void *, void **, void **);
 D(void *, il2cpp_class_get_parent, void *);
+D(void *, il2cpp_class_get_nested_types, void *, void **);
 D(int32_t, il2cpp_class_value_size, void *, uint32_t *);
 D(void, il2cpp_field_static_get_value, void *, void *);
+D(void, il2cpp_field_set_value_object, void *, void *, void *);
 D(void *, il2cpp_field_get_type, void *);
 D(int, il2cpp_type_get_type, void *);
 D(void *, il2cpp_method_get_return_type, void *);
@@ -121,10 +123,13 @@ static bool Resolve() {
   R(il2cpp_class_get_fields);
   R(il2cpp_field_get_name);
   R(il2cpp_field_get_offset);
+  R(il2cpp_field_get_flags);
   R(il2cpp_runtime_invoke);
   R(il2cpp_class_get_parent);
+  R(il2cpp_class_get_nested_types);
   R(il2cpp_class_value_size);
   R(il2cpp_field_static_get_value);
+  R(il2cpp_field_set_value_object);
   R(il2cpp_field_get_type);
   R(il2cpp_type_get_type);
   R(il2cpp_method_get_return_type);
@@ -140,6 +145,9 @@ static bool Resolve() {
   R(il2cpp_gchandle_get_target);
   R(il2cpp_gchandle_free);
 #undef R
+  Log("[CLOTH-CONTACT-ABI] fieldFlags=%d staticFieldValue=%d classFromType=%d",
+      il2cpp_field_get_flags != nullptr, il2cpp_field_static_get_value != nullptr,
+      il2cpp_class_from_type != nullptr);
   return il2cpp_domain_get && il2cpp_class_get_methods &&
          il2cpp_method_get_name;
 }
@@ -169,6 +177,18 @@ static void *FindMethodInHierarchy(void *k, const char *n, int pc) {
   return nullptr;
 }
 
+static void *FindClassDirect(const char *ns, const char *name, void **asms, size_t count) {
+  if (!il2cpp_class_from_name || !il2cpp_assembly_get_image || !asms) return nullptr;
+  void *found = nullptr;
+  for (size_t n = 0; n < count; ++n) {
+    auto image = il2cpp_assembly_get_image(asms[n]);
+    auto cls = image ? il2cpp_class_from_name(image, ns, name) : nullptr;
+    if (!cls) continue;
+    if (found && found != cls) return nullptr;
+    found = cls;
+  }
+  return found;
+}
 static void *FindClass(const char *ns, const char *n, void **a, size_t c) {
   for (size_t i = 0; i < c; i++) {
     void *img = il2cpp_assembly_get_image(a[i]);

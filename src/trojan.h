@@ -368,6 +368,8 @@ static void __cdecl Hooked_GetInternalAvatarPose(void *nativePtr, void *array,
     orig_GetInternalAvatarPose(nativePtr, array, count);
   }
 
+  if (ClothShoulderReadOnlyPoseActive()) return;
+
   if (!g_motionBackend.Is(MotionBackend::Muscle) ||
       !g_trojanActive || !g_mmdHasMuscles)
     return;
@@ -1210,6 +1212,14 @@ static void __fastcall Hooked_IK_UpdateSolver(void *self, void *methodInfo) {
     ((fn)s_origUpdateSolver)(self, methodInfo);
   }
   GhostRig_AfterFinalIK(self);
+  if (ClothOnMainThread() && g_motionBackend.Is(MotionBackend::Muscle) && g_footIKEnabled &&
+      g_musclePlayer && ClothOwns(s_cloth.owner)) {
+    for (int n = 0; n < s_bipedIKCount; ++n)
+      if (self == s_bipedIK[n] && ClothAnchorUnderOwner(CollisionTransform(self))) {
+        ClothInputSubmit("Muscle.after-owner-FinalIK", s_clothInput.playheadFrame);
+        break;
+      }
+  }
 }
 
 static void PreSampleVmdCenter() {
@@ -2568,7 +2578,8 @@ static void ApplyMmdPoseOnMainThread() {
     }
     ApplyCameraFrame(g_musclePlayer->currentTime);
   }
-  if (!setExc) ClothTick("Muscle.WndProc.after-pose", true, Muscle_ClothMayOwnAnchor);
+  if (!setExc) ClothTick("Muscle.WndProc.after-pose", true, Muscle_ClothMayOwnAnchor,
+                         g_musclePlayer ? g_musclePlayer->currentTime * 30.0 : NAN);
 }
 
 static void ReapplyBoneTransforms() {
@@ -3201,7 +3212,8 @@ static bool MotionBackend_EnterDirectMainThread(bool play,
 
 static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
                                    LPARAM lParam) {
-  if (s_cloth.releasing || (s_cloth.active &&
+  ClothCollisionServiceUi();
+  if (ClothCollisionNeedsMaintenance() || s_cloth.releasing || (s_cloth.active &&
       (s_cloth.invalidation != s_clothInvalidation.load(std::memory_order_acquire) ||
        s_cloth.owner.generation != g_motionBackend.Generation())))
     ClothTick("WndProc.lifecycle");
@@ -3327,9 +3339,11 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
       Log("[GUI-CMD] Pause");
       if (g_motionBackend.Is(MotionBackend::DirectVmd)) {
         DirectVmdRuntime_RequestPause();
+        ClothBoneRequestPauseEvidence();
       } else if (g_motionBackend.Is(MotionBackend::Muscle) &&
           g_musclePlayer && g_musclePlayer->playing) {
         g_musclePlayer->TogglePause();
+        ClothBoneRequestPauseEvidence();
         if (g_audioIsClock && g_audioPlayer) g_audioPlayer->Pause();
       }
       return 0;
@@ -3459,6 +3473,7 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
       } else if (wParam == 2) {
         if (g_motionBackend.Is(MotionBackend::DirectVmd)) {
           DirectVmdRuntime_RequestPause();
+          ClothBoneRequestPauseEvidence();
           Log("[P3-DIRECT-CMD] pause backend=DirectVmd tid=%lu",
               GetCurrentThreadId());
         }

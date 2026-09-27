@@ -9,3 +9,7 @@ bin/
 !deps/**/*.lib
 !deps/**/*.dll
 !deps/**/*.pdb
+
+# Python development caches are never source artifacts.
+__pycache__/
+*.py[cod]

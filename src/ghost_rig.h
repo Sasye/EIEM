@@ -438,7 +438,7 @@ static bool GhostRig_ClothMayOwnAnchor(void *transform) {
 }
 
 static std::atomic<bool> s_ghostDesiredEnabled{false};
-static std::atomic<bool> s_directVmdTerrainDesiredEnabled{false};
+static std::atomic<bool> s_directVmdTerrainDesiredEnabled{true};
 static std::atomic<bool> s_ghostOwnerKnown{false};
 static std::atomic<uintptr_t> s_ghostRequestedOwnerId{0};
 static std::atomic<uint64_t> s_ghostRequestedGeneration{1};
@@ -8189,7 +8189,8 @@ static void GhostRig_AfterFinalIK(void *bipedIK) {
   }
   if (frame != s_ghostRig.lastTargetAppliedFrame)
     return;
-  ClothTick("DirectVmd.after-owner-FinalIK", true, GhostRig_ClothMayOwnAnchor);
+  ClothTick("DirectVmd.after-owner-FinalIK", true, GhostRig_ClothMayOwnAnchor,
+            s_ghostRig.lastSourceFrame);
   const bool periodic = frame >= 0
       ? (s_ghostRig.lastPostFinalIkLogFrame == INT_MIN ||
          frame - s_ghostRig.lastPostFinalIkLogFrame >= 120)

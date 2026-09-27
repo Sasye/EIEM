@@ -1,6 +1,21 @@
 #include <winver.h>
 #include "globals.h"
 
+// These are source assets, not optional leftovers in the build output folder.
+// A clean build must contain every supported outfit and its matching catalog.
+4303 RCDATA "bin\\cloth\\resources\\4303.bin"
+4304 RCDATA "bin\\cloth\\resources\\4304.bin"
+4305 RCDATA "bin\\cloth\\resources\\4305.bin"
+4306 RCDATA "bin\\cloth\\resources\\4306.bin"
+4307 RCDATA "bin\\cloth\\resources\\4307.bin"
+4308 RCDATA "bin\\cloth\\resources\\4308.bin"
+4309 RCDATA "bin\\cloth\\resources\\4309.bin"
+4310 RCDATA "bin\\cloth\\resources\\4310.bin"
+4311 RCDATA "bin\\cloth\\resources\\4311.bin"
+4312 RCDATA "bin\\cloth\\resources\\4312.bin"
+4313 RCDATA "bin\\cloth\\resources\\4313.bin"
+4314 RCDATA "bin\\cloth\\resources\\4314.bin"
+
 VS_VERSION_INFO VERSIONINFO
 FILEVERSION EIEM_VERSION_MAJOR,EIEM_VERSION_MINOR,EIEM_VERSION_PATCH,0
 PRODUCTVERSION EIEM_VERSION_MAJOR,EIEM_VERSION_MINOR,EIEM_VERSION_PATCH,0

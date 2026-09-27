@@ -1,0 +1,6 @@
+Upstream: https://github.com/google/brotli
+Commit: 11017d7812b0502005603cf0f3cce0054e885d72
+Vendored directories: c/common, c/dec, c/include.
+Only the decoder/common C sources are compiled and linked into eiem.dll.
+LICENSE is preserved alongside the sources; its complete text is also included
+in the repository's THIRD_PARTY_NOTICES. Notices are not embedded into the DLL.

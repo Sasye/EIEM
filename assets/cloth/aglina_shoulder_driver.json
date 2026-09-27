@@ -1,0 +1,972 @@
+{
+  "schema": 1,
+  "sourceHash": "95462411bcce0cc31914ad7f6cd0c37909eff18577f51cff319befbe4c349ab6",
+  "nativeUnityPlayerSha256": "694d3132eb2b4d72a8c5b591853d33b61f54e676e441827ef0ca73856ad1af40",
+  "nativeGameAssemblySha256": "3cf2b192039cc379c38305dcfb2df109359bc8daf9fbe4b5eea586291615c92b",
+  "decoder": "ACL v2.1.0, compressed_tracks version 10; header + full payload hash checked",
+  "featureNames": [
+    "Left Shoulder Down-Up",
+    "Left Shoulder Front-Back",
+    "Left Arm Down-Up",
+    "Left Arm Front-Back",
+    "Left Arm Twist In-Out",
+    "Left Forearm Stretch",
+    "Left Forearm Twist In-Out"
+  ],
+  "rightFeatureNames": [
+    "Right Shoulder Down-Up",
+    "Right Shoulder Front-Back",
+    "Right Arm Down-Up",
+    "Right Arm Front-Back",
+    "Right Arm Twist In-Out",
+    "Right Forearm Stretch",
+    "Right Forearm Twist In-Out"
+  ],
+  "featureScale": [
+    0.65,
+    0.65,
+    1.0,
+    1.0,
+    0.6,
+    0.2,
+    0.15
+  ],
+  "sourceSamples": 15479,
+  "samples": 1024,
+  "sourceClips": 137,
+  "headerSha256": "d4f1bdec59653f21e260df317b63e4b3754268517cbad7c7c4c161f3b4257e1b",
+  "holdout": {
+    "positionErrorMmP50P90P95P99": [
+      2.8674695935391763,
+      19.045855900772693,
+      29.14587789559864,
+      69.8722375369062
+    ],
+    "rotationErrorDegP50P90P95P99": [
+      1.4384256554003951,
+      8.412665865833898,
+      14.439598707945875,
+      34.64056992215872
+    ],
+    "heldOutClips": 24,
+    "heldOutSamples": 2637,
+    "scope": "native-pose reconstruction, not game contact or visual validation"
+  },
+  "runtime": "in-DLL pose interpolation; no native action clock or body writes",
+  "avatarReference": {
+    "prefabSha256": "95462411bcce0cc31914ad7f6cd0c37909eff18577f51cff319befbe4c349ab6",
+    "avatarCabSha256": "1f1f3ff3e25ba34e80f88aebc79efa3711deda5db5353157257ba9574bb02bcd",
+    "avatarPathId": 2930723026897527364,
+    "avatarName": "SK_actor_aglina_01Avatar",
+    "resolvedFromPrefabAnimatorAvatar": true,
+    "controls": [
+      {
+        "name": "L_Bone_Chain_1",
+        "parent": "Bip001_Spine2",
+        "position": [
+          -0.03434768691658974,
+          -0.09716279804706573,
+          0.08512748777866364
+        ],
+        "rotation": [
+          -0.6252114176750183,
+          0.3102933466434479,
+          0.28980979323387146,
+          0.6548581123352051
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0000009536743164
+        ],
+        "prefabDistanceMm": 0.06704833250662814,
+        "prefabAngleDeg": 27.28156154023608
+      },
+      {
+        "name": "L_Bone_Chain_2",
+        "parent": "Bip001_L_UpperArm",
+        "position": [
+          -0.11007919162511826,
+          0.06919729709625244,
+          -0.023148344829678535
+        ],
+        "rotation": [
+          0.5509703159332275,
+          0.6868784427642822,
+          0.08149299025535583,
+          0.4668925106525421
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0000009536743164
+        ],
+        "prefabDistanceMm": 62.06137064971792,
+        "prefabAngleDeg": 32.804817732364846
+      },
+      {
+        "name": "L_Bone_Chain_3",
+        "parent": "Bip001_L_UpperArm",
+        "position": [
+          -0.1153191328048706,
+          -0.03204308822751045,
+          0.0438912957906723
+        ],
+        "rotation": [
+          0.46634411811828613,
+          0.5809661746025085,
+          0.594603419303894,
+          -0.30240410566329956
+        ],
+        "scale": [
+          1.0000009536743164,
+          1.0,
+          1.0000020265579224
+        ],
+        "prefabDistanceMm": 6.583040833371195,
+        "prefabAngleDeg": 21.542284107858915
+      },
+      {
+        "name": "L_Bone_Chain_4",
+        "parent": "Bip001_Spine2",
+        "position": [
+          -0.07653205841779709,
+          0.03379550576210022,
+          0.1695522665977478
+        ],
+        "rotation": [
+          -0.40151748061180115,
+          0.7840633988380432,
+          -0.4140389561653137,
+          -0.22934703528881073
+        ],
+        "scale": [
+          1.0000009536743164,
+          1.0,
+          1.0000020265579224
+        ],
+        "prefabDistanceMm": 54.328235982718226,
+        "prefabAngleDeg": 12.267502204437266
+      },
+      {
+        "name": "L_Bone_Chain_5",
+        "parent": "Bip001_Spine2",
+        "position": [
+          0.008589019998908043,
+          0.09916559606790543,
+          0.06657147407531738
+        ],
+        "rotation": [
+          -0.4913794696331024,
+          0.7422832250595093,
+          -0.3800927996635437,
+          -0.25117984414100647
+        ],
+        "scale": [
+          1.0000009536743164,
+          1.0,
+          1.0000020265579224
+        ],
+        "prefabDistanceMm": 0.00023000462413479584,
+        "prefabAngleDeg": 1.5080649355333733e-05
+      },
+      {
+        "name": "R_Bone_Chain_1",
+        "parent": "Bip001_Spine2",
+        "position": [
+          -0.0343487523496151,
+          -0.09716273844242096,
+          -0.08512865751981735
+        ],
+        "rotation": [
+          0.6266483068466187,
+          -0.3007213771343231,
+          0.28555822372436523,
+          0.6597992777824402
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "prefabDistanceMm": 0.06696005075417974,
+        "prefabAngleDeg": 28.420519692358443
+      },
+      {
+        "name": "R_Bone_Chain_2",
+        "parent": "Bip001_R_UpperArm",
+        "position": [
+          -0.109250508248806,
+          0.07069732248783112,
+          0.01868743821978569
+        ],
+        "rotation": [
+          0.5561649799346924,
+          0.6817018389701843,
+          -0.07888419181108475,
+          -0.4687648415565491
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "prefabDistanceMm": 58.290078476547826,
+        "prefabAngleDeg": 33.03889204056468
+      },
+      {
+        "name": "R_Bone_Chain_3",
+        "parent": "Bip001_R_UpperArm",
+        "position": [
+          -0.11609884351491928,
+          -0.027365680783987045,
+          -0.0462811253964901
+        ],
+        "rotation": [
+          -0.4739764928817749,
+          -0.5854786038398743,
+          0.5882359743118286,
+          -0.29417598247528076
+        ],
+        "scale": [
+          1.0000009536743164,
+          1.0000009536743164,
+          1.0
+        ],
+        "prefabDistanceMm": 8.75474112682238,
+        "prefabAngleDeg": 19.984407721984628
+      },
+      {
+        "name": "R_Bone_Chain_4",
+        "parent": "Bip001_Spine2",
+        "position": [
+          -0.07890510559082031,
+          0.033379197120666504,
+          -0.1707756519317627
+        ],
+        "rotation": [
+          -0.39790958166122437,
+          0.7855775356292725,
+          0.4151630103588104,
+          0.22841988503932953
+        ],
+        "scale": [
+          1.0000009536743164,
+          1.0000009536743164,
+          1.0
+        ],
+        "prefabDistanceMm": 57.021251021277784,
+        "prefabAngleDeg": 12.747373061870423
+      },
+      {
+        "name": "R_Bone_Chain_5",
+        "parent": "Bip001_Spine2",
+        "position": [
+          0.008624954149127007,
+          0.09921964257955551,
+          -0.0665716752409935
+        ],
+        "rotation": [
+          -0.49138882756233215,
+          0.7422754168510437,
+          0.3800913095474243,
+          0.2511868476867676
+        ],
+        "scale": [
+          1.0000009536743164,
+          1.0000009536743164,
+          1.0
+        ],
+        "prefabDistanceMm": 0.0670759237776302,
+        "prefabAngleDeg": 5.399738656763882e-05
+      }
+    ]
+  },
+  "clips": [
+    {
+      "name": "A_actor_aglina_dialog_single_idle_talkrighthand4",
+      "cabSha256": "237610292d86c92c2271bec7154d03f32dd2d43bdc0d34341d44afa53a2f75e3",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_handdocument_start",
+      "cabSha256": "f52954c5a7adf2476c95bc4ef5ccf0c0530c60214388fc6aaae11a19480e1c98",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_handdocument_loop",
+      "cabSha256": "f52954c5a7adf2476c95bc4ef5ccf0c0530c60214388fc6aaae11a19480e1c98",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_handdocument_end",
+      "cabSha256": "f52954c5a7adf2476c95bc4ef5ccf0c0530c60214388fc6aaae11a19480e1c98",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_interact_sit_start",
+      "cabSha256": "c7d93bd47e573fd96bfb13d1599dc3aafb6acabd62165782827c0dd049a47b27",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_single_idle_talkrighthand2",
+      "cabSha256": "e27662ba3a20914f4550c153d8effc8ff89a6144a88e21471e94df6cecbdb469",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_single_idle_talklefthand3",
+      "cabSha256": "2546009b884ef19ef938f3214720019e7e9bddcc0c58dd9ca4e59364e88dc450",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_single_idle_talklefthand1",
+      "cabSha256": "0489dcd43175e6eef4cc7014ee3f8d1a1bc207d1f63f87d54c350b2f28eb155f",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_fists_start",
+      "cabSha256": "748f830d2c72a88f111de487ae292f9987bad49e9f6ae2453de4917edff24c81",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_fists_loop",
+      "cabSha256": "748f830d2c72a88f111de487ae292f9987bad49e9f6ae2453de4917edff24c81",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_fists_end",
+      "cabSha256": "748f830d2c72a88f111de487ae292f9987bad49e9f6ae2453de4917edff24c81",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_single_stretch",
+      "cabSha256": "16cca76cf8d9c6c7df278be8c2044c5da970c8e884bf9f6127d834f0c02a6b77",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_sithandsonground_loop",
+      "cabSha256": "58cd04cb2d0182e73a7e7db25f16c6b16dea73eacee316dc9745b796cb8d63f7",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_battle_air_atk_end",
+      "cabSha256": "399af078218e3c60058b83ffad1612b54eb7286a8bf7691e6e33813e7ecbaa32",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_single_magic",
+      "cabSha256": "658af7dc9f0e1d6c47b937dbfa711009686fcb875df5ee2f9024ec87d73c5246",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_state_think1_end",
+      "cabSha256": "bb3f2faa113d29796034156387e1b15fde9fce0c380370f635c7fb063d5e42f3",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_state_think1_start",
+      "cabSha256": "bb3f2faa113d29796034156387e1b15fde9fce0c380370f635c7fb063d5e42f3",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_state_think1_loop",
+      "cabSha256": "bb3f2faa113d29796034156387e1b15fde9fce0c380370f635c7fb063d5e42f3",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_lookback_end",
+      "cabSha256": "27d59a64ddc79808812af0d937a68c5fe0f6f09b3ae71242dcf224ae26922ac7",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_lookback_loop",
+      "cabSha256": "27d59a64ddc79808812af0d937a68c5fe0f6f09b3ae71242dcf224ae26922ac7",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_lookback_start",
+      "cabSha256": "27d59a64ddc79808812af0d937a68c5fe0f6f09b3ae71242dcf224ae26922ac7",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_dizzy_start",
+      "cabSha256": "b45c28931a1d8425fdee38a04dac5217067ab1ed12ac759578426ca89d493d54",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_dizzy_loop",
+      "cabSha256": "b45c28931a1d8425fdee38a04dac5217067ab1ed12ac759578426ca89d493d54",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_dizzy_end",
+      "cabSha256": "b45c28931a1d8425fdee38a04dac5217067ab1ed12ac759578426ca89d493d54",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_single_idle_nod",
+      "cabSha256": "3a558ee9de863d1c1edd1bf26b3e67306156436ef7e14118985a5573eee8c434",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_sorryfinger_end",
+      "cabSha256": "bb1ad1a076ac842f67863cb0e06979704c5bc47959bfb9edb0133a577a134346",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_sorryfinger_loop",
+      "cabSha256": "bb1ad1a076ac842f67863cb0e06979704c5bc47959bfb9edb0133a577a134346",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_sorryfinger_start",
+      "cabSha256": "bb1ad1a076ac842f67863cb0e06979704c5bc47959bfb9edb0133a577a134346",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_battle_air_atk_start",
+      "cabSha256": "e94c96f3caa066630ecd57b371a68ee04ec85da6835deba6a59d5cecc7dedda9",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_single_checknumber",
+      "cabSha256": "36e158907683586d6634e05735fe137cb5ca8c31b88e2d6598fd751b19297d68",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_lookbackleft_start",
+      "cabSha256": "49d60119b4bd5ff05b8b5afe95e832086c10639dc1b4005ca2ed7d1180493488",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_lookbackleft_loop",
+      "cabSha256": "49d60119b4bd5ff05b8b5afe95e832086c10639dc1b4005ca2ed7d1180493488",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_lookbackleft_end",
+      "cabSha256": "49d60119b4bd5ff05b8b5afe95e832086c10639dc1b4005ca2ed7d1180493488",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_covermouth_start",
+      "cabSha256": "e059c827894c3190c0f81d6ec1a1449e4f74ad8b28e54ef6530d06ab97e3d454",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_covermouth_end",
+      "cabSha256": "e059c827894c3190c0f81d6ec1a1449e4f74ad8b28e54ef6530d06ab97e3d454",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_covermouth_loop",
+      "cabSha256": "e059c827894c3190c0f81d6ec1a1449e4f74ad8b28e54ef6530d06ab97e3d454",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_single_runbye",
+      "cabSha256": "a5488ea504cf6be32aaab185b0b2549f87f02e9d266fbd207afcd4f89d9158b9",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_state_introduction_end",
+      "cabSha256": "30da41e96135fe441a06b3baad9c60e3ca509c5db6aa20eeef197b609e7b0d8e",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_state_introduction_loop",
+      "cabSha256": "30da41e96135fe441a06b3baad9c60e3ca509c5db6aa20eeef197b609e7b0d8e",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_state_introduction_start",
+      "cabSha256": "30da41e96135fe441a06b3baad9c60e3ca509c5db6aa20eeef197b609e7b0d8e",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_clasp_end",
+      "cabSha256": "5dbd25acf4459d1d38698447d3d3ca3a1b9345b6469881e40336f44a6824fbc6",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_clasp_start",
+      "cabSha256": "5dbd25acf4459d1d38698447d3d3ca3a1b9345b6469881e40336f44a6824fbc6",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_give_start",
+      "cabSha256": "4d9cde0ffa5d263fbeddfa5c70fb7e110cd0ab38ac71c95cdf5fb5f9d87a834c",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_give_end",
+      "cabSha256": "4d9cde0ffa5d263fbeddfa5c70fb7e110cd0ab38ac71c95cdf5fb5f9d87a834c",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_single_think1_talk",
+      "cabSha256": "dc793c9ab2882de3bf14e3498b0812f850c370931cb7c3d506000dc37f4a85fc",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_akimbo2_start",
+      "cabSha256": "bc72fe70dc6cc891fafce0380ffdc6e0eb9085737d535d288fe2472f6b806f92",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_akimbo2_end",
+      "cabSha256": "bc72fe70dc6cc891fafce0380ffdc6e0eb9085737d535d288fe2472f6b806f92",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_battle_attack_05",
+      "cabSha256": "34948bc1a07768b24bccba5418770ddbbc1e3eee3e6c69e51996cb865ed9fcd2",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_selfapprehension_loop",
+      "cabSha256": "a65cf59218b92ea2bf36075ba77dc82e1259b2d2dcbce816f8232f104dbd00ae",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_selfapprehension_start",
+      "cabSha256": "a65cf59218b92ea2bf36075ba77dc82e1259b2d2dcbce816f8232f104dbd00ae",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_selfapprehension_end",
+      "cabSha256": "a65cf59218b92ea2bf36075ba77dc82e1259b2d2dcbce816f8232f104dbd00ae",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_sit_yeah_start",
+      "cabSha256": "cfd018e45b34011a5d236e9808b22310389e0d7aa5abbca8fd91859463a0778b",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_single_idle_talkhands",
+      "cabSha256": "3bd7cdfdfc813b88ce3edc0629fbbef3d43289ff3e07f267ccaadfb1184a2aa7",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_single_wave1",
+      "cabSha256": "4e9f653725a8cbf5a294a40aae61ea23ca3596db859ed6cd464f9c47769ecf4e",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_shy_start",
+      "cabSha256": "1521708a789cb0ff17093766e90971ab806176774ef223338173f6530d1216c7",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_shy_loop",
+      "cabSha256": "1521708a789cb0ff17093766e90971ab806176774ef223338173f6530d1216c7",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_shy_end",
+      "cabSha256": "1521708a789cb0ff17093766e90971ab806176774ef223338173f6530d1216c7",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_rest_loop",
+      "cabSha256": "bd2e8cd11cf3caf61c8a560b570d77d1d18fc69c18aadf8cf1a49e6677a2e4c5",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_rest_start",
+      "cabSha256": "bd2e8cd11cf3caf61c8a560b570d77d1d18fc69c18aadf8cf1a49e6677a2e4c5",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_rest_end",
+      "cabSha256": "bd2e8cd11cf3caf61c8a560b570d77d1d18fc69c18aadf8cf1a49e6677a2e4c5",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_scratchface_end",
+      "cabSha256": "68dd7333e3d0a5970c8b07a6b31df0f89f9c3072cf8b685a1ecad3a6c6bfa461",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_scratchface_start",
+      "cabSha256": "68dd7333e3d0a5970c8b07a6b31df0f89f9c3072cf8b685a1ecad3a6c6bfa461",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_single_akimboleft_hand",
+      "cabSha256": "f278405e2a914cf11279199040eb5e0e1f34c551753eb9a350cc25e2cb7e6dd0",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_lookhand_end",
+      "cabSha256": "7cd8a1d35f9b333badfbc969d1fc06c15ac65a757780f7e6a736178b3d386958",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_lookhand_loop",
+      "cabSha256": "7cd8a1d35f9b333badfbc969d1fc06c15ac65a757780f7e6a736178b3d386958",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_lookhand_start",
+      "cabSha256": "7cd8a1d35f9b333badfbc969d1fc06c15ac65a757780f7e6a736178b3d386958",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_state_scratchhead_start",
+      "cabSha256": "909c4ef21406ec0aa7b20af817f68c90bd0be80087991be3165ae477490aa8ae",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_state_scratchhead_end",
+      "cabSha256": "909c4ef21406ec0aa7b20af817f68c90bd0be80087991be3165ae477490aa8ae",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_state_scratchhead_loop",
+      "cabSha256": "909c4ef21406ec0aa7b20af817f68c90bd0be80087991be3165ae477490aa8ae",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_single_idle_talkrighthand1",
+      "cabSha256": "2e5a9f21c66e924a1623bb52f763817b1773e324f07bf11239fc24d43ff82c83",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_whisper_end",
+      "cabSha256": "711dd0791c0b989b1e8901cd44d86e551ed740b066c237d6a50dadc8fb55b981",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_whisper_loop",
+      "cabSha256": "711dd0791c0b989b1e8901cd44d86e551ed740b066c237d6a50dadc8fb55b981",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_whisper_start",
+      "cabSha256": "711dd0791c0b989b1e8901cd44d86e551ed740b066c237d6a50dadc8fb55b981",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_stepfront_loop",
+      "cabSha256": "0447575af6ef60cc3ab1933d4a54618ca9e3794ae73be9f97c2d487aae4a67af",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_stepfront_start",
+      "cabSha256": "0447575af6ef60cc3ab1933d4a54618ca9e3794ae73be9f97c2d487aae4a67af",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_stepfront_end",
+      "cabSha256": "0447575af6ef60cc3ab1933d4a54618ca9e3794ae73be9f97c2d487aae4a67af",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_single_sithandsonground_to_idle",
+      "cabSha256": "a1fd77b578fa223e204dd6ea0aa2b29890752ee069f5ea843b38a24d241c57fe",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_introduction2_loop",
+      "cabSha256": "94465cef9fb88e68a842a50f2c9f1cabd18bf412245f2a137aa4eecb07c4e3ba",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_introduction2_start",
+      "cabSha256": "94465cef9fb88e68a842a50f2c9f1cabd18bf412245f2a137aa4eecb07c4e3ba",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_introduction2_end",
+      "cabSha256": "94465cef9fb88e68a842a50f2c9f1cabd18bf412245f2a137aa4eecb07c4e3ba",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_handdocument01_start",
+      "cabSha256": "d77ae9e77e4387516f87785073d87b8a3ceb33ce59714aef761b9e97458928c7",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_handdocument01_end",
+      "cabSha256": "d77ae9e77e4387516f87785073d87b8a3ceb33ce59714aef761b9e97458928c7",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_idle_to_relax",
+      "cabSha256": "ec8751830a3ef1a223f11239e136b4be654d765bb8accbda31f41a6c6c8dc1f5",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_photopose_start",
+      "cabSha256": "c9c60898e8789927abe3406259b2df4f38efb3e5f6408cac8eafe90631a58da8",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_rest_anteversion_start",
+      "cabSha256": "ea475a79d40a02afc973edfac4b36727edab0b00634bfdb2d2ff68d233683d82",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_rest_anteversion_loop",
+      "cabSha256": "ea475a79d40a02afc973edfac4b36727edab0b00634bfdb2d2ff68d233683d82",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_rest_anteversion_end",
+      "cabSha256": "ea475a79d40a02afc973edfac4b36727edab0b00634bfdb2d2ff68d233683d82",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_single_walk_l",
+      "cabSha256": "801aa86066eccda7db7d2ca90cc4e75a7078349dcb2d3aee8079f8655fa014bb",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_pad_end",
+      "cabSha256": "d14b98522acaf47c777994572723832745965d261d6ea196f94597c3153490e2",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_pad_start",
+      "cabSha256": "d14b98522acaf47c777994572723832745965d261d6ea196f94597c3153490e2",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_pad_loop",
+      "cabSha256": "d14b98522acaf47c777994572723832745965d261d6ea196f94597c3153490e2",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_lookbackright_end",
+      "cabSha256": "30cc9a63039b2db85741baa2c88d39344ab93cfa4e25e32370702f6346b442d4",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_lookbackright_loop",
+      "cabSha256": "30cc9a63039b2db85741baa2c88d39344ab93cfa4e25e32370702f6346b442d4",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_lookbackright_start",
+      "cabSha256": "30cc9a63039b2db85741baa2c88d39344ab93cfa4e25e32370702f6346b442d4",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_pray2_loop",
+      "cabSha256": "2835d0e27925a6c26ebd5d2d1608e1bae16a15ea794f30fc9734722f1d542bef",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_pray2_end",
+      "cabSha256": "2835d0e27925a6c26ebd5d2d1608e1bae16a15ea794f30fc9734722f1d542bef",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_pray2_start",
+      "cabSha256": "2835d0e27925a6c26ebd5d2d1608e1bae16a15ea794f30fc9734722f1d542bef",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_single_unsteady",
+      "cabSha256": "e068089242afaeb53fcb1801fd0f9eba6f80d11bc72ee59c8e65444e663968ec",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_float_loop",
+      "cabSha256": "421ecf66affa5a844e219127dca194127ad8980b81035b86a121bd5d368122cc",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_point_start",
+      "cabSha256": "cacc604af2615fc0ef275b8669f203038e43891c37065193fe7a30cb37a97edf",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_point_end",
+      "cabSha256": "cacc604af2615fc0ef275b8669f203038e43891c37065193fe7a30cb37a97edf",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_point_loop",
+      "cabSha256": "cacc604af2615fc0ef275b8669f203038e43891c37065193fe7a30cb37a97edf",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_airland01_end",
+      "cabSha256": "d672f887f3e411c50dd47a9d51c479f157169a91ec4c1729f4fdd888e0d5d5df",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_single_bowhead_sithandsonground",
+      "cabSha256": "0a0393d6637d3daaa561896f44b903efa38266a095011b165ecc6b2736ceae30",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_single_idle_talklefthand4",
+      "cabSha256": "add64e6dffe7c7d1f7fe951689c14d6d05e32813ae4ba8a647a8ac9e40102294",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_idle_loop",
+      "cabSha256": "a0af550139075b3042b24e14c97252a19fec98b6796b6722b90d36bdb0aa1d31",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_single_idle_talklefthand2",
+      "cabSha256": "105436730becf297dca20a39aeb85ec647094a7e7232011af3d755623ed643ac",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_single_idle_shake",
+      "cabSha256": "febb92f35438d2e161999d1cb1425d0606984909dc704a7ea91a82a319ede55a",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_single_walk_m",
+      "cabSha256": "ca4023300015fdd29e502118e5d47d9d47ee7fd499e037ee1a26cf67ee5e43ba",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_single_shakehands",
+      "cabSha256": "c69232510bdb0690edecc886ed818160893e740c4d18959794e6e002f78e973a",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_single_handsback",
+      "cabSha256": "8610a2add52b5407f096b9fca93ddb88b6ae06abca203baa6bc3eb977aaf0ba9",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_sithandsonground_derived_handdocument_start",
+      "cabSha256": "64bd3bad248b911eb0e883fd1fbfb4a6021a8971ee809d333c403f8a1e5799c4",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_sithandsonground_derived_handdocument_loop",
+      "cabSha256": "64bd3bad248b911eb0e883fd1fbfb4a6021a8971ee809d333c403f8a1e5799c4",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_sithandsonground_derived_handdocument_end",
+      "cabSha256": "64bd3bad248b911eb0e883fd1fbfb4a6021a8971ee809d333c403f8a1e5799c4",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_stoop_loop",
+      "cabSha256": "03ba48a46657e64b07074b4e15870e65b389b9905b75ea4e22ba2c74df0a8c3a",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_stoop_start",
+      "cabSha256": "03ba48a46657e64b07074b4e15870e65b389b9905b75ea4e22ba2c74df0a8c3a",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_stoop_end",
+      "cabSha256": "03ba48a46657e64b07074b4e15870e65b389b9905b75ea4e22ba2c74df0a8c3a",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_stretchhandm_loop",
+      "cabSha256": "f673c333911026f98880139300b56eda53306d8200cc116999adc92e3125d25d",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_stretchhandm_start",
+      "cabSha256": "f673c333911026f98880139300b56eda53306d8200cc116999adc92e3125d25d",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_state_earphone_start",
+      "cabSha256": "aae253978c97f1ad9fa317fa29e5a962a03edcfe14120183169d0f79b093f298",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_state_earphone_end",
+      "cabSha256": "aae253978c97f1ad9fa317fa29e5a962a03edcfe14120183169d0f79b093f298",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_state_earphone_loop",
+      "cabSha256": "aae253978c97f1ad9fa317fa29e5a962a03edcfe14120183169d0f79b093f298",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_state_akimboright_start",
+      "cabSha256": "fe530aa8cbcaec481f3da1697df41b65c71ee9a1e846f18620eab56c53e8becf",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_state_akimboright_end",
+      "cabSha256": "fe530aa8cbcaec481f3da1697df41b65c71ee9a1e846f18620eab56c53e8becf",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_state_akimboleft_end",
+      "cabSha256": "3b3fb47cca277796f5c6d665f2b2182fcc195829f2b3ad201b9fa55dc8090b38",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_state_akimboleft_loop",
+      "cabSha256": "3b3fb47cca277796f5c6d665f2b2182fcc195829f2b3ad201b9fa55dc8090b38",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_state_akimboleft_start",
+      "cabSha256": "3b3fb47cca277796f5c6d665f2b2182fcc195829f2b3ad201b9fa55dc8090b38",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_battle_attack_04",
+      "cabSha256": "570f1f77b89900a2ab61aacc4658afa652371d5f9d036e43249bead9c40bad27",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_battle_air_atk_loop",
+      "cabSha256": "bca1641a461d7c7a51b043811d9698ce8d7afc29d54dd1813565b1f023ec11ad",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_single_walk_s",
+      "cabSha256": "d72577413c6c40462e9f4dde7ff545328252c64c27d823857b729d3ac8d99b3c",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_airland02_end",
+      "cabSha256": "2e198b6bf6f5e1cc63193a995910410f070fbe5eddc19fc28a0c5f6132090ed7",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_state_airland02_strat",
+      "cabSha256": "2e198b6bf6f5e1cc63193a995910410f070fbe5eddc19fc28a0c5f6132090ed7",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_single_idle_talkrighthand3",
+      "cabSha256": "f56205f774e161f84015f20365fe6e933afe1b055b0cc8011d14e4c86fb2ff2a",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_interact_sit_end",
+      "cabSha256": "cd3a8f602c779b38f4c2c89716f341ccc0d9395e4b282ed4321a8391b707a8d2",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_state_akimbo1_end",
+      "cabSha256": "34fdca4d7d8d524ae31e2a23da8b2b234b6992fbd66c974b315aeb90efeb259e",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_virtual_state_akimbo1_start",
+      "cabSha256": "34fdca4d7d8d524ae31e2a23da8b2b234b6992fbd66c974b315aeb90efeb259e",
+      "constantError": 0.0
+    },
+    {
+      "name": "A_actor_aglina_dialog_single_wave2",
+      "cabSha256": "b99e39e7dd5795978b48643c866200dc99f625493459523a4076802c3b78e344",
+      "constantError": 0.0
+    }
+  ]
+}

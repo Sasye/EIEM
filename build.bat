@@ -1,6 +1,8 @@
 @echo off
 
 setlocal enabledelayedexpansion
+cd /d "%~dp0"
+if errorlevel 1 exit /b 1
 
 echo ==========================================
 echo   EIEM Build Script
@@ -48,13 +50,28 @@ echo [OK] MSVC compiler found
 echo.
 
 if not exist bin mkdir bin
+if not exist bin\build mkdir bin\build
+
+:: Generated runtime contracts and native bundles must describe the same data.
+:: Fail before rc/cl rather than distributing a valid DLL with stale skins.
+cl /nologo /utf-8 /O2 /Gy /Gw /MD /EHsc /std:c++17 ^
+    src\build\cloth_resources.cpp ^
+    /Fo"bin\build\cloth_resources.obj" /Fe"bin\build\cloth_resources.exe" ^
+    /link /OPT:REF /OPT:ICF
+if errorlevel 1 exit /b 1
+bin\build\cloth_resources.exe --repo . --pack
+if errorlevel 1 exit /b 1
+call src\build\build_cloth_asset_decoder.bat
+if errorlevel 1 exit /b 1
 
 :: Build eiem.dll
 echo [1/4] Compiling version resource ...
 rc /nologo /fo bin\version.res src\version.rc
+if errorlevel 1 exit /b 1
 
 echo [2/4] Building eiem.dll ...
-cl /nologo /utf-8 /O2 /MD /LD /EHsc /std:c++17 ^
+cl /nologo /utf-8 /O2 /Gy /Gw /MD /LD /EHsc /std:c++17 ^
+    /DBROTLI_STATIC /Ideps\brotli\c\include ^
     /Ideps\minhook_lib\include ^
     /Ideps\imgui ^
     src\eiem.cpp ^
@@ -65,6 +82,7 @@ cl /nologo /utf-8 /O2 /MD /LD /EHsc /std:c++17 ^
     deps\imgui\imgui_impl_win32.cpp ^
     deps\imgui\imgui_impl_dx11.cpp ^
     bin\version.res ^
+    bin\cloth_asset_decoder.lib ^
     deps\minhook_lib\lib\libMinHook.x64.lib ^
     user32.lib ^
     gdi32.lib ^
@@ -76,14 +94,16 @@ cl /nologo /utf-8 /O2 /MD /LD /EHsc /std:c++17 ^
     ole32.lib ^
     winhttp.lib ^
     /Fe"bin\eiem.dll" ^
-    /link /DLL
+    /link /DLL /OPT:REF /OPT:ICF /MAP:bin\eiem.map
 
 if %errorlevel% neq 0 (
     echo [ERROR] eiem.dll build failed!
 
     exit /b 1
 )
-echo [OK] eiem.dll built successfully
+bin\build\cloth_resources.exe --repo . --dll bin\eiem.dll --report bin\cloth_bundle_delivery.json
+if errorlevel 1 exit /b 1
+echo [OK] eiem.dll built and embedded cloth resources verified
 echo.
 
 :: Build d3dcompiler_47.dll (proxy loader)
@@ -132,6 +152,10 @@ del /q bin\d3dcompiler_47.lib 2>nul
 del /q bin\vulkan-1.exp 2>nul
 del /q bin\vulkan-1.lib 2>nul
 
+:: Only clean these outputs after all DLLs and resource checks have succeeded.
+"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0src\build\clean_build_outputs.ps1"
+if errorlevel 1 exit /b 1
+
 echo ==========================================
 echo   Build Complete!
 echo ==========================================
@@ -142,3 +166,4 @@ echo   - d3dcompiler_47.dll     (DX proxy loader)
 echo   - vulkan-1.dll           (Vulkan proxy loader)
 echo.
 
+exit /b 0

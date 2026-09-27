@@ -687,19 +687,70 @@ static void DrawMainPanel() {
   ImGui::Spacing();
 
   ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.97f, 1.0f));
-  bool skirtOpen = ImGui::CollapsingHeader(u8"\u88d9\u5b50\u78b0\u649e\u8c03\u6574");
+  const bool clothingOpen = ImGui::CollapsingHeader(u8"服装碰撞");
   ImGui::PopStyleColor();
-  if (skirtOpen) {
-    ImGui::SetNextItemWidth(-1);
-    float skirtDelta = s_skirtHipRadiusDelta.load(std::memory_order_acquire);
-    if (ImGui::SliderFloat(u8"\u5927\u817f\u6839\u534a\u5f84\u8865\u5145", &skirtDelta,
-                           0.0f, 0.4f, "%.3f")) {
-      s_skirtHipRadiusDelta.store(skirtDelta, std::memory_order_release);
+  if (clothingOpen) {
+    s_collisionInspect.store(true, std::memory_order_release);
+    const auto ui = CollisionGetUi();
+    bool enabled = s_clothAutoEnabled.load(std::memory_order_acquire);
+    if (ImGui::Checkbox(u8"服装碰撞增强", &enabled))
+      ClothBoneQueueCommand(ui.session, !enabled);
+    ImGui::TextWrapped(u8"自动匹配当前服装，可在播放前或播放中开关；停止播放后保留设置。");
+    const int applied = ui.authoredApplied + ui.autoConnectionsApplied + ui.autoSkinApplied + ui.autoPartialApplied;
+    if (ui.boneRestoring)
+      ImGui::TextUnformatted(enabled ? u8"正在恢复原配置，完成后重新启用。" : u8"正在恢复原配置…");
+    else if (!enabled)
+      ImGui::TextUnformatted(u8"已关闭。");
+    else if (!ui.session)
+      ImGui::TextUnformatted(u8"已开启，将在播放时自动应用。");
+    else if (ui.failed)
+      ImGui::TextWrapped(u8"本次未能应用增强，详见诊断信息。");
+    else if (ui.autoPreparing)
+      ImGui::TextUnformatted(u8"正在准备当前服装…");
+    else if (applied)
+      ImGui::Text(u8"已增强 %d 个服装部件。", applied);
+    else if (!ui.boneBusy)
+      ImGui::TextUnformatted(u8"暂无适用增强，保持原布料效果。");
+    else
+      ImGui::TextUnformatted(u8"正在确认服装状态…");
+
+    int geometry = s_collisionGeometry.load(std::memory_order_acquire);
+    if (ImGui::Combo(u8"原生碰撞体策略", &geometry, u8"半径补偿\0原生原值\0")) {
+      s_collisionGeometry.store(geometry, std::memory_order_release);
       s_skirtDirty.store(true, std::memory_order_release);
     }
-    ImGui::TextDisabled(u8"\u539f\u59cb\u503c: 0.124  \u6548\u679c: \u52a0\u5927\u2192\u51cf\u5c11\u7a7f\u6a21");
+    if (geometry == 0) {
+      float radius = s_skirtHipRadiusDelta.load(std::memory_order_acquire);
+      if (ImGui::SliderFloat(u8"大腿胶囊半径补偿", &radius, 0.0f, 0.4f, "%.3f")) {
+        s_skirtHipRadiusDelta.store(radius, std::memory_order_release);
+        s_skirtDirty.store(true, std::memory_order_release);
+      }
+      ImGui::TextWrapped(u8"半径补偿可能撑开服装；通常使用原生原值即可。");
+    }
+    if (ImGui::TreeNode(u8"诊断信息")) {
+      if (ui.failed) ImGui::TextWrapped("%s", ui.issue);
+      for (int n=0; n<std::clamp(ui.boneCount,0,8); ++n) {
+        if (!ui.boneNames[n][0]) continue;
+        ImGui::Text(u8"%s：%s", ui.boneNames[n], ui.boneApplied[n] ? u8"已应用" : u8"未应用 / 正在恢复");
+        ImGui::TextWrapped("%s", ui.boneIssues[n]);
+      }
+      if (ui.autoPreserved) ImGui::Text(u8"保持原模拟的部件：%d", ui.autoPreserved);
+      ImGui::BeginDisabled(!ui.session || ui.failed);
+      if (ImGui::Button(u8"导出服装碰撞快照")) {
+        CollisionQueueExport(ui.session);
+        if (g_gameHwnd) PostMessage(g_gameHwnd, WM_NULL, 0, 0);
+      }
+      ImGui::EndDisabled();
+      const int exportStatus = s_collisionExportStatus.load(std::memory_order_acquire);
+      if (exportStatus == 2) ImGui::TextUnformatted(u8"等待当前帧快照…");
+      else if (exportStatus != 0) {
+        const auto note = CollisionGetExportNote();
+        if (exportStatus == 1) ImGui::TextWrapped(u8"已导出：%s", note.path);
+        else ImGui::TextWrapped(u8"导出失败：%s（%lu）", note.phase, note.error);
+      }
+      ImGui::TreePop();
+    }
   }
-
   ImGui::Spacing();
   ImGui::Separator();
   ImGui::Spacing();
