@@ -233,75 +233,327 @@ static HWND g_gameHwnd = nullptr;
 static int g_guiToggleVK = VK_INSERT;
 static bool g_pluginActive = true;
 
-#define OFF_BIPEDIK_FIX_TRANSFORMS    0x18
-#define OFF_BIPEDIK_SOLVERS           0x40
+static int OFF_BIPEDIK_FIX_TRANSFORMS = 0x18;
+static int OFF_BIPEDIK_SOLVERS = 0x40;
 
-#define OFF_SOLVERS_LEFT_FOOT         0x10
-#define OFF_SOLVERS_RIGHT_FOOT        0x18
-#define OFF_SOLVERS_LEFT_HAND         0x20
-#define OFF_SOLVERS_RIGHT_HAND        0x28
-#define OFF_SOLVERS_SPINE             0x30
-#define OFF_SOLVERS_LOOKAT            0x38
-#define OFF_SOLVERS_AIM               0x40
-#define OFF_SOLVERS_PELVIS             0x48
+static int OFF_SOLVERS_LEFT_FOOT = 0x10;
+static int OFF_SOLVERS_RIGHT_FOOT = 0x18;
+static int OFF_SOLVERS_LEFT_HAND = 0x20;
+static int OFF_SOLVERS_RIGHT_HAND = 0x28;
+static int OFF_SOLVERS_SPINE = 0x30;
+static int OFF_SOLVERS_LOOKAT = 0x38;
+static int OFF_SOLVERS_AIM = 0x40;
+static int OFF_SOLVERS_PELVIS = 0x48;
 
-#define OFF_IKSOLVER_IKPOS_X          0x14
-#define OFF_IKSOLVER_IKPOS_Y          0x18
-#define OFF_IKSOLVER_IKPOS_Z          0x1C
-#define OFF_IKSOLVER_IKPOS_WEIGHT     0x20
-#define OFF_IKSOLVER_ON_PRE_UPDATE    0x38
-#define OFF_IKSOLVER_ON_POST_UPDATE   0x40
+static int OFF_IKSOLVER_IKPOS_X = 0x14;
+static int OFF_IKSOLVER_IKPOS_Y = 0x18;
+static int OFF_IKSOLVER_IKPOS_Z = 0x1C;
+static int OFF_IKSOLVER_IKPOS_WEIGHT = 0x20;
+static int OFF_IKSOLVER_ON_PRE_UPDATE = 0x38;
+static int OFF_IKSOLVER_ON_POST_UPDATE = 0x40;
 
-#define OFF_IKSOLVER_IKROT_WEIGHT     0x60
-#define OFF_IKSOLVER_IKROT_X          0x64
-#define OFF_IKSOLVER_IKROT_Y          0x68
-#define OFF_IKSOLVER_IKROT_Z          0x6C
-#define OFF_IKSOLVER_IKROT_W          0x70
+static int OFF_IKSOLVER_IKROT_WEIGHT = 0x60;
+static int OFF_IKSOLVER_IKROT_X = 0x64;
+static int OFF_IKSOLVER_IKROT_Y = 0x68;
+static int OFF_IKSOLVER_IKROT_Z = 0x6C;
+static int OFF_IKSOLVER_IKROT_W = 0x70;
 
-#define OFF_IKTRIG_TARGET             0x58
-#define OFF_IKTRIG_BONE1              0x80
-#define OFF_IKTRIG_BONE2              0x88
-#define OFF_IKTRIG_BONE3              0x90
-#define OFF_IKPOINT_TRANSFORM         0x10
-#define OFF_IKLIMB_BEND_MODIFIER      0xAC
-#define OFF_IKLIMB_BEND_WEIGHT        0xB4
-#define OFF_IKLIMB_BEND_GOAL          0xB8
+static int OFF_IKTRIG_TARGET = 0x58;
+static int OFF_IKTRIG_BONE1 = 0x80;
+static int OFF_IKTRIG_BONE2 = 0x88;
+static int OFF_IKTRIG_BONE3 = 0x90;
+static int OFF_IKPOINT_TRANSFORM = 0x10;
+static int OFF_IKLIMB_BEND_MODIFIER = 0xAC;
+static int OFF_IKLIMB_BEND_WEIGHT = 0xB4;
+static int OFF_IKLIMB_BEND_GOAL = 0xB8;
 
-#define OFF_BIPED_PELVIS_POS_WEIGHT   0x38
-#define OFF_BIPED_PELVIS_ROT_WEIGHT   0x54
-#define OFF_BIPED_PELVIS_POS_OFFSET_X 0x20
-#define OFF_BIPED_PELVIS_POS_OFFSET_Y 0x24
-#define OFF_BIPED_PELVIS_POS_OFFSET_Z 0x28
-#define OFF_BIPED_PELVIS_ROT_OFFSET_X 0x3C
-#define OFF_BIPED_PELVIS_ROT_OFFSET_Y 0x40
-#define OFF_BIPED_PELVIS_ROT_OFFSET_Z 0x44
+static int OFF_BIPED_PELVIS_POS_WEIGHT = 0x38;
+static int OFF_BIPED_PELVIS_ROT_WEIGHT = 0x54;
+static int OFF_BIPED_PELVIS_POS_OFFSET_X = 0x20;
+static int OFF_BIPED_PELVIS_POS_OFFSET_Y = 0x24;
+static int OFF_BIPED_PELVIS_POS_OFFSET_Z = 0x28;
+static int OFF_BIPED_PELVIS_ROT_OFFSET_X = 0x3C;
+static int OFF_BIPED_PELVIS_ROT_OFFSET_Y = 0x40;
+static int OFF_BIPED_PELVIS_ROT_OFFSET_Z = 0x44;
 
-#define OFF_GROUNDER_WEIGHT           0x18
-#define OFF_GROUNDER_MAINTAIN_WEIGHT  0x1C
-#define OFF_GROUNDER_ADSORB_WEIGHT    0x20
-#define OFF_GROUNDER_SOLVER           0x28
-#define OFF_GROUNDER_INITIATED        0x48
-#define OFF_GROUNDER_BIPED_IK         0x50
-#define OFF_GROUNDER_SPINE_BEND       0x58
-#define OFF_GROUNDER_SPINE_SPEED      0x5C
-#define OFF_GROUNDER_LAST_WEIGHT      0x94
-#define OFF_GROUNDER_LAST_ADSORB      0x98
-#define OFF_GROUNDER_RIGHT_FOOT_Y     0x9C
-#define OFF_GROUNDER_LEFT_FOOT_Y      0xA0
-#define OFF_GROUNDER_RIGHT_FOOT_ORI   0xA4
-#define OFF_GROUNDER_LEFT_FOOT_ORI    0xA8
+static int OFF_GROUNDER_WEIGHT = 0x18;
+static int OFF_GROUNDER_MAINTAIN_WEIGHT = 0x1C;
+static int OFF_GROUNDER_ADSORB_WEIGHT = 0x20;
+static int OFF_GROUNDER_SOLVER = 0x28;
+static int OFF_GROUNDER_INITIATED = 0x48;
+static int OFF_GROUNDER_BIPED_IK = 0x50;
+static int OFF_GROUNDER_SPINE_BEND = 0x58;
+static int OFF_GROUNDER_SPINE_SPEED = 0x5C;
+static int OFF_GROUNDER_LAST_WEIGHT = 0x94;
+static int OFF_GROUNDER_LAST_ADSORB = 0x98;
+static int OFF_GROUNDER_RIGHT_FOOT_Y = 0x9C;
+static int OFF_GROUNDER_LEFT_FOOT_Y = 0xA0;
+static int OFF_GROUNDER_RIGHT_FOOT_ORI = 0xA4;
+static int OFF_GROUNDER_LEFT_FOOT_ORI = 0xA8;
 
-#define OFF_GROUNDING_HEIGHT_OFFSET   0x70
-#define OFF_GROUNDING_LEGS            0xC8
-#define OFF_GROUNDING_IS_GROUNDED     0xD8
-#define OFF_GROUNDING_LEG_IS_GROUNDED 0x10
-#define OFF_GROUNDING_LEG_IK_POSITION 0x14
-#define OFF_GROUNDING_LEG_HEIGHT_FROM_GROUND 0x34
-#define OFF_GROUNDING_LEG_HEEL_HIT_POINT 0x298
-#define OFF_GROUNDING_LEG_CALCULATED_FOOT 0x2D8
-#define OFF_GROUNDING_LEG_LAST_HIT_POINT 0x2E4
-#define OFF_GROUNDING_LEG_LAST_HIT_NORMAL 0x300
-#define OFF_GROUNDING_LEG_IS_IN_STAIR 0x30C
+static int OFF_GROUNDING_HEIGHT_OFFSET = 0x70;
+static int OFF_GROUNDING_LEGS = 0xC8;
+static int OFF_GROUNDING_IS_GROUNDED = 0xD8;
+static int OFF_GROUNDING_LEG_IS_GROUNDED = 0x10;
+static int OFF_GROUNDING_LEG_IK_POSITION = 0x14;
+static int OFF_GROUNDING_LEG_HEIGHT_FROM_GROUND = 0x34;
+static int OFF_GROUNDING_LEG_HEEL_HIT_POINT = 0x298;
+static int OFF_GROUNDING_LEG_CALCULATED_FOOT = 0x2D8;
+static int OFF_GROUNDING_LEG_LAST_HIT_POINT = 0x2E4;
+static int OFF_GROUNDING_LEG_LAST_HIT_NORMAL = 0x300;
+static int OFF_GROUNDING_LEG_IS_IN_STAIR = 0x30C;
+
+static bool g_finalIkSolverLayoutOk = false;
+static bool g_finalIkGrounderLayoutOk = false;
+static bool g_finalIkGroundingLayoutOk = false;
+
+enum class FinalIkFieldKind : uint8_t { Float, Bool, Value, Ref, Any };
+
+static bool FinalIkTypeMatches(void *field, FinalIkFieldKind kind) {
+  if (kind == FinalIkFieldKind::Any || !il2cpp_field_get_type ||
+      !il2cpp_type_get_type)
+    return true;
+  void *type = il2cpp_field_get_type(field);
+  if (!type)
+    return false;
+  const int value = il2cpp_type_get_type(type);
+  switch (kind) {
+  case FinalIkFieldKind::Float: return value == 0x0C;
+  case FinalIkFieldKind::Bool: return value == 0x02;
+  case FinalIkFieldKind::Value: return value == 0x11;
+  case FinalIkFieldKind::Ref:
+    return value == 0x0E || value == 0x12 || value == 0x14 ||
+           value == 0x15 || value == 0x1C || value == 0x1D;
+  default: return true;
+  }
+}
+
+static void *FinalIkFindInstanceField(void *klass, const char *name,
+                                      int offset) {
+  if (!klass || !il2cpp_class_get_fields || !il2cpp_field_get_name ||
+      !il2cpp_field_get_offset)
+    return nullptr;
+  char backing[128] = {};
+  if (name)
+    _snprintf_s(backing, sizeof(backing), _TRUNCATE, "<%s>k__BackingField",
+                name);
+  __try {
+    void *current = klass;
+    for (int depth = 0; current && depth < 10; ++depth) {
+      void *iterator = nullptr;
+      void *field = nullptr;
+      while ((field = il2cpp_class_get_fields(current, &iterator))) {
+        if (il2cpp_field_get_flags && (il2cpp_field_get_flags(field) & 0x10))
+          continue;
+        if (name) {
+          const char *fieldName = il2cpp_field_get_name(field);
+          if (fieldName &&
+              (strcmp(fieldName, name) == 0 || strcmp(fieldName, backing) == 0))
+            return field;
+        } else if (static_cast<int>(il2cpp_field_get_offset(field)) ==
+                   offset) {
+          return field;
+        }
+      }
+      current = il2cpp_class_get_parent ? il2cpp_class_get_parent(current)
+                                        : nullptr;
+    }
+  } __except (EXCEPTION_EXECUTE_HANDLER) {
+  }
+  return nullptr;
+}
+
+static void *FinalIkNestedClass(void *outer, const char *name) {
+  if (!outer || !il2cpp_class_get_nested_types || !il2cpp_class_get_name)
+    return nullptr;
+  __try {
+    void *iterator = nullptr;
+    void *nested = nullptr;
+    while ((nested = il2cpp_class_get_nested_types(outer, &iterator))) {
+      const char *nestedName = il2cpp_class_get_name(nested);
+      if (nestedName && strcmp(nestedName, name) == 0)
+        return nested;
+    }
+  } __except (EXCEPTION_EXECUTE_HANDLER) {
+  }
+  return nullptr;
+}
+
+enum class FinalIkLayoutClass : uint8_t {
+  BipedIK, BipedIKSolvers, IKSolver, IKSolverPoint, IKSolverTrigonometric,
+  IKSolverLimb, Constraints, GrounderBipedIK, Grounding, GroundingLeg, Count
+};
+enum class FinalIkLayoutGroup : uint8_t { Solver, Grounder, Grounding, Count };
+
+struct FinalIkFieldSpec {
+  int *offset;
+  const char *label;
+  FinalIkLayoutClass klass;
+  FinalIkLayoutGroup group;
+  FinalIkFieldKind kind;
+  const char *names[3];
+};
+
+static void ResolveFinalIkLayout(void **assemblies, size_t count) {
+  using C = FinalIkLayoutClass;
+  using G = FinalIkLayoutGroup;
+  using K = FinalIkFieldKind;
+  void *classes[static_cast<int>(C::Count)] = {};
+  auto find = [&](const char *name) {
+    void *klass = FindClassDirect("RootMotion.FinalIK", name, assemblies,
+                                  count);
+    return klass ? klass
+                 : FindClass("RootMotion.FinalIK", name, assemblies, count);
+  };
+  classes[(int)C::BipedIK] = find("BipedIK");
+  classes[(int)C::BipedIKSolvers] = find("BipedIKSolvers");
+  classes[(int)C::IKSolver] = find("IKSolver");
+  classes[(int)C::IKSolverTrigonometric] = find("IKSolverTrigonometric");
+  classes[(int)C::IKSolverLimb] = find("IKSolverLimb");
+  classes[(int)C::Constraints] = find("Constraints");
+  classes[(int)C::GrounderBipedIK] = find("GrounderBipedIK");
+  classes[(int)C::Grounding] = find("Grounding");
+  classes[(int)C::GroundingLeg] =
+      FinalIkNestedClass(classes[(int)C::Grounding], "Leg");
+  classes[(int)C::IKSolverPoint] =
+      FinalIkNestedClass(classes[(int)C::IKSolver], "Point");
+  if (!classes[(int)C::IKSolverPoint] && il2cpp_field_get_type &&
+      il2cpp_class_from_type) {
+    void *bone1 = FinalIkFindInstanceField(
+        classes[(int)C::IKSolverTrigonometric], "bone1", 0);
+    void *bone1Type = bone1 ? il2cpp_field_get_type(bone1) : nullptr;
+    classes[(int)C::IKSolverPoint] =
+        bone1Type ? il2cpp_class_from_type(bone1Type) : nullptr;
+  }
+
+  const FinalIkFieldSpec specs[] = {
+      {&OFF_BIPEDIK_FIX_TRANSFORMS, "BipedIK.fixTransforms", C::BipedIK, G::Solver, K::Bool, {"fixTransforms"}},
+      {&OFF_BIPEDIK_SOLVERS, "BipedIK.solvers", C::BipedIK, G::Solver, K::Ref, {"solvers"}},
+      {&OFF_SOLVERS_LEFT_FOOT, "BipedIKSolvers.leftFoot", C::BipedIKSolvers, G::Solver, K::Ref, {"leftFoot"}},
+      {&OFF_SOLVERS_RIGHT_FOOT, "BipedIKSolvers.rightFoot", C::BipedIKSolvers, G::Solver, K::Ref, {"rightFoot"}},
+      {&OFF_SOLVERS_LEFT_HAND, "BipedIKSolvers.leftHand", C::BipedIKSolvers, G::Solver, K::Ref, {"leftHand"}},
+      {&OFF_SOLVERS_RIGHT_HAND, "BipedIKSolvers.rightHand", C::BipedIKSolvers, G::Solver, K::Ref, {"rightHand"}},
+      {&OFF_SOLVERS_SPINE, "BipedIKSolvers.spine", C::BipedIKSolvers, G::Solver, K::Ref, {"spine"}},
+      {&OFF_SOLVERS_LOOKAT, "BipedIKSolvers.lookAt", C::BipedIKSolvers, G::Solver, K::Ref, {"lookAt"}},
+      {&OFF_SOLVERS_AIM, "BipedIKSolvers.aim", C::BipedIKSolvers, G::Solver, K::Ref, {"aim"}},
+      {&OFF_SOLVERS_PELVIS, "BipedIKSolvers.pelvis", C::BipedIKSolvers, G::Solver, K::Ref, {"pelvis"}},
+      {&OFF_IKSOLVER_IKPOS_X, "IKSolver.IKPosition", C::IKSolver, G::Solver, K::Value, {"IKPosition"}},
+      {&OFF_IKSOLVER_IKPOS_WEIGHT, "IKSolver.IKPositionWeight", C::IKSolver, G::Solver, K::Float, {"IKPositionWeight"}},
+      {&OFF_IKSOLVER_ON_PRE_UPDATE, "IKSolver.OnPreUpdate", C::IKSolver, G::Solver, K::Ref, {"OnPreUpdate"}},
+      {&OFF_IKSOLVER_ON_POST_UPDATE, "IKSolver.OnPostUpdate", C::IKSolver, G::Solver, K::Ref, {"OnPostUpdate"}},
+      {&OFF_IKPOINT_TRANSFORM, "IKSolver.Point.transform", C::IKSolverPoint, G::Solver, K::Ref, {"transform"}},
+      {&OFF_IKSOLVER_IKROT_WEIGHT, "IKSolverTrigonometric.IKRotationWeight", C::IKSolverTrigonometric, G::Solver, K::Float, {"IKRotationWeight"}},
+      {&OFF_IKSOLVER_IKROT_X, "IKSolverTrigonometric.IKRotation", C::IKSolverTrigonometric, G::Solver, K::Value, {"IKRotation"}},
+      {&OFF_IKTRIG_TARGET, "IKSolverTrigonometric.target", C::IKSolverTrigonometric, G::Solver, K::Ref, {"target"}},
+      {&OFF_IKTRIG_BONE1, "IKSolverTrigonometric.bone1", C::IKSolverTrigonometric, G::Solver, K::Ref, {"bone1"}},
+      {&OFF_IKTRIG_BONE2, "IKSolverTrigonometric.bone2", C::IKSolverTrigonometric, G::Solver, K::Ref, {"bone2"}},
+      {&OFF_IKTRIG_BONE3, "IKSolverTrigonometric.bone3", C::IKSolverTrigonometric, G::Solver, K::Ref, {"bone3"}},
+      {&OFF_IKLIMB_BEND_MODIFIER, "IKSolverLimb.bendModifier", C::IKSolverLimb, G::Solver, K::Value, {"bendModifier"}},
+      {&OFF_IKLIMB_BEND_WEIGHT, "IKSolverLimb.bendModifierWeight", C::IKSolverLimb, G::Solver, K::Float, {"bendModifierWeight"}},
+      {&OFF_IKLIMB_BEND_GOAL, "IKSolverLimb.bendGoal", C::IKSolverLimb, G::Solver, K::Ref, {"bendGoal"}},
+      {&OFF_BIPED_PELVIS_POS_OFFSET_X, "Constraints.positionOffset", C::Constraints, G::Solver, K::Value, {"positionOffset"}},
+      {&OFF_BIPED_PELVIS_POS_WEIGHT, "Constraints.positionWeight", C::Constraints, G::Solver, K::Float, {"positionWeight"}},
+      {&OFF_BIPED_PELVIS_ROT_OFFSET_X, "Constraints.rotationOffset", C::Constraints, G::Solver, K::Value, {"rotationOffset"}},
+      {&OFF_BIPED_PELVIS_ROT_WEIGHT, "Constraints.rotationWeight", C::Constraints, G::Solver, K::Float, {"rotationWeight"}},
+      {&OFF_GROUNDER_WEIGHT, "Grounder.weight", C::GrounderBipedIK, G::Grounder, K::Float, {"weight"}},
+      {&OFF_GROUNDER_MAINTAIN_WEIGHT, "Grounder.maintianPelvisFootWeight", C::GrounderBipedIK, G::Grounder, K::Float, {"maintianPelvisFootWeight", "maintainPelvisPosition"}},
+      {&OFF_GROUNDER_ADSORB_WEIGHT, "Grounder.footAdsorbWeight", C::GrounderBipedIK, G::Grounder, K::Float, {"footAdsorbWeight", "adsorbWeight"}},
+      {&OFF_GROUNDER_SOLVER, "Grounder.solver", C::GrounderBipedIK, G::Grounder, K::Ref, {"solver"}},
+      {&OFF_GROUNDER_INITIATED, "Grounder.initiated", C::GrounderBipedIK, G::Grounder, K::Bool, {"initiated", "m_initiated"}},
+      {&OFF_GROUNDER_BIPED_IK, "GrounderBipedIK.ik", C::GrounderBipedIK, G::Grounder, K::Ref, {"ik"}},
+      {&OFF_GROUNDER_SPINE_BEND, "GrounderBipedIK.spineBend", C::GrounderBipedIK, G::Grounder, K::Float, {"spineBend"}},
+      {&OFF_GROUNDER_SPINE_SPEED, "GrounderBipedIK.spineSpeed", C::GrounderBipedIK, G::Grounder, K::Float, {"spineSpeed"}},
+      {&OFF_GROUNDER_LAST_WEIGHT, "GrounderBipedIK.lastWeight", C::GrounderBipedIK, G::Grounder, K::Float, {"lastWeight"}},
+      {&OFF_GROUNDER_LAST_ADSORB, "GrounderBipedIK.lastAdsorbWeight", C::GrounderBipedIK, G::Grounder, K::Float, {"lastAdsorbWeight"}},
+      {&OFF_GROUNDER_RIGHT_FOOT_Y, "GrounderBipedIK.rightFootOffsetY", C::GrounderBipedIK, G::Grounder, K::Any, {"rightFootOffsetY"}},
+      {&OFF_GROUNDER_LEFT_FOOT_Y, "GrounderBipedIK.leftFootOffsetY", C::GrounderBipedIK, G::Grounder, K::Any, {"leftFootOffsetY"}},
+      {&OFF_GROUNDER_RIGHT_FOOT_ORI, "GrounderBipedIK.rightFootOri", C::GrounderBipedIK, G::Grounder, K::Any, {"rightFootOri"}},
+      {&OFF_GROUNDER_LEFT_FOOT_ORI, "GrounderBipedIK.leftFootOri", C::GrounderBipedIK, G::Grounder, K::Any, {"leftFootOri"}},
+      {&OFF_GROUNDING_HEIGHT_OFFSET, "Grounding.heightOffset", C::Grounding, G::Grounding, K::Float, {"heightOffset"}},
+      {&OFF_GROUNDING_LEGS, "Grounding.legs", C::Grounding, G::Grounding, K::Ref, {"legs"}},
+      {&OFF_GROUNDING_IS_GROUNDED, "Grounding.isGrounded", C::Grounding, G::Grounding, K::Bool, {"isGrounded"}},
+      {&OFF_GROUNDING_LEG_IS_GROUNDED, "Grounding.Leg.isGrounded", C::GroundingLeg, G::Grounding, K::Bool, {"isGrounded"}},
+      {&OFF_GROUNDING_LEG_IK_POSITION, "Grounding.Leg.IKPosition", C::GroundingLeg, G::Grounding, K::Value, {"IKPosition"}},
+      {&OFF_GROUNDING_LEG_HEIGHT_FROM_GROUND, "Grounding.Leg.heightFromGround", C::GroundingLeg, G::Grounding, K::Float, {"heightFromGround"}},
+      {&OFF_GROUNDING_LEG_HEEL_HIT_POINT, "Grounding.Leg.m_heelHit", C::GroundingLeg, G::Grounding, K::Value, {"m_heelHit", "heelHit"}},
+      {&OFF_GROUNDING_LEG_CALCULATED_FOOT, "Grounding.Leg.curFeetCalculatePos", C::GroundingLeg, G::Grounding, K::Value, {"curFeetCalculatePos"}},
+      {&OFF_GROUNDING_LEG_LAST_HIT_POINT, "Grounding.Leg.lastCurHitPoint", C::GroundingLeg, G::Grounding, K::Value, {"lastCurHitPoint"}},
+      {&OFF_GROUNDING_LEG_LAST_HIT_NORMAL, "Grounding.Leg.m_lastHitNormal", C::GroundingLeg, G::Grounding, K::Value, {"m_lastHitNormal", "lastHitNormal"}},
+      {&OFF_GROUNDING_LEG_IS_IN_STAIR, "Grounding.Leg.isInStair", C::GroundingLeg, G::Grounding, K::Bool, {"isInStair", "m_isInStair", "inStair"}},
+  };
+
+  bool groupOk[static_cast<int>(G::Count)] = {true, true, true};
+  int byName = 0, byOffset = 0, changed = 0, failed = 0;
+  for (const FinalIkFieldSpec &spec : specs) {
+    void *klass = classes[static_cast<int>(spec.klass)];
+    const int fallback = *spec.offset;
+    void *field = nullptr;
+    for (const char *name : spec.names)
+      if (name && !field) {
+        field = FinalIkFindInstanceField(klass, name, 0);
+        if (field && !FinalIkTypeMatches(field, spec.kind))
+          field = nullptr;
+      }
+    if (field) {
+      const int resolved = static_cast<int>(il2cpp_field_get_offset(field));
+      ++byName;
+      if (resolved != fallback) {
+        ++changed;
+        Log("[FINALIK-LAYOUT] field=%s source=name offset=0x%X "
+            "fallback=0x%X changed=1",
+            spec.label, resolved, fallback);
+      }
+      *spec.offset = resolved;
+      continue;
+    }
+    void *atFallback = FinalIkFindInstanceField(klass, nullptr, fallback);
+    if (atFallback && FinalIkTypeMatches(atFallback, spec.kind)) {
+      ++byOffset;
+      const char *actual = il2cpp_field_get_name(atFallback);
+      Log("[FINALIK-LAYOUT] field=%s source=offset-verified offset=0x%X "
+          "actualName='%s' classFound=%d",
+          spec.label, fallback, actual ? actual : "?", klass ? 1 : 0);
+      continue;
+    }
+    ++failed;
+    if (spec.kind != K::Any)
+      groupOk[static_cast<int>(spec.group)] = false;
+    Log("[FINALIK-LAYOUT] field=%s source=unresolved fallback=0x%X "
+        "classFound=%d fieldAtFallback=%d blocksGroup=%d",
+        spec.label, fallback, klass ? 1 : 0, atFallback ? 1 : 0,
+        spec.kind != K::Any ? 1 : 0);
+  }
+
+  OFF_IKSOLVER_IKPOS_Y = OFF_IKSOLVER_IKPOS_X + 4;
+  OFF_IKSOLVER_IKPOS_Z = OFF_IKSOLVER_IKPOS_X + 8;
+  OFF_IKSOLVER_IKROT_Y = OFF_IKSOLVER_IKROT_X + 4;
+  OFF_IKSOLVER_IKROT_Z = OFF_IKSOLVER_IKROT_X + 8;
+  OFF_IKSOLVER_IKROT_W = OFF_IKSOLVER_IKROT_X + 12;
+  OFF_BIPED_PELVIS_POS_OFFSET_Y = OFF_BIPED_PELVIS_POS_OFFSET_X + 4;
+  OFF_BIPED_PELVIS_POS_OFFSET_Z = OFF_BIPED_PELVIS_POS_OFFSET_X + 8;
+  OFF_BIPED_PELVIS_ROT_OFFSET_Y = OFF_BIPED_PELVIS_ROT_OFFSET_X + 4;
+  OFF_BIPED_PELVIS_ROT_OFFSET_Z = OFF_BIPED_PELVIS_ROT_OFFSET_X + 8;
+
+  g_finalIkSolverLayoutOk = groupOk[static_cast<int>(G::Solver)];
+  g_finalIkGrounderLayoutOk =
+      g_finalIkSolverLayoutOk && groupOk[static_cast<int>(G::Grounder)];
+  g_finalIkGroundingLayoutOk = groupOk[static_cast<int>(G::Grounding)];
+  Log("[FINALIK-LAYOUT] summary fields=%zu byName=%d offsetVerified=%d "
+      "changed=%d unresolved=%d solverOk=%d grounderOk=%d groundingOk=%d "
+      "classes=BipedIK:%d,Solvers:%d,IKSolver:%d,Point:%d,Trig:%d,Limb:%d,"
+      "Constraints:%d,Grounder:%d,Grounding:%d,Leg:%d",
+      sizeof(specs) / sizeof(specs[0]), byName, byOffset, changed, failed,
+      g_finalIkSolverLayoutOk ? 1 : 0, g_finalIkGrounderLayoutOk ? 1 : 0,
+      g_finalIkGroundingLayoutOk ? 1 : 0,
+      classes[(int)C::BipedIK] ? 1 : 0, classes[(int)C::BipedIKSolvers] ? 1 : 0,
+      classes[(int)C::IKSolver] ? 1 : 0, classes[(int)C::IKSolverPoint] ? 1 : 0,
+      classes[(int)C::IKSolverTrigonometric] ? 1 : 0,
+      classes[(int)C::IKSolverLimb] ? 1 : 0,
+      classes[(int)C::Constraints] ? 1 : 0,
+      classes[(int)C::GrounderBipedIK] ? 1 : 0,
+      classes[(int)C::Grounding] ? 1 : 0,
+      classes[(int)C::GroundingLeg] ? 1 : 0);
+}
 
 static void *g_origIkTrigOnUpdate = nullptr;
 

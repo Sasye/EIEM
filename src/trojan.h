@@ -873,13 +873,15 @@ static void ClearActiveFootIKSolverWeights() {
         if (g_activeLfSolver) {
             *(float *)((char *)g_activeLfSolver +
                        OFF_IKSOLVER_IKPOS_WEIGHT) = 0.0f;
-            *(float *)((char *)g_activeLfSolver + 0x60) = 0.0f;
+            *(float *)((char *)g_activeLfSolver +
+                       OFF_IKSOLVER_IKROT_WEIGHT) = 0.0f;
         }
 
         if (g_activeRfSolver) {
             *(float *)((char *)g_activeRfSolver +
                        OFF_IKSOLVER_IKPOS_WEIGHT) = 0.0f;
-            *(float *)((char *)g_activeRfSolver + 0x60) = 0.0f;
+            *(float *)((char *)g_activeRfSolver +
+                       OFF_IKSOLVER_IKROT_WEIGHT) = 0.0f;
         }
     } __except (EXCEPTION_EXECUTE_HANDLER) {
     }
@@ -953,7 +955,7 @@ static void *s_cachedEntity = nullptr;
 static void *GhostRig_GetOwnerGrounderBipedIK(
     uintptr_t ownerCharacter, void *bipedIK) {
   if (!GhostRig_RequireMainThread("GrounderBipedIK.ResolveOwner", false) ||
-      !ownerCharacter ||
+      !g_finalIkGrounderLayoutOk || !ownerCharacter ||
       reinterpret_cast<uintptr_t>(g_mainCharEntity) != ownerCharacter ||
       reinterpret_cast<uintptr_t>(s_cachedEntity) != ownerCharacter ||
       !s_cachedMovementComp || g_offMovementGrounder < 0)
@@ -1171,11 +1173,11 @@ static void __fastcall Hooked_OnUpdate(void *self, void *methodInfo) {
         *(float *)((char *)self + OFF_IKSOLVER_IKPOS_Z) = s_curFootTargetL[2];
         *(float *)((char *)self + OFF_IKSOLVER_IKPOS_WEIGHT) = 1.0f;
 
-        *(float *)((char *)self + 0x60) = s_curFootRotWeightL;
-        *(float *)((char *)self + 0x64) = s_curFootRotTargetL[0];
-        *(float *)((char *)self + 0x68) = s_curFootRotTargetL[1];
-        *(float *)((char *)self + 0x6C) = s_curFootRotTargetL[2];
-        *(float *)((char *)self + 0x70) = s_curFootRotTargetL[3];
+        *(float *)((char *)self + OFF_IKSOLVER_IKROT_WEIGHT) = s_curFootRotWeightL;
+        *(float *)((char *)self + OFF_IKSOLVER_IKROT_X) = s_curFootRotTargetL[0];
+        *(float *)((char *)self + OFF_IKSOLVER_IKROT_Y) = s_curFootRotTargetL[1];
+        *(float *)((char *)self + OFF_IKSOLVER_IKROT_Z) = s_curFootRotTargetL[2];
+        *(float *)((char *)self + OFF_IKSOLVER_IKROT_W) = s_curFootRotTargetL[3];
       }
       else if (self == g_activeRfSolver && g_activeRfSolver) {
         *(float *)((char *)self + OFF_IKSOLVER_IKPOS_X) = s_curFootTargetR[0];
@@ -1183,11 +1185,11 @@ static void __fastcall Hooked_OnUpdate(void *self, void *methodInfo) {
         *(float *)((char *)self + OFF_IKSOLVER_IKPOS_Z) = s_curFootTargetR[2];
         *(float *)((char *)self + OFF_IKSOLVER_IKPOS_WEIGHT) = 1.0f;
 
-        *(float *)((char *)self + 0x60) = s_curFootRotWeightR;
-        *(float *)((char *)self + 0x64) = s_curFootRotTargetR[0];
-        *(float *)((char *)self + 0x68) = s_curFootRotTargetR[1];
-        *(float *)((char *)self + 0x6C) = s_curFootRotTargetR[2];
-        *(float *)((char *)self + 0x70) = s_curFootRotTargetR[3];
+        *(float *)((char *)self + OFF_IKSOLVER_IKROT_WEIGHT) = s_curFootRotWeightR;
+        *(float *)((char *)self + OFF_IKSOLVER_IKROT_X) = s_curFootRotTargetR[0];
+        *(float *)((char *)self + OFF_IKSOLVER_IKROT_Y) = s_curFootRotTargetR[1];
+        *(float *)((char *)self + OFF_IKSOLVER_IKROT_Z) = s_curFootRotTargetR[2];
+        *(float *)((char *)self + OFF_IKSOLVER_IKROT_W) = s_curFootRotTargetR[3];
       }
     } else if (g_motionBackend.Is(MotionBackend::DirectVmd)) {
       GhostRig_BeforeLegSolverUpdate(self, methodInfo);
@@ -1248,6 +1250,10 @@ static void PreSampleVmdCenter() {
 }
 
 static void ConfigureIKComponents(bool footIKEnabled) {
+  if (footIKEnabled && !g_finalIkSolverLayoutOk) {
+    Log("[IK-CONFIG] FinalIK layout unconfirmed; using pure Muscle mode");
+    footIKEnabled = false;
+  }
   if (footIKEnabled) {
     for (int bi = 0; bi < s_bipedIKCount; bi++) {
       if (s_bipedIK[bi]) {
@@ -1264,7 +1270,7 @@ static void ConfigureIKComponents(bool footIKEnabled) {
             void *sp = *(void **)((char *)solvers + OFF_SOLVERS_SPINE);
             void *la = *(void **)((char *)solvers + OFF_SOLVERS_LOOKAT);
             void *aim = *(void **)((char *)solvers + OFF_SOLVERS_AIM);
-            void *pelvis = *(void **)((char *)solvers + 0x48);
+            void *pelvis = *(void **)((char *)solvers + OFF_SOLVERS_PELVIS);
             if (lh) {
               *(float *)((char *)lh + OFF_IKSOLVER_IKPOS_WEIGHT) = 0.0f;
             }
@@ -1287,8 +1293,8 @@ static void ConfigureIKComponents(bool footIKEnabled) {
               *(float *)((char *)aim + 0xC0) = 0.0f;
             }
             if (pelvis) {
-              *(float *)((char *)pelvis + 0x38) = 0.0f;
-              *(float *)((char *)pelvis + 0x54) = 0.0f;
+              *(float *)((char *)pelvis + OFF_BIPED_PELVIS_POS_WEIGHT) = 0.0f;
+              *(float *)((char *)pelvis + OFF_BIPED_PELVIS_ROT_WEIGHT) = 0.0f;
             }
           }
         } __except (1) {}
@@ -1297,13 +1303,16 @@ static void ConfigureIKComponents(bool footIKEnabled) {
     for (int gi = 0; gi < s_grounderIKCount; gi++) {
       if (s_grounderIK[gi]) {
         if (g_animator_set_enabled) {
-          int trueVal = 1; void *params[] = {&trueVal};
+          int enabledVal = g_finalIkGrounderLayoutOk ? 1 : 0;
+          void *params[] = {&enabledVal};
           __try { Invoke(g_animator_set_enabled, s_grounderIK[gi], params); } __except(1) {}
         }
         __try {
-          *(float *)((char *)s_grounderIK[gi] + OFF_GROUNDER_WEIGHT) = 0.0f;
-          *(float *)((char *)s_grounderIK[gi] + OFF_GROUNDER_WEIGHT + 4) = 0.0f;
-          *(float *)((char *)s_grounderIK[gi] + OFF_GROUNDER_WEIGHT + 8) = 0.0f;
+          if (g_finalIkGrounderLayoutOk) {
+            *(float *)((char *)s_grounderIK[gi] + OFF_GROUNDER_WEIGHT) = 0.0f;
+            *(float *)((char *)s_grounderIK[gi] + OFF_GROUNDER_MAINTAIN_WEIGHT) = 0.0f;
+            *(float *)((char *)s_grounderIK[gi] + OFF_GROUNDER_ADSORB_WEIGHT) = 0.0f;
+          }
         } __except (1) {}
       }
     }
@@ -2045,7 +2054,8 @@ static void ApplyMmdPoseOnMainThread() {
           s_curFootTargetL[0], s_curFootTargetL[1], s_curFootTargetL[2]);
     }
 
-    if (g_footIKEnabled && s_footIKCalibrated && s_bipedIKCount > 0) {
+    if (g_footIKEnabled && s_footIKCalibrated && s_bipedIKCount > 0 &&
+        g_finalIkSolverLayoutOk) {
       void *bipedIK = s_bipedIK[0];
       if (bipedIK) {
         void *solvers = *(void **)((char *)bipedIK + OFF_BIPEDIK_SOLVERS);
@@ -2057,15 +2067,15 @@ static void ApplyMmdPoseOnMainThread() {
             *(void **)((char *)lfSolver + OFF_IKSOLVER_ON_PRE_UPDATE) = nullptr;
             *(void **)((char *)lfSolver + OFF_IKSOLVER_ON_POST_UPDATE) = nullptr;
             *(void **)((char *)lfSolver + OFF_IKTRIG_TARGET) = nullptr;
-            *(int *)((char *)lfSolver + 0xAC) = 0;
-            *(float *)((char *)lfSolver + 0xB4) = 1.0f;
+            *(int *)((char *)lfSolver + OFF_IKLIMB_BEND_MODIFIER) = 0;
+            *(float *)((char *)lfSolver + OFF_IKLIMB_BEND_WEIGHT) = 1.0f;
           }
           if (rfSolver) {
             *(void **)((char *)rfSolver + OFF_IKSOLVER_ON_PRE_UPDATE) = nullptr;
             *(void **)((char *)rfSolver + OFF_IKSOLVER_ON_POST_UPDATE) = nullptr;
             *(void **)((char *)rfSolver + OFF_IKTRIG_TARGET) = nullptr;
-            *(int *)((char *)rfSolver + 0xAC) = 0;
-            *(float *)((char *)rfSolver + 0xB4) = 1.0f;
+            *(int *)((char *)rfSolver + OFF_IKLIMB_BEND_MODIFIER) = 0;
+            *(float *)((char *)rfSolver + OFF_IKLIMB_BEND_WEIGHT) = 1.0f;
           }
 
           *(bool *)((char *)bipedIK + 0x30) = true;
@@ -2081,12 +2091,12 @@ static void ApplyMmdPoseOnMainThread() {
       g_mmdIKActive = false;
       __try {
         if (g_activeLfSolver) {
-          *(float *)((char *)g_activeLfSolver + 0x20) = 0.0f;
-          *(float *)((char *)g_activeLfSolver + 0x60) = 0.0f;
+          *(float *)((char *)g_activeLfSolver + OFF_IKSOLVER_IKPOS_WEIGHT) = 0.0f;
+          *(float *)((char *)g_activeLfSolver + OFF_IKSOLVER_IKROT_WEIGHT) = 0.0f;
         }
         if (g_activeRfSolver) {
-          *(float *)((char *)g_activeRfSolver + 0x20) = 0.0f;
-          *(float *)((char *)g_activeRfSolver + 0x60) = 0.0f;
+          *(float *)((char *)g_activeRfSolver + OFF_IKSOLVER_IKPOS_WEIGHT) = 0.0f;
+          *(float *)((char *)g_activeRfSolver + OFF_IKSOLVER_IKROT_WEIGHT) = 0.0f;
         }
       } __except (1) {}
     }

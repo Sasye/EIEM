@@ -353,6 +353,22 @@ static void DirectVmdRuntime_HandleClipCommandWorker() {
           : 0,
       (unsigned long long)s_directVmdWorker.resource.generation,
       GetCurrentThreadId());
+  const DirectVmdBoneCoverage coverage = DirectVmdAnalyzeBoneCoverage(*clip);
+  Log("[P2-VMD-BONE-COVERAGE] tracks=%zu standard=%zu semiStandard=%zu "
+      "semiStandardMoving=%zu semiStandardTranslationIgnored=%zu "
+      "policyIgnored=%zu policyIgnoredMoving=%zu "
+      "unmapped=%zu unmappedMoving=%zu folded='%s' "
+      "policyIgnoredNames='%s' unmappedMovingNames='%s' "
+      "clipGeneration=%llu tid=%lu",
+      coverage.tracks, coverage.standard, coverage.semiStandard,
+      coverage.semiStandardMoving, coverage.semiStandardTranslationIgnored,
+      coverage.policyIgnored, coverage.policyIgnoredMoving,
+      coverage.unmapped, coverage.unmappedMoving,
+      coverage.semiStandardNames.c_str(),
+      coverage.policyIgnoredNames.c_str(),
+      coverage.unmappedMovingNames.c_str(),
+      (unsigned long long)s_directVmdWorker.resource.generation,
+      GetCurrentThreadId());
 }
 
 static void DirectVmdRuntime_HandleCameraOverrideCommandWorker() {

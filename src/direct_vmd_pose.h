@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <string>
 #include <type_traits>
 
 enum class DirectVmdBoneId : uint32_t {
@@ -1222,6 +1223,235 @@ static inline void DirectVmdSampleMorphChannels(
   }
 }
 
+enum class DirectVmdSemiStandardBone : uint8_t {
+  Waist = 0,
+  UpperBody1,
+  UpperBody3,
+  LeftShoulderP,
+  RightShoulderP,
+  LeftLegD,
+  LeftKneeD,
+  LeftAnkleD,
+  RightLegD,
+  RightKneeD,
+  RightAnkleD,
+  Count
+};
+
+static constexpr uint32_t DIRECT_VMD_SEMI_STANDARD_BONE_COUNT =
+    static_cast<uint32_t>(DirectVmdSemiStandardBone::Count);
+
+static constexpr DirectVmdBoneSpec
+    kDirectVmdSemiStandardSpecs[DIRECT_VMD_SEMI_STANDARD_BONE_COUNT] = {
+        {u8"腰", nullptr, -1},
+        {u8"上半身1", u8"上半身１", -1},
+        {u8"上半身3", u8"上半身３", -1},
+        {u8"左肩P", u8"左肩Ｐ", -1},
+        {u8"右肩P", u8"右肩Ｐ", -1},
+        {u8"左足D", u8"左足Ｄ", -1},
+        {u8"左ひざD", u8"左ひざＤ", -1},
+        {u8"左足首D", u8"左足首Ｄ", -1},
+        {u8"右足D", u8"右足Ｄ", -1},
+        {u8"右ひざD", u8"右ひざＤ", -1},
+        {u8"右足首D", u8"右足首Ｄ", -1},
+};
+
+static constexpr DirectVmdBoneSpec kDirectVmdPolicyIgnoredSpecs[] = {
+    {u8"左足先EX", u8"左足先ＥＸ", -1},
+    {u8"右足先EX", u8"右足先ＥＸ", -1},
+};
+
+static inline void DirectVmdFoldBoneRotation(DirectVmdSampleFrame *output,
+                                             DirectVmdBoneId id,
+                                             VmdQuaternion pre,
+                                             VmdQuaternion post) {
+  DirectVmdBoneSamplePod &bone = output->bones[DirectVmdBoneIndex(id)];
+  if (!bone.hasTrack) {
+    bone.position = {0.0f, 0.0f, 0.0f};
+    bone.rotation = {0.0f, 0.0f, 0.0f, 1.0f};
+  }
+  bone.rotation = DirectVmdNormalizeQuaternion(DirectVmdQuaternionMultiply(
+      DirectVmdQuaternionMultiply(pre, bone.rotation), post));
+  bone.hasTrack = 1;
+}
+
+static inline void DirectVmdFoldSemiStandardBones(
+    const VmdFile &clip, double frame, DirectVmdSampleFrame *output) {
+  VmdQuaternion rotation[DIRECT_VMD_SEMI_STANDARD_BONE_COUNT] = {};
+  bool present[DIRECT_VMD_SEMI_STANDARD_BONE_COUNT] = {};
+  for (uint32_t index = 0; index < DIRECT_VMD_SEMI_STANDARD_BONE_COUNT;
+       ++index) {
+    VmdBoneSample sample;
+    if (!DirectVmdSampleBoneWithAlias(clip, kDirectVmdSemiStandardSpecs[index],
+                                      frame, &sample))
+      continue;
+    rotation[index] = DirectVmdNormalizeQuaternion(sample.rotation);
+    present[index] = true;
+  }
+  const VmdQuaternion identity = {0.0f, 0.0f, 0.0f, 1.0f};
+  auto has = [&](DirectVmdSemiStandardBone bone) {
+    return present[static_cast<uint32_t>(bone)];
+  };
+  auto get = [&](DirectVmdSemiStandardBone bone) {
+    return rotation[static_cast<uint32_t>(bone)];
+  };
+
+  static constexpr struct {
+    DirectVmdSemiStandardBone source;
+    DirectVmdBoneId target;
+  } kLegD[] = {
+      {DirectVmdSemiStandardBone::LeftLegD, DirectVmdBoneId::LeftLeg},
+      {DirectVmdSemiStandardBone::LeftKneeD, DirectVmdBoneId::LeftKnee},
+      {DirectVmdSemiStandardBone::LeftAnkleD, DirectVmdBoneId::LeftAnkle},
+      {DirectVmdSemiStandardBone::RightLegD, DirectVmdBoneId::RightLeg},
+      {DirectVmdSemiStandardBone::RightKneeD, DirectVmdBoneId::RightKnee},
+      {DirectVmdSemiStandardBone::RightAnkleD, DirectVmdBoneId::RightAnkle},
+  };
+  for (const auto &rule : kLegD)
+    if (has(rule.source))
+      DirectVmdFoldBoneRotation(output, rule.target, get(rule.source),
+                                identity);
+
+  if (has(DirectVmdSemiStandardBone::Waist)) {
+    const VmdQuaternion waist = get(DirectVmdSemiStandardBone::Waist);
+    const VmdQuaternion cancel = DirectVmdQuaternionInverse(waist);
+    DirectVmdFoldBoneRotation(output, DirectVmdBoneId::UpperBody, waist,
+                              identity);
+    DirectVmdFoldBoneRotation(output, DirectVmdBoneId::LowerBody, waist,
+                              identity);
+    DirectVmdFoldBoneRotation(output, DirectVmdBoneId::LeftLeg, cancel,
+                              identity);
+    DirectVmdFoldBoneRotation(output, DirectVmdBoneId::RightLeg, cancel,
+                              identity);
+  }
+
+  if (has(DirectVmdSemiStandardBone::UpperBody1) ||
+      has(DirectVmdSemiStandardBone::UpperBody3))
+    DirectVmdFoldBoneRotation(
+        output, DirectVmdBoneId::UpperBody2,
+        has(DirectVmdSemiStandardBone::UpperBody1)
+            ? get(DirectVmdSemiStandardBone::UpperBody1)
+            : identity,
+        has(DirectVmdSemiStandardBone::UpperBody3)
+            ? get(DirectVmdSemiStandardBone::UpperBody3)
+            : identity);
+
+  static constexpr struct {
+    DirectVmdSemiStandardBone source;
+    DirectVmdBoneId shoulder;
+    DirectVmdBoneId arm;
+  } kShoulderP[] = {
+      {DirectVmdSemiStandardBone::LeftShoulderP,
+       DirectVmdBoneId::LeftShoulder, DirectVmdBoneId::LeftArm},
+      {DirectVmdSemiStandardBone::RightShoulderP,
+       DirectVmdBoneId::RightShoulder, DirectVmdBoneId::RightArm},
+  };
+  for (const auto &rule : kShoulderP) {
+    if (!has(rule.source))
+      continue;
+    const VmdQuaternion parent = get(rule.source);
+    DirectVmdFoldBoneRotation(output, rule.shoulder, parent, identity);
+    DirectVmdFoldBoneRotation(output, rule.arm,
+                              DirectVmdQuaternionInverse(parent), identity);
+  }
+}
+
+struct DirectVmdBoneCoverage {
+  size_t tracks = 0;
+  size_t standard = 0;
+  size_t semiStandard = 0;
+  size_t semiStandardMoving = 0;
+  size_t semiStandardTranslationIgnored = 0;
+  size_t policyIgnored = 0;
+  size_t policyIgnoredMoving = 0;
+  size_t unmapped = 0;
+  size_t unmappedMoving = 0;
+  std::string semiStandardNames;
+  std::string policyIgnoredNames;
+  std::string unmappedMovingNames;
+};
+
+static inline bool DirectVmdSpecMatchesName(const DirectVmdBoneSpec &spec,
+                                            const std::string &name) {
+  return name == spec.name ||
+         (spec.alternateName && name == spec.alternateName);
+}
+
+static inline DirectVmdBoneCoverage DirectVmdAnalyzeBoneCoverage(
+    const VmdFile &clip, size_t nameListLimit = 24) {
+  DirectVmdBoneCoverage coverage;
+  size_t semiListed = 0;
+  size_t policyListed = 0;
+  size_t unmappedListed = 0;
+  auto append = [](std::string &list, size_t &listed, size_t limit,
+                   const std::string &name) {
+    if (listed++ >= limit)
+      return;
+    if (!list.empty())
+      list += ',';
+    list += name;
+  };
+  for (const auto &entry : clip.boneTimelines) {
+    ++coverage.tracks;
+    bool rotates = false;
+    bool translates = false;
+    for (const auto &key : entry.second.keys) {
+      rotates = rotates || std::fabs(key.rot[0]) > 1.0e-4f ||
+                std::fabs(key.rot[1]) > 1.0e-4f ||
+                std::fabs(key.rot[2]) > 1.0e-4f;
+      translates = translates || std::fabs(key.pos[0]) > 1.0e-4f ||
+                   std::fabs(key.pos[1]) > 1.0e-4f ||
+                   std::fabs(key.pos[2]) > 1.0e-4f;
+    }
+    bool standard = false;
+    for (uint32_t index = 0; index < DIRECT_VMD_BONE_COUNT && !standard;
+         ++index)
+      standard = DirectVmdSpecMatchesName(kDirectVmdBoneSpecs[index],
+                                          entry.first);
+    if (standard) {
+      ++coverage.standard;
+      continue;
+    }
+    bool semiStandard = false;
+    for (uint32_t index = 0;
+         index < DIRECT_VMD_SEMI_STANDARD_BONE_COUNT && !semiStandard;
+         ++index)
+      semiStandard = DirectVmdSpecMatchesName(
+          kDirectVmdSemiStandardSpecs[index], entry.first);
+    if (semiStandard) {
+      ++coverage.semiStandard;
+      if (rotates || translates) {
+        ++coverage.semiStandardMoving;
+        append(coverage.semiStandardNames, semiListed, nameListLimit,
+               entry.first);
+      }
+      if (translates)
+        ++coverage.semiStandardTranslationIgnored;
+      continue;
+    }
+    bool policyIgnored = false;
+    for (const auto &spec : kDirectVmdPolicyIgnoredSpecs)
+      policyIgnored =
+          policyIgnored || DirectVmdSpecMatchesName(spec, entry.first);
+    if (policyIgnored) {
+      ++coverage.policyIgnored;
+      if (rotates || translates) {
+        ++coverage.policyIgnoredMoving;
+        append(coverage.policyIgnoredNames, policyListed, nameListLimit,
+               entry.first);
+      }
+      continue;
+    }
+    ++coverage.unmapped;
+    if (rotates || translates) {
+      ++coverage.unmappedMoving;
+      append(coverage.unmappedMovingNames, unmappedListed, nameListLimit,
+             entry.first);
+    }
+  }
+  return coverage;
+}
+
 static inline void DirectVmdSampleClip(
     const VmdFile &clip, double frame, uint64_t sequence,
     uint64_t rigGeneration, uint64_t clipGeneration,
@@ -1249,6 +1479,7 @@ static inline void DirectVmdSampleClip(
     target.rotation = DirectVmdNormalizeQuaternion(source.rotation);
     target.hasTrack = 1;
   }
+  DirectVmdFoldSemiStandardBones(clip, output->sourceFrame, output);
 
   DirectVmdSampleMorphChannels(clip, output->sourceFrame, output);
   DirectVmdSampleCameraChannel(clip, output->sourceFrame, false,

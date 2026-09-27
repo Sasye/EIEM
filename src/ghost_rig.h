@@ -180,6 +180,20 @@ struct GhostRigAuxSolverRuntime {
   bool savedRotationOffsetValid;
 };
 
+struct GhostRigPelvisNodeRuntime {
+  uint32_t handle;
+  VmdVec3 bindLocalPosition;
+  VmdVec3 restoreLocalPosition;
+  bool bindFromAvatar;
+  bool restoreValid;
+  uint64_t writeCount;
+  uint64_t postCorrectionCount;
+  float lastCorrectionDistance;
+  int lastCorrectionFrame;
+  int lastLogFrame;
+  char name[96];
+};
+
 struct GhostRigGrounderRuntime {
   uint32_t handle = 0;
   float savedWeight = 0.0f;
@@ -287,6 +301,7 @@ struct GhostRigTwistTargetRuntime {
   VmdVec3 axisParentLocal = {0.0f, 0.0f, 0.0f};
   bool bindAvailable = false;
   bool resolved = false;
+  char transformName[96] = {};
 };
 
 struct GhostRigTwistChannelRuntime {
@@ -421,6 +436,7 @@ struct GhostRigRuntime {
   bool targetNaturalBindAvailable[DIRECT_VMD_BONE_COUNT];
   GhostRigLegRuntime legs[DIRECT_VMD_LEG_SIDE_COUNT];
   GhostRigAuxSolverRuntime auxSolvers[GHOST_AUX_SOLVER_COUNT];
+  GhostRigPelvisNodeRuntime pelvisNode;
   GhostRigGrounderRuntime grounder;
 };
 
@@ -434,6 +450,7 @@ static bool GhostRig_ClothMayOwnAnchor(void *transform) {
   for (const auto &channel : s_ghostRig.twistChannels)
     for (const auto &target : channel.targets)
       if (target.transformHandle && il2cpp_gchandle_get_target(target.transformHandle) == transform) return false;
+  if (s_ghostRig.pelvisNode.handle && il2cpp_gchandle_get_target(s_ghostRig.pelvisNode.handle) == transform) return false;
   return true;
 }
 
@@ -1422,9 +1439,50 @@ static bool GhostRig_ActivateGrounderForTerrain(
   return ready;
 }
 
+static bool GhostRig_WriteLocalPosition(void *transform, VmdVec3 value) {
+  if (!transform || !g_transform_set_localPosition ||
+      !DirectVmdFinite(value.x) || !DirectVmdFinite(value.y) ||
+      !DirectVmdFinite(value.z))
+    return false;
+  Vec3 data = {value.x, value.y, value.z};
+  __try {
+    void *params[] = {&data};
+    Invoke(g_transform_set_localPosition, transform, params);
+    return true;
+  } __except (EXCEPTION_EXECUTE_HANDLER) {
+    return false;
+  }
+}
+
+static bool GhostRig_RestorePelvisNodeOwnership(
+    GhostRigCleanupReason reason) {
+  GhostRigPelvisNodeRuntime &node = s_ghostRig.pelvisNode;
+  if (!node.handle)
+    return false;
+  void *transform = GhostRig_GetHandleTarget(node.handle);
+  const bool alive = transform && GhostRig_IsUnityObjectAlive(transform);
+  const bool restored = alive && node.restoreValid &&
+      GhostRig_WriteLocalPosition(transform, node.restoreLocalPosition);
+  Log("[P5-PELVIS-NODE] event=restore reason=%s node='%s' alive=%d "
+      "restored=%d writes=%llu postCorrections=%llu "
+      "generation=%llu owner=%p tid=%lu",
+      GhostRig_CleanupReasonName(reason), node.name, alive ? 1 : 0,
+      restored ? 1 : 0, (unsigned long long)node.writeCount,
+      (unsigned long long)node.postCorrectionCount,
+      (unsigned long long)s_ghostRig.generation,
+      reinterpret_cast<void *>(s_ghostRig.ownerCharacter),
+      GetCurrentThreadId());
+  return restored;
+}
+
 static int GhostRig_FreePhase5FinalIkHandles() {
   int freed = 0;
   if (il2cpp_gchandle_free) {
+    if (s_ghostRig.pelvisNode.handle) {
+      il2cpp_gchandle_free(s_ghostRig.pelvisNode.handle);
+      s_ghostRig.pelvisNode.handle = 0;
+      ++freed;
+    }
     for (uint32_t side = 0; side < DIRECT_VMD_LEG_SIDE_COUNT; ++side) {
       GhostRigLegRuntime &leg = s_ghostRig.legs[side];
       freed += GhostRig_FreeLegExternalStateHandles(leg);
@@ -1474,6 +1532,9 @@ static void GhostRig_ResetPhase5LegState() {
   }
   for (uint32_t index = 0; index < GHOST_AUX_SOLVER_COUNT; ++index)
     s_ghostRig.auxSolvers[index] = GhostRigAuxSolverRuntime();
+  s_ghostRig.pelvisNode = GhostRigPelvisNodeRuntime();
+  s_ghostRig.pelvisNode.lastCorrectionFrame = INT_MIN;
+  s_ghostRig.pelvisNode.lastLogFrame = INT_MIN;
   s_ghostRig.grounder = GhostRigGrounderRuntime();
   s_ghostRig.lastLegPreparedFrame = INT_MIN;
   s_ghostRig.lastLegLogFrame = INT_MIN;
@@ -1559,6 +1620,7 @@ static void GhostRig_ResetPhase7TerrainState() {
 static void GhostRig_ClearPhase5FinalIkOwnership(
     GhostRigCleanupReason reason) {
   GhostRig_RestoreGrounderOwnership(reason);
+  GhostRig_RestorePelvisNodeOwnership(reason);
   int solversCleared = 0;
   int bendStatesRestored = 0;
   int externalStatesRestored = 0;
@@ -2670,6 +2732,160 @@ static bool GhostRig_CaptureNamedBindPose(
   return true;
 }
 
+static int GhostRig_Phase3HumanBone(DirectVmdBoneId id);
+
+static int GhostRig_ChildCount(void *transform) {
+  void *boxed = transform && g_transform_get_childCount
+                    ? Invoke(g_transform_get_childCount, transform)
+                    : nullptr;
+  const int count = boxed ? UnboxInt(boxed) : 0;
+  return count >= 0 && count <= 4096 ? count : 0;
+}
+
+static bool GhostRig_NameContainsTwist(const char *name) {
+  for (const char *p = name; p && *p; ++p)
+    if (_strnicmp(p, "twist", 5) == 0)
+      return true;
+  return false;
+}
+
+static bool GhostRig_ResolveTwistTransformNames(
+    uint32_t channel, void *ownerRoot,
+    const std::map<std::string, GhostSkeletonBoneRecord> &records,
+    const std::map<std::string, int> &nameCounts,
+    char (&names)[DIRECT_VMD_PHASE6_TWIST_TARGETS_PER_CHANNEL][96],
+    const char **source, char *reason, size_t reasonSize) {
+  *source = "unresolved";
+  reason[0] = '\0';
+  for (auto &name : names)
+    name[0] = '\0';
+
+  bool legacyComplete = true;
+  for (uint32_t index = 0;
+       index < DIRECT_VMD_PHASE6_TWIST_TARGETS_PER_CHANNEL; ++index) {
+    const char *legacy = GhostRig_TwistTargetName(channel, index);
+    legacyComplete = legacyComplete && legacy &&
+                     SafeFindChildRecursive(ownerRoot, legacy, 64);
+  }
+  if (legacyComplete) {
+    for (uint32_t index = 0;
+         index < DIRECT_VMD_PHASE6_TWIST_TARGETS_PER_CHANNEL; ++index)
+      strncpy_s(names[index], GhostRig_TwistTargetName(channel, index),
+                _TRUNCATE);
+    *source = "legacy-name";
+    return true;
+  }
+
+  const DirectVmdTwistChannelSpec &spec =
+      kDirectVmdPhase6TwistChannels[channel];
+  void *limbStart =
+      SafeGetBoneTransform(GhostRig_Phase3HumanBone(spec.sourceLimb));
+  void *limbEnd =
+      SafeGetBoneTransform(GhostRig_Phase3HumanBone(spec.targetLimbEnd));
+  GhostTargetBindPose startPose;
+  GhostTargetBindPose endPose;
+  char status[160] = {};
+  if (!limbStart || !limbEnd ||
+      !GhostRig_BuildBindPoseFromTransform(limbStart, ownerRoot, records,
+                                           nameCounts, &startPose, nullptr,
+                                           0, status, sizeof(status)) ||
+      !GhostRig_BuildBindPoseFromTransform(limbEnd, ownerRoot, records,
+                                           nameCounts, &endPose, nullptr, 0,
+                                           status, sizeof(status))) {
+    _snprintf_s(reason, reasonSize, _TRUNCATE,
+                "limb bind unavailable: %s", status);
+    return false;
+  }
+  const VmdVec3 axis = DirectVmdSub(endPose.position, startPose.position);
+  const float limbLength = DirectVmdLength(axis);
+  VmdVec3 axisUnit = {};
+  if (!DirectVmdTryNormalizeVector(axis, &axisUnit) || limbLength < 1.0e-3f) {
+    strncpy_s(reason, reasonSize, "degenerate limb axis", _TRUNCATE);
+    return false;
+  }
+
+  std::vector<void *> humanoid;
+  for (int bone = 0; bone <= HB_UpperChest; ++bone)
+    if (void *transform = SafeGetBoneTransform(bone))
+      humanoid.push_back(transform);
+  auto isHumanoid = [&](void *transform) {
+    for (void *other : humanoid)
+      if (GhostRig_SameUnityObject(transform, other))
+        return true;
+    return false;
+  };
+
+  struct Candidate {
+    void *transform;
+    void *parent;
+    float along;
+    char name[96];
+  };
+  std::vector<Candidate> candidates;
+  std::vector<std::pair<void *, int>> pending = {{limbStart, 0}};
+  while (!pending.empty() && candidates.size() < 32) {
+    const auto [node, depth] = pending.back();
+    pending.pop_back();
+    const int count = GhostRig_ChildCount(node);
+    for (int child = 0; child < count; ++child) {
+      void *args[] = {&child};
+      void *next = Invoke(g_transform_GetChild, node, args);
+      if (!next || GhostRig_SameUnityObject(next, limbEnd) ||
+          isHumanoid(next))
+        continue;
+      if (depth + 1 < 3)
+        pending.push_back({next, depth + 1});
+      char name[96] = {};
+      SafeGetBoneName(next, name, sizeof(name));
+      GhostTargetBindPose pose;
+      char ignored[160] = {};
+      if (!GhostRig_NameContainsTwist(name) ||
+          !GhostRig_BuildBindPoseFromTransform(next, ownerRoot, records,
+                                               nameCounts, &pose, nullptr, 0,
+                                               ignored, sizeof(ignored)))
+        continue;
+      const VmdVec3 offset = DirectVmdSub(pose.position, startPose.position);
+      const float along = DirectVmdDot(offset, axisUnit) / limbLength;
+      const float across = DirectVmdLength(DirectVmdSub(
+          offset, DirectVmdScale(axisUnit, along * limbLength)));
+      if (along < -0.05f || along > 0.95f || across > 0.1f * limbLength)
+        continue;
+      Candidate candidate = {next, node, along, {}};
+      strncpy_s(candidate.name, name, _TRUNCATE);
+      candidates.push_back(candidate);
+    }
+  }
+
+  void *parent = limbStart;
+  for (uint32_t index = 0;
+       index < DIRECT_VMD_PHASE6_TWIST_TARGETS_PER_CHANNEL; ++index) {
+    const Candidate *best = nullptr;
+    for (const Candidate &candidate : candidates)
+      if (GhostRig_SameUnityObject(candidate.parent, parent) &&
+          (!best || candidate.along < best->along))
+        best = &candidate;
+    if (!best) {
+      _snprintf_s(reason, reasonSize, _TRUNCATE,
+                  "structural chain incomplete at target %u "
+                  "(onAxisTwistCandidates=%zu)",
+                  index, candidates.size());
+      return false;
+    }
+    strncpy_s(names[index], best->name, _TRUNCATE);
+    parent = best->transform;
+  }
+  for (const auto &name : names) {
+    const auto count = nameCounts.find(name);
+    if (count == nameCounts.end() || count->second != 1) {
+      _snprintf_s(reason, reasonSize, _TRUNCATE,
+                  "structural candidate '%s' is not unique", name);
+      return false;
+    }
+  }
+  *source = "structural";
+  return true;
+}
+
 static void GhostRig_CaptureWristBindFrame(
     DirectVmdBoneId wristId, const GhostTargetBindPose &wrist,
     const GhostTargetBindPose &middle, bool hasMiddle,
@@ -3071,13 +3287,27 @@ static bool GhostRig_CaptureNaturalBindPose(
         &limbDirectionOwner);
     GhostTargetBindPose previous = limbStart;
     bool parentAvailable = hasLimbDirection;
+    char twistNames[DIRECT_VMD_PHASE6_TWIST_TARGETS_PER_CHANNEL][96] = {};
+    const char *twistSource = "unresolved";
+    char twistReason[192] = {};
+    const bool twistNamesResolved = GhostRig_ResolveTwistTransformNames(
+        channel, ownerRoot, records, nameCounts, twistNames, &twistSource,
+        twistReason, sizeof(twistReason));
+    Log("[P6-TWIST-DISCOVERY] channel=%u semantic='%s' resolved=%d "
+        "source=%s target0='%s' target1='%s' reason='%s' readsLivePose=0 "
+        "generation=%llu owner=%p tid=%lu",
+        channel, kDirectVmdBoneSpecs[controlSemantic].name,
+        twistNamesResolved ? 1 : 0, twistSource, twistNames[0],
+        twistNames[1], twistReason, (unsigned long long)generation,
+        reinterpret_cast<void *>(ownerCharacter), GetCurrentThreadId());
     for (uint32_t targetIndex = 0;
          targetIndex < DIRECT_VMD_PHASE6_TWIST_TARGETS_PER_CHANNEL;
          ++targetIndex) {
       GhostRigTwistTargetRuntime &runtime =
           s_ghostRig.twistChannels[channel].targets[targetIndex];
+      strncpy_s(runtime.transformName, twistNames[targetIndex], _TRUNCATE);
       const char *transformName =
-          GhostRig_TwistTargetName(channel, targetIndex);
+          twistNamesResolved ? runtime.transformName : nullptr;
       GhostTargetBindPose twistPose;
       char twistStatus[192] = {};
       const bool captured = parentAvailable && transformName &&
@@ -4548,7 +4778,7 @@ static void GhostRig_ResolvePhase3Targets(void *ownerRoot) {
       GhostRigTwistTargetRuntime &runtime =
           s_ghostRig.twistChannels[channel].targets[targetIndex];
       const char *transformName =
-          GhostRig_TwistTargetName(channel, targetIndex);
+          runtime.transformName[0] ? runtime.transformName : nullptr;
       void *transform = transformName
                             ? SafeFindChildRecursive(ownerRoot,
                                                      transformName, 64)
@@ -5321,9 +5551,220 @@ static void GhostRig_LogFinalIkSolverClass(DirectVmdLegSide side,
       GetCurrentThreadId());
 }
 
+static void *GhostRig_ReadFinalIkPelvisReference(void *bipedIK,
+                                                 void *pelvisConstraints,
+                                                 const char **source) {
+  static const char *kReferences[] = {"references"};
+  static const char *kPelvis[] = {"pelvis"};
+  static const char *kTransform[] = {"transform"};
+  *source = "unresolved";
+  void *pelvis = nullptr;
+  if (!il2cpp_object_get_class)
+    return nullptr;
+  __try {
+    const char *field = nullptr;
+    void *bipedClass = il2cpp_object_get_class(bipedIK);
+    const int referencesOffset =
+        FindFieldInHierarchy(bipedClass, kReferences, 1, &field);
+    void *references = referencesOffset > 0
+        ? *reinterpret_cast<void **>((char *)bipedIK + referencesOffset)
+        : nullptr;
+    if (references) {
+      const int pelvisOffset = FindFieldInHierarchy(
+          il2cpp_object_get_class(references), kPelvis, 1, &field);
+      if (pelvisOffset > 0)
+        pelvis = *reinterpret_cast<void **>(
+            (char *)references + pelvisOffset);
+      if (pelvis)
+        *source = "BipedIK.references.pelvis";
+    }
+    if (!pelvis && pelvisConstraints) {
+      const int transformOffset = FindFieldInHierarchy(
+          il2cpp_object_get_class(pelvisConstraints), kTransform, 1,
+          &field);
+      if (transformOffset > 0)
+        pelvis = *reinterpret_cast<void **>(
+            (char *)pelvisConstraints + transformOffset);
+      if (pelvis)
+        *source = "BipedIK.solvers.pelvis.transform";
+    }
+  } __except (EXCEPTION_EXECUTE_HANDLER) {
+    pelvis = nullptr;
+    *source = "read-fault";
+  }
+  return pelvis;
+}
+
+static bool GhostRig_CapturePelvisNodeOwnership(void *bipedIK,
+                                                void *pelvisConstraints) {
+  GhostRigPelvisNodeRuntime &node = s_ghostRig.pelvisNode;
+  if (node.handle && il2cpp_gchandle_free)
+    il2cpp_gchandle_free(node.handle);
+  node = GhostRigPelvisNodeRuntime();
+  node.lastCorrectionFrame = INT_MIN;
+  node.lastLogFrame = INT_MIN;
+
+  const char *source = "unresolved";
+  void *pelvis = GhostRig_ReadFinalIkPelvisReference(
+      bipedIK, pelvisConstraints, &source);
+  void *hips = GhostRig_GetTargetTransform(DirectVmdBoneId::LowerBody);
+  void *ownerRoot = GhostRig_GetOwnerRoot(s_ghostRig.ownerCharacter);
+  char name[96] = {};
+  if (pelvis)
+    SafeGetBoneName(pelvis, name, sizeof(name));
+
+  const char *role = nullptr;
+  if (!pelvis || !GhostRig_IsUnityObjectAlive(pelvis))
+    role = "unresolved";
+  else if (hips && GhostRig_SameUnityObject(pelvis, hips))
+    role = "hips";
+  else if (!ownerRoot || GhostRig_SameUnityObject(pelvis, ownerRoot) ||
+           !GhostRig_IsComponentUnderOwner(pelvis, ownerRoot))
+    role = "root-or-outside-owner";
+  if (role) {
+    Log("[P5-PELVIS-NODE] event=capture role=%s node='%s' source=%s "
+        "owned=0 generation=%llu owner=%p tid=%lu",
+        role, name, source, (unsigned long long)s_ghostRig.generation,
+        reinterpret_cast<void *>(s_ghostRig.ownerCharacter),
+        GetCurrentThreadId());
+    return true;
+  }
+
+  VmdVec3 bindLocal = {};
+  bool fromAvatar = false;
+  char status[160] = {};
+  std::map<std::string, GhostSkeletonBoneRecord> records;
+  std::map<std::string, int> nameCounts;
+  if (name[0] &&
+      GhostRig_ReadSkeletonMetadata(&records, &nameCounts, status,
+                                    sizeof(status))) {
+    const auto count = nameCounts.find(name);
+    const auto record = records.find(name);
+    if (count != nameCounts.end() && count->second == 1 &&
+        record != records.end()) {
+      bindLocal = record->second.position;
+      fromAvatar = true;
+    }
+  }
+  Vec3 entryValue = {};
+  const bool entryOk = GhostRig_ReadLocalPosition(pelvis, entryValue) &&
+                       DirectVmdFinite(entryValue.x) &&
+                       DirectVmdFinite(entryValue.y) &&
+                       DirectVmdFinite(entryValue.z);
+  const VmdVec3 entryLocal = {entryValue.x, entryValue.y, entryValue.z};
+  if (!fromAvatar && !entryOk) {
+    Log("[P5-PELVIS-NODE] event=capture role=intermediate node='%s' "
+        "source=%s owned=0 reason=no-bind-or-entry-value "
+        "action=suppress-biped generation=%llu owner=%p tid=%lu",
+        name, source, (unsigned long long)s_ghostRig.generation,
+        reinterpret_cast<void *>(s_ghostRig.ownerCharacter),
+        GetCurrentThreadId());
+    return false;
+  }
+  node.handle = il2cpp_gchandle_new(pelvis, false);
+  if (!node.handle) {
+    Log("[P5-PELVIS-NODE] event=capture role=intermediate node='%s' "
+        "source=%s owned=0 reason=gchandle-failed action=suppress-biped "
+        "generation=%llu owner=%p tid=%lu",
+        name, source, (unsigned long long)s_ghostRig.generation,
+        reinterpret_cast<void *>(s_ghostRig.ownerCharacter),
+        GetCurrentThreadId());
+    return false;
+  }
+  node.bindLocalPosition = fromAvatar ? bindLocal : entryLocal;
+  node.bindFromAvatar = fromAvatar;
+  node.restoreLocalPosition = entryLocal;
+  node.restoreValid = entryOk;
+  strncpy_s(node.name, sizeof(node.name), name, _TRUNCATE);
+  Log("[P5-PELVIS-NODE] event=capture role=intermediate node='%s' "
+      "source=%s owned=1 handle=%u bindSource=%s "
+      "bindLocalP=(%.6f,%.6f,%.6f) entryLocalP=(%.6f,%.6f,%.6f) "
+      "entryValid=%d metadataStatus='%s' writesLocalPositionOnly=1 "
+      "generation=%llu owner=%p mainThreadOnly=1 tid=%lu",
+      node.name, source, node.handle,
+      fromAvatar ? "Avatar.humanDescription.skeleton"
+                 : "entry-local-fallback",
+      node.bindLocalPosition.x, node.bindLocalPosition.y,
+      node.bindLocalPosition.z, entryLocal.x, entryLocal.y, entryLocal.z,
+      entryOk ? 1 : 0, status, (unsigned long long)s_ghostRig.generation,
+      reinterpret_cast<void *>(s_ghostRig.ownerCharacter),
+      GetCurrentThreadId());
+  return true;
+}
+
+static bool GhostRig_StabilizePelvisNodeBindPosition(int frame,
+                                                     const char *stage) {
+  GhostRigPelvisNodeRuntime &node = s_ghostRig.pelvisNode;
+  if (!node.handle)
+    return true;
+  void *transform = GhostRig_GetHandleTarget(node.handle);
+  const bool alive = transform && GhostRig_IsUnityObjectAlive(transform);
+  Vec3 beforeValue = {};
+  const bool measured =
+      alive && GhostRig_ReadLocalPosition(transform, beforeValue);
+  const VmdVec3 before = measured
+      ? VmdVec3{beforeValue.x, beforeValue.y, beforeValue.z}
+      : node.bindLocalPosition;
+  const float correctionDistance =
+      measured ? DirectVmdLength(DirectVmdSub(before,
+                                              node.bindLocalPosition))
+               : -1.0f;
+  const bool written = alive &&
+      GhostRig_WriteLocalPosition(transform, node.bindLocalPosition);
+  if (written)
+    ++node.writeCount;
+
+  const bool postFinalIk =
+      stage && strcmp(stage, "post-finalik") == 0;
+  const bool significant = measured && correctionDistance > 1.0e-4f;
+  if (postFinalIk) {
+    node.lastCorrectionDistance =
+        measured && written ? correctionDistance : 0.0f;
+    node.lastCorrectionFrame = frame;
+    if (significant && written)
+      ++node.postCorrectionCount;
+  }
+
+  const bool periodic =
+      frame < 0 || node.lastLogFrame == INT_MIN ||
+      frame - node.lastLogFrame >= 120;
+  if (!written || (significant && periodic)) {
+    node.lastLogFrame = frame;
+    Log("[P5-PELVIS-NODE] event=stabilize stage=%s unityFrame=%d "
+        "vmdFrame=%.6f node='%s' beforeLocalP=(%.6f,%.6f,%.6f) "
+        "bindLocalP=(%.6f,%.6f,%.6f) localCorrectionDistance=%.6f "
+        "measured=%d written=%d alive=%d totalWrites=%llu "
+        "postCorrections=%llu currentPoseTargetInput=0 "
+        "generation=%llu owner=%p tid=%lu",
+        stage ? stage : "unknown", frame, s_ghostRig.lastSourceFrame,
+        node.name, before.x, before.y, before.z,
+        node.bindLocalPosition.x, node.bindLocalPosition.y,
+        node.bindLocalPosition.z, correctionDistance, measured ? 1 : 0,
+        written ? 1 : 0, alive ? 1 : 0,
+        (unsigned long long)node.writeCount,
+        (unsigned long long)node.postCorrectionCount,
+        (unsigned long long)s_ghostRig.generation,
+        reinterpret_cast<void *>(s_ghostRig.ownerCharacter),
+        GetCurrentThreadId());
+  }
+  return written;
+}
+
 static bool GhostRig_ResolvePhase5FinalIkSolvers(void *bipedIK) {
   if (!bipedIK || !il2cpp_gchandle_new)
     return false;
+  if (!g_finalIkSolverLayoutOk) {
+    static bool s_logged = false;
+    if (!s_logged) {
+      s_logged = true;
+      Log("[P5-FINALIK-MAP] failed reason=finalik-layout-unconfirmed "
+          "action=suppress-biped generation=%llu owner=%p tid=%lu",
+          (unsigned long long)s_ghostRig.generation,
+          reinterpret_cast<void *>(s_ghostRig.ownerCharacter),
+          GetCurrentThreadId());
+    }
+    return false;
+  }
   void *retained = GhostRig_GetFinalIkBiped();
   const bool hasAnyLegSolver =
       GhostRig_LegRuntime(DirectVmdLegSide::Left).solverHandle != 0 ||
@@ -5550,6 +5991,14 @@ static bool GhostRig_ResolvePhase5FinalIkSolvers(void *bipedIK) {
   }
 
   if (isolationFailed) {
+    GhostRig_ClearPhase5FinalIkOwnership(
+        GhostRigCleanupReason::Recapture);
+    return false;
+  }
+
+  if (!GhostRig_CapturePelvisNodeOwnership(
+          bipedIK,
+          auxObjects[static_cast<uint32_t>(GhostRigAuxSolverId::Pelvis)])) {
     GhostRig_ClearPhase5FinalIkOwnership(
         GhostRigCleanupReason::Recapture);
     return false;
@@ -6871,6 +7320,14 @@ static bool GhostRig_PreparePhase5Legs(int frame, void *bipedIK) {
         GetCurrentThreadId());
     return false;
   }
+  if (!GhostRig_StabilizePelvisNodeBindPosition(frame, "pre-finalik")) {
+    Log("[P5-PELVIS-NODE] stage=pre-finalik unityFrame=%d written=0 "
+        "action=suppress-biped generation=%llu owner=%p tid=%lu",
+        frame, (unsigned long long)s_ghostRig.generation,
+        reinterpret_cast<void *>(s_ghostRig.ownerCharacter),
+        GetCurrentThreadId());
+    return false;
+  }
 
   const bool playbackOwnsPose =
       s_ghostRig.playbackAnchorCaptured && s_ghostRig.lastSampleAccepted &&
@@ -7046,12 +7503,20 @@ static bool GhostRig_BeforeLegSolverUpdate(void *solver,
 }
 
 static bool GhostRig_ResolvePhase7LegsAfterHipsCorrection(int frame) {
+  const bool hipsCorrected =
+      s_ghostRig.lastHipsCorrectionFrame == frame &&
+      DirectVmdFinite(s_ghostRig.lastHipsCorrectionDistance) &&
+      s_ghostRig.lastHipsCorrectionDistance > 1.0e-3f;
+  const GhostRigPelvisNodeRuntime &pelvisNode = s_ghostRig.pelvisNode;
+  const float pelvisNodeCorrection =
+      pelvisNode.handle && pelvisNode.lastCorrectionFrame == frame &&
+              DirectVmdFinite(pelvisNode.lastCorrectionDistance)
+          ? pelvisNode.lastCorrectionDistance
+          : 0.0f;
   if (!s_ghostRig.terrainEnabledLast ||
       !s_ghostRig.terrainFrameValid ||
       s_ghostRig.lastTerrainFrame != frame ||
-      s_ghostRig.lastHipsCorrectionFrame != frame ||
-      !DirectVmdFinite(s_ghostRig.lastHipsCorrectionDistance) ||
-      s_ghostRig.lastHipsCorrectionDistance <= 1.0e-3f)
+      (!hipsCorrected && pelvisNodeCorrection <= 1.0e-3f))
     return true;
 
   typedef void (__fastcall *OnUpdateNativeFn)(void *, void *);
@@ -7099,14 +7564,16 @@ static bool GhostRig_ResolvePhase7LegsAfterHipsCorrection(int frame) {
   if (periodic || solved != attempted) {
     s_ghostRig.lastTerrainFinalIkResolveLogFrame = frame;
     Log("[P7-FINALIK-RESOLVE] unityFrame=%d vmdFrame=%.6f "
-        "hipsCorrectionDistance=%.6f attempted=%d solved=%d "
+        "hipsCorrectionDistance=%.6f pelvisNodeCorrectionDistance=%.6f "
+        "attempted=%d solved=%d "
         "leftSolved=%d rightSolved=%d rootOffset=%.6f "
         "support=%s rootSupport=%s totalSolves=%llu "
         "legOnly=1 spine=0 look=0 aim=0 pelvis=0 "
         "sameFrameFinalOutput=1 nextFrameFeedback=0 "
         "generation=%llu owner=%p tid=%lu",
         frame, s_ghostRig.lastSourceFrame,
-        s_ghostRig.lastHipsCorrectionDistance, attempted, solved,
+        s_ghostRig.lastHipsCorrectionDistance, pelvisNodeCorrection,
+        attempted, solved,
         s_ghostRig.legs[0].postTerrainResolveFrame == frame ? 1 : 0,
         s_ghostRig.legs[1].postTerrainResolveFrame == frame ? 1 : 0,
         s_ghostRig.terrainFrame.rootOffset,
@@ -8025,6 +8492,15 @@ static void GhostRig_LogPhase5PostSolverChains(int frame,
             ? DirectVmdLength(DirectVmdSub(
                   solverPositions[2], leg.reach.solverTarget))
             : -1.0f;
+    VmdVec3 expectedThighPosition = {};
+    VmdVec3 expectedKneePosition = {};
+    const float thighSeedError =
+        chainOk && GhostRig_EvaluateExpectedLegSeedPositions(
+                       side, frame, &expectedThighPosition,
+                       &expectedKneePosition)
+            ? DirectVmdLength(DirectVmdSub(solverPositions[0],
+                                           expectedThighPosition))
+            : -1.0f;
     Quat measuredAnkleRotation = {0.0f, 0.0f, 0.0f, 1.0f};
     const bool ankleRotationOk =
         solverTransforms[2] &&
@@ -8068,7 +8544,8 @@ static void GhostRig_LogPhase5PostSolverChains(int frame,
         "rootP=(%.6f,%.6f,%.6f) desiredRootError=%.6f "
         "hipsP=(%.6f,%.6f,%.6f) expectedHipsP=(%.6f,%.6f,%.6f) "
         "hipsError=%.6f hipsPreCorrectionError=%.6f "
-        "thighP=(%.6f,%.6f,%.6f) kneeP=(%.6f,%.6f,%.6f) "
+        "thighP=(%.6f,%.6f,%.6f) thighSeedError=%.6f "
+        "kneeP=(%.6f,%.6f,%.6f) "
         "ankleP=(%.6f,%.6f,%.6f) solverTarget=(%.6f,%.6f,%.6f) "
         "solverTargetError=%.6f upperLength=%.6f lowerLength=%.6f "
         "ankleRotationOk=%d ankleRotationTarget=(%.7f,%.7f,%.7f,%.7f) "
@@ -8098,7 +8575,7 @@ static void GhostRig_LogPhase5PostSolverChains(int frame,
         expectedHipsPosition.z, hipsError,
         s_ghostRig.lastHipsCorrectionDistance,
         solverPositions[0].x, solverPositions[0].y,
-        solverPositions[0].z, solverPositions[1].x,
+        solverPositions[0].z, thighSeedError, solverPositions[1].x,
         solverPositions[1].y, solverPositions[1].z,
         solverPositions[2].x, solverPositions[2].y,
         solverPositions[2].z, leg.reach.solverTarget.x,
@@ -8161,6 +8638,7 @@ static void GhostRig_AfterFinalIK(void *bipedIK) {
       s_directVmdTerrainDesiredEnabled.load(
           std::memory_order_acquire);
   if (grounderActive) {
+    GhostRig_StabilizePelvisNodeBindPosition(frame, "post-finalik");
     GhostRig_StabilizeTargetHipsBindPosition(frame,
                                              "post-finalik");
     GhostRig_ResolvePhase7LegsAfterHipsCorrection(frame);
@@ -8182,6 +8660,7 @@ static void GhostRig_AfterFinalIK(void *bipedIK) {
     GhostRig_LogOrder("Grounder.hybridFinalPose.restored", frame, owner,
                       generation);
   } else {
+    GhostRig_StabilizePelvisNodeBindPosition(frame, "post-finalik");
     GhostRig_StabilizeTargetHipsBindPosition(frame,
                                              "post-finalik");
     GhostRig_ResolvePhase7LegsAfterHipsCorrection(frame);
@@ -8618,7 +9097,7 @@ static void GhostRig_CaptureGrounderTargets(void *grounder, int frame) {
         ? *reinterpret_cast<void **>(
               (char *)grounder + OFF_GROUNDER_SOLVER)
         : nullptr;
-    if (grounding) {
+    if (grounding && g_finalIkGroundingLayoutOk) {
       const float heightOffset = *reinterpret_cast<float *>(
           (char *)grounding + OFF_GROUNDING_HEIGHT_OFFSET);
       if (DirectVmdFinite(heightOffset) && heightOffset >= -0.10f &&
@@ -8862,7 +9341,7 @@ static void GhostRig_LogGrounderSolverState(void *grounder, int frame) {
         (char *)grounder + OFF_GROUNDER_INITIATED);
     grounding = *reinterpret_cast<void **>(
         (char *)grounder + OFF_GROUNDER_SOLVER);
-    if (grounding)
+    if (grounding && g_finalIkGroundingLayoutOk)
       grounded = *reinterpret_cast<bool *>(
           (char *)grounding + OFF_GROUNDING_IS_GROUNDED);
   } __except (EXCEPTION_EXECUTE_HANDLER) {

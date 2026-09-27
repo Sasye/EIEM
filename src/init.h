@@ -1116,6 +1116,7 @@ static DWORD WINAPI InitThread(LPVOID) {
 
   {
     uintptr_t gaBase2 = (uintptr_t)GetModuleHandleW(L"GameAssembly.dll");
+    ResolveFinalIkLayout(asms, ac);
 
     void *animatorMonoClass = FindClass(
         "Beyond.Gameplay.View.Animation", "AnimatorMono", asms, ac);
