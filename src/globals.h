@@ -1,8 +1,8 @@
 #pragma once
 
 #define EIEM_VERSION_MAJOR 0
-#define EIEM_VERSION_MINOR 2
-#define EIEM_VERSION_PATCH 2
+#define EIEM_VERSION_MINOR 3
+#define EIEM_VERSION_PATCH 0
 
 #define EIEM_STRINGIFY2(x) #x
 #define EIEM_STRINGIFY(x) EIEM_STRINGIFY2(x)

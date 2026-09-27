@@ -1,10 +1,11 @@
 # EIEM Importing Endfield MMD
 
-English | [中文](README.md)
+English | [中文](README.md) | [日本語](README_JA.md)
 
 Provides MMD animation playback capabilities for *Arknights: Endfield*. Supports direct VMD motion playback (and pre-baked muscle animations), facial expressions, finger animation, camera motion, and synced background music, all controlled through an in-game GUI panel.
 
 Demo Video: [bilibili](https://www.bilibili.com/video/BV1YdEC6bEfP/)
+Community group: 1036919766
 
 ## User Agreement & Disclaimer
 
@@ -20,10 +21,10 @@ Demo Video: [bilibili](https://www.bilibili.com/video/BV1YdEC6bEfP/)
 - This plugin is entirely free and open-source on GitHub. If you obtained it through a paid purchase, please be aware that it is freely available on GitHub.
 
 ### 3. Content Compliance & Conduct
-- This plugin does not contain any game art assets. Users acknowledge and agree that the official animations, scenes, models, and other assets built into *Arknights: Endfield* are copyrighted by Hypergryph and are not covered by the AGPL-3.0 license. You **should not and must not** use this plugin, or any in-game official assets, to create, play, or distribute any inappropriate motions/animations (including but not limited to pornographic, violent, politically sensitive, or other content that violates laws and regulations or causes community discomfort).
+- This plugin does not contain any game art assets. Users acknowledge and agree that the official animations, scenes, models, and other assets built into *Arknights: Endfield* are copyrighted by Hypergryph and are not covered by the AGPL-3.0 license. You **should not** use this plugin, or any in-game official assets, to create, play, or distribute any inappropriate motions/animations (including but not limited to pornographic, violent, politically sensitive, or other content that violates laws and regulations or causes community discomfort). Users are responsible for ensuring that they hold the copyright to any resources they import and for complying with the applicable licenses and terms of use.
 
 ### 4. Risk & Disclaimer
-- This project is for educational, technical research, and communication purposes only. All Arknights game data assets used in this plugin are copyrighted by Hypergryph. Using this tool may violate the game's terms of service and carries a risk of account suspension. For any loss directly or indirectly caused by using this plugin (including but not limited to account bans, game data corruption, etc.), **this project assumes no legal or financial liability**. Users bear all risks and are strongly advised to use it on a test account.
+- This project is for educational, technical research, and communication purposes only. The author is not responsible for how users use this plugin, including any misuse. All Arknights game data assets used in this plugin are copyrighted by Hypergryph. Using this tool may violate the game's terms of service and carries a risk of account suspension. For any loss directly or indirectly caused by using this plugin (including but not limited to account bans, game data corruption, etc.), **this project assumes no legal or financial liability**. Users bear all risks and are strongly advised to use it on a test account.
 
 </details>
 
@@ -33,12 +34,12 @@ Demo Video: [bilibili](https://www.bilibili.com/video/BV1YdEC6bEfP/)
 - **Direct VMD playback mode**: Directly reads standard VMD motions without requiring PMX or pre-converting to MUS4
 - **Full-body bone retargeting**: Supports Root, upper/lower body, head/neck, shoulders/arms, wrists, fingers, and leg motions
 - **Leg FK/IK**: Dynamically switches between FK and FinalIK per leg based on VMD IK keyframes
-- **Fingers & Twist bones**: Independent rotation control for 30 finger bones, along with upper arm and forearm Twist distribution
 - **Facial expressions & eyes**: Plays VMD Morphs, basic expressions (blinks, mouth shapes, etc.), and eye gaze motion
 - **Camera motion**: VMD camera keyframes
 - **Audio sync**: Supports WAV/MP3 with synchronous play, pause, seek, loop, and end handling
 - **Terrain & staircase stepping**: Optional terrain post-processing, adaptively snapping to flat ground, slopes, and stairs
 - **MUS4 muscle mode**: Full-body motion driven by 95 muscle values
+- **Clothing enhancement**: Uses the game's native cloth system, combining built-in outfit-specific configurations with automatic runtime adaptation
 
 ### Planned
 - Multi-character screen playback
