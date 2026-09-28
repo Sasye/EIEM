@@ -34,7 +34,9 @@ inline double Angle(Point a,Point b) {
 }
 inline Graph NativeGraph(const std::vector<Point> &p,const std::vector<ClothBoneAsset> &bones,int columns,bool loop,bool reverse,
     eiem_cloth_graph::OrderContract *contract=nullptr) {
-  Need(p.size()==bones.size()&&p.size()>=4&&p.size()<=128&&columns>=2&&columns<=32,"auto-native-graph-budget");
+  Need(p.size()==bones.size()&&p.size()>=4&&ClothBoneIdentityBudget(bones.size(),
+      size_t(std::count_if(bones.begin(),bones.end(),[](const ClothBoneAsset &b){return b.attribute!=0;})))&&
+      columns>=2&&columns<=32,"auto-native-graph-budget");
   std::set<std::array<int,3>> faces;std::set<std::array<int,2>> adjacent;
   for(int v=0;v<int(p.size());++v) {
     if(!bones[v].attribute)continue;std::vector<int> neighbors;
@@ -82,7 +84,7 @@ inline Graph NativeGraph(const std::vector<Point> &p,const std::vector<ClothBone
   for(const auto &f:faces)if(!removed.count(f)) {
     result.faces.push_back(f);for(int i=0;i<3;++i)for(int j=i+1;j<3;++j)covered.insert({f[i],f[j]});
   }
-  Need(!result.faces.empty()&&result.faces.size()<=256,"auto-native-graph-face-budget");
+  Need(!result.faces.empty()&&result.faces.size()<=ClothBoneMaxFaces,"auto-native-graph-face-budget");
   for(auto e:adjacent)if(!covered.count(e))result.lines.push_back(e);
   if(contract){for(auto &r:choices)if(r.second.size()>1)contract->rules.push_back({r.first,std::move(r.second)});
     Need(eiem_cloth_graph::Valid(*contract),"auto-native-graph-order-contract");}

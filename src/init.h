@@ -170,6 +170,13 @@ static DWORD WINAPI HotkeyThread(LPVOID) {
     AnimationTick();
     MuscleAnimationTick();
     DirectVmdRuntime_WorkerTick();
+    static ULONGLONG clothPrefetchPulse=0;
+    const auto clothPrefetchNow=GetTickCount64();
+    if(clothPrefetchNow>=clothPrefetchPulse) {
+      clothPrefetchPulse=clothPrefetchNow+250;
+      if(!s_clothPrefetchPosted.exchange(true,std::memory_order_acq_rel)&&!PostMessageW(hwnd,WM_USER+126,0,0))
+        s_clothPrefetchPosted.store(false,std::memory_order_release);
+    }
 
     if (g_camTestMode && g_cameraActive) {
       ApplyCameraFrame(0.0f);
@@ -521,7 +528,7 @@ static void ClothInstallWeightWriterMainThread(void *method) {
 }
 static void ClothInstallInputTraceMainThread() {
   static bool attempted = false;
-  if (attempted || !ClothOnMainThread() || !s_cloth.active) return;
+  if (attempted || !ClothOnMainThread() || (!s_cloth.active&&!ClothPrefetchNeedsHooks())) return;
   attempted = true;
   size_t count = 0;
   void **asms = il2cpp_domain_get_assemblies(il2cpp_domain_get(), &count);
@@ -616,6 +623,8 @@ static void ClothInstallInputTraceMainThread() {
 #include "cloth/collision/cloth_contact_job_install.h"
 #include "cloth/collision/cloth_layer_order_install.h"
 #include "cloth/collision/cloth_elastic_install.h"
+#include "cloth/collision/cloth_display_install.h"
+#include "cloth/collision/cloth_contact_finish_install.h"
 #include <bcrypt.h>
 #include "cloth/resources/cloth_bonecloth_catalog_io.h"
 #pragma comment(lib,"bcrypt.lib")
@@ -687,6 +696,8 @@ static DWORD WINAPI InitThread(LPVOID) {
   s_clothContactJobInstaller = ClothInstallContactJobsMainThread;
   s_clothLayerInstaller = ClothInstallLayerOrderMainThread;
   s_clothElasticInstaller = ClothInstallElasticMainThread;
+  s_clothDisplayInstaller = ClothInstallDisplayMainThread;
+  s_clothFinishInstaller = ClothInstallFinishMainThread;
   while (!GetModuleHandleW(L"GameAssembly.dll"))
     Sleep(500);
   Sleep(3000);

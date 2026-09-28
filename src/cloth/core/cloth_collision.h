@@ -279,7 +279,7 @@ static void *CollisionBody(void *animator, int index) {
                    animator, args, r) ||
       !r)
     return nullptr;
-  return ClothAnchorUnderOwner(r) ? r : nullptr;
+  return ClothUnderAnimator(r,animator) ? r : nullptr;
 }
 
 struct CollisionGeometry {
@@ -413,6 +413,8 @@ static void ClothBoneSolverCompleted(void *manager);
 static void ClothBoneSolverPoseSubmitted(const char *stage,double playhead);
 static void ClothBoneSolverClear(int slot);
 static std::string ClothBoneSolverJson();
+static bool ClothPrefetchNeedsHooks();
+static void ClothPrefetchBoundary();
 
 static void ClothCollisionRelease(const char *reason) {
   __try { ClothBoneRelease(reason); }
@@ -425,6 +427,7 @@ static bool ClothCollisionNeedsMaintenance() { return ClothBonePending(); }
 #include "../diagnostics/cloth_collision_snapshot.h"
 #include "../native/cloth_native_runtime.h"
 #include "../bonecloth/cloth_bonecloth_runtime.h"
+#include "../bonecloth/cloth_bonecloth_prefetch.h"
 #include "../diagnostics/cloth_bonecloth_trace.h"
 static void CollisionPublishUi() {
   CollisionUi ui{};

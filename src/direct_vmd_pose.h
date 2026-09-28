@@ -405,13 +405,15 @@ static inline bool DirectVmdStartsFreshPlayback(
 }
 
 struct DirectVmdSampleFrame {
-  uint32_t version = 5;
+  uint32_t version = 6;
   uint32_t boneCount = DIRECT_VMD_BONE_COUNT;
   uint32_t morphCount = 0;
   uint32_t morphDroppedCount = 0;
   uint64_t sequence = 0;
   uint64_t rigGeneration = 0;
   uint64_t clipGeneration = 0;
+  uint64_t sourceRevision = 1;
+  uint64_t backendGeneration = 0;
   uint64_t playbackCycle = 0;
   uint64_t seekRevision = 0;
   uintptr_t ownerCharacter = 0;
@@ -1495,7 +1497,8 @@ static inline void DirectVmdSampleClip(
     const VmdFile &clip, double frame, uint64_t sequence,
     uint64_t rigGeneration, uint64_t clipGeneration,
     uintptr_t ownerCharacter, DirectVmdPlaybackState playback,
-    DirectVmdSampleFrame *output) {
+    DirectVmdSampleFrame *output, bool sampleBody = true,
+    bool sampleSections = true) {
   if (!output)
     return;
   *output = DirectVmdSampleFrame();
@@ -1508,7 +1511,7 @@ static inline void DirectVmdSampleClip(
   output->playback = playback;
   output->modelVisible = SampleVmdModelVisible(clip, output->sourceFrame) ? 1 : 0;
 
-  for (uint32_t index = 0; index < DIRECT_VMD_BONE_COUNT; ++index) {
+  for (uint32_t index = 0; sampleBody && index < DIRECT_VMD_BONE_COUNT; ++index) {
     VmdBoneSample source;
     if (!DirectVmdSampleBoneWithAlias(
             clip, kDirectVmdBoneSpecs[index], output->sourceFrame, &source))
@@ -1518,11 +1521,14 @@ static inline void DirectVmdSampleClip(
     target.rotation = DirectVmdNormalizeQuaternion(source.rotation);
     target.hasTrack = 1;
   }
-  DirectVmdFoldSemiStandardBones(clip, output->sourceFrame, output);
+  if (sampleBody)
+    DirectVmdFoldSemiStandardBones(clip, output->sourceFrame, output);
 
-  DirectVmdSampleMorphChannels(clip, output->sourceFrame, output);
-  DirectVmdSampleCameraChannel(clip, output->sourceFrame, false,
-                               &output->camera);
+  if (sampleSections) {
+    DirectVmdSampleMorphChannels(clip, output->sourceFrame, output);
+    DirectVmdSampleCameraChannel(clip, output->sourceFrame, false,
+                                 &output->camera);
+  }
 
   output->leftFootIkEnabled =
       DirectVmdSampleIkWithAlias(

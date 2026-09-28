@@ -12,6 +12,7 @@
 #include "imgui.h"
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx11.h"
+#include "direct_vmd_source_gui.h"
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(
     HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -502,7 +503,14 @@ static void DrawMainPanel() {
     }
   }
 
-  if (isPlaying) {
+  const bool clothHeld=g_clothPlaybackGate.Holding(uint32_t(selectedMotionBackend),g_motionBackend.Generation());
+  const bool clothFailed=clothHeld && g_clothPlaybackGate.State()==eiem_playback::Preparation::Failed;
+  if (clothFailed) {
+    ImGui::TextColored(ImVec4(0.85f,0.25f,0.15f,1.f),u8"\u670d\u88c5\u51c6\u5907\u5931\u8d25\uff0c\u8bf7\u505c\u6b62\u540e\u91cd\u8bd5");
+  } else if (clothHeld) {
+    ImGui::TextColored(ImVec4(0.80f,0.55f,0.f,1.f),
+        isPlaying?u8"\u6b63\u5728\u51c6\u5907\u670d\u88c5\uff0c\u5b8c\u6210\u540e\u5f00\u59cb\u64ad\u653e":u8"\u6b63\u5728\u51c6\u5907\u670d\u88c5\uff08\u64ad\u653e\u5df2\u6682\u505c\uff09");
+  } else if (isPlaying) {
     ImGui::TextColored(ImVec4(0.10f, 0.55f, 0.25f, 1.0f), u8"\u64ad\u653e\u4e2d");
   } else if (isPaused) {
     ImGui::TextColored(ImVec4(0.80f, 0.55f, 0.00f, 1.0f), u8"\u5df2\u6682\u505c");
@@ -522,6 +530,7 @@ static void DrawMainPanel() {
     ImGui::SetNextItemWidth(-1);
     static bool s_wasDragging = false;
     static float s_dragTarget = 0.0f;
+    ImGui::BeginDisabled(clothHeld);
     if (ImGui::SliderFloat("##seek", &seekTime, 0.0f, totalTime, u8"%.1f \u79d2")) {
       if (directModeSelected) {
         DirectVmdRuntime_RequestSeekFrame(
@@ -533,6 +542,7 @@ static void DrawMainPanel() {
       s_wasDragging = true;
       s_dragTarget = seekTime;
     }
+    ImGui::EndDisabled();
     if (s_wasDragging && !ImGui::IsItemActive()) {
       s_wasDragging = false;
       if (g_audioPlayer && g_audioPlayer->loaded && g_audioEnabled) {
@@ -897,6 +907,7 @@ static void DrawMainPanel() {
       }
     }
     } else {
+    DirectVmdSource_DrawGui(g_guiHwnd);
     ImGui::TextColored(ImVec4(0.20f, 0.20f, 0.24f, 1.0f),
                        u8"\u52a8\u4f5c VMD (.vmd)");
     ImGui::SetNextItemWidth(-1);

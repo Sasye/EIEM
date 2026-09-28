@@ -374,7 +374,7 @@ static bool ClothBoneNativeContactReadback(int slot,void *team) {
   if(!ClothBoneContactMaterialUnchanged(ClothBoneContactExpected(l),effective)) return refuse("native-contact-material-changed");
   const bool ready=reciprocalFaces && sync==p.team && parents.size()==1 && parents[0]==s.team[1] &&
       effective.selfMode==none && effective.syncMode==full &&
-      triangles.count>0 && triangles.count<=512 && otherPoints.count>0 && otherPoints.count<=128 &&
+      triangles.count>0 && triangles.count<=ClothBoneMaxFaces && otherPoints.count>0 && otherPoints.count<=ClothBoneMaxParticles &&
       (flags&(uint64_t(1)<<sourceFlag)) && (otherFlags&(uint64_t(1)<<targetFlag));
   if(!ready) {
     if(!l.contactPendingLogged) {

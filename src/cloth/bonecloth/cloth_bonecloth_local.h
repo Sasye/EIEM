@@ -50,7 +50,7 @@ static bool ClothBoneLocalProfile(ClothBoneRuntime &s) {
   auto &l=s.local;const auto &r=*l.recipe;
   if(!s.profile || ClothBoneLocalRecipeFor(*s.profile)!=l.recipe ||
       s.profile->boneCount!=r.originalCount || s.profile->rootCount!=r.originalRoots ||
-      s.profile->depth!=r.depth || (s.profile->loop!=r.loop&&!r.sourceShortSides) || r.Total()>ClothContactParticles ||
+      s.profile->depth!=r.depth || (s.profile->loop!=r.loop&&!r.sourceShortSides) || r.Total()>(r.resampledPanel?ClothBoneMaxIdentities:ClothContactParticles) ||
       (r.meshCount<1&&!r.NativeSkinRetained()) || r.meshCount>16 || (r.crossCount<1&&!r.RetainsSourceReference()) || r.crossCount>256 ||
       (s.profile->candidateIgnoredCount&&!r.runtimeGenerated) || (l.recipe==&ClothRingRecipe &&
       (strcmp(ClothLocalBaseSignature,ClothInnerBaseSignature) || strcmp(ClothLocalSignature,ClothInnerPrimarySignature)))) return false;
@@ -62,7 +62,7 @@ static bool ClothBoneLocalProfile(ClothBoneRuntime &s) {
   if(s.profile->runtimeSeparatedCoat&&(!r.NativePanelsOnly()||!eiem_cloth_asset::SourceSeparatedCoat(*s.profile)))return false;
   l.assets.assign(s.profile->bones,s.profile->bones+s.profile->boneCount);
   if(r.sourcePanelFit&&!eiem_cloth_asset::SourcePanelContract(*s.profile))return false;
-  if(r.resampledPanel&&(!r.sourcePanelFit||!eiem_cloth_asset::SourceSeraphPanel(*s.profile)||r.addedCount!=84||r.rootCount!=12||!r.bodyAsset||r.bodySphereCount!=14))return false;
+  if(r.resampledPanel&&(!r.sourcePanelFit||!eiem_cloth_asset::SourceSeraphPanel(*s.profile)||r.addedCount!=ClothLongPanelParticles||r.rootCount!=ClothLongPanelColumns||!r.bodyAsset||r.bodySphereCount!=14))return false;
   if(r.sourceApronFit&&(!eiem_cloth_asset::SourceApronRelease(*s.profile,1)||!eiem_cloth_asset::SourceApronRelease(*s.profile,4)))return false;
   if(r.sourceShortSkin&&(!r.NativeSkinRetained()||!eiem_cloth_asset::SourceShortContract(*s.profile)))return false;
   if(eiem_cloth_asset::SourceShortContract(*s.profile)&&!r.sourceShortSkin)return false;
@@ -86,9 +86,9 @@ static bool ClothBoneLocalProfile(ClothBoneRuntime &s) {
   l.profile.candidateAttributes=nullptr;
   l.profile.nativeGraphs=r.graphs;l.profile.nativeGraphCount=r.graphCount;
   l.profile.boneCount=int(l.assets.size());l.profile.roots=l.roots.data();l.profile.rootCount=int(l.roots.size());
-  if(r.resampledPanel){l.profile.depth=7;l.profile.candidateIgnored=l.ignored.data();l.profile.candidateIgnoredCount=int(l.ignored.size());}
+  if(r.resampledPanel){l.profile.depth=ClothLongPanelRows;l.profile.candidateIgnored=l.ignored.data();l.profile.candidateIgnoredCount=int(l.ignored.size());}
   if(r.sourceShortSkin)l.profile.depth=3;
-  return l.profile.boneCount==r.Total() && l.profile.EffectiveCount()==(r.resampledPanel?0:r.sourceShortSkin?s.profile->boneCount:s.profile->EffectiveCount()+eiem_cloth_asset::SourcePanelPromotedCount(*s.profile))+r.addedCount;
+  return ClothBoneIdentityBudget(l.profile.boneCount,l.profile.EffectiveCount()) && l.profile.boneCount==r.Total() && l.profile.EffectiveCount()==(r.resampledPanel?0:r.sourceShortSkin?s.profile->boneCount:s.profile->EffectiveCount()+eiem_cloth_asset::SourcePanelPromotedCount(*s.profile))+r.addedCount;
 }
 static bool ClothBoneLocalCreate() {
   auto &s=ClothBoneState();auto &l=s.local;const auto &recipe=*l.recipe;
@@ -191,7 +191,7 @@ static bool ClothBoneLocalCreate() {
   if(recipe.bodyCoverage && !ClothBoneBodyCreate()) return false;
   if(ClothBoneSideRecipeFor(*s.profile) && !ClothBoneSideCreate()) return ClothBoneReject("body-side-support-create-unconfirmed");
   l.created=true;l.deadline=GetTickCount64()+12000;
-  if(recipe.resampledPanel)Log("[CLOTH-AUTO] stage=long-panel-prepared component=%s sourceIdentities=40 sourceParticleWrites=0 privateColumns=12 privateRows=7 privateFixed=12 privateMove=72 fittedBodyShapes=%d proximalSpheres=12 calfCapsules=2 originalCapsuleWrites=0 upperAttachmentRing=source-wrapper upperAnchorSkinVertices=%zu contactRadius=%g sourceStructuralMaterialRetained=1 nativeReadback=pending visualVerified=0",s.profile->component,recipe.bodySphereCount,recipe.upperAnchorSkinVertices,recipe.fittedContactRadius);
+  if(recipe.resampledPanel)Log("[CLOTH-AUTO] stage=long-panel-prepared component=%s sourceIdentities=40 sourceParticleWrites=0 privateColumns=%d privateRows=%d privateFixed=%d privateMove=%d fittedBodyShapes=%d proximalSpheres=12 calfCapsules=2 originalCapsuleWrites=0 upperAttachmentRing=source-wrapper upperAnchorSkinVertices=%zu contactRadius=%g sourceAngleRetained=1 contourMaterialReadback=pending faceBendingReadback=pending nativeReadback=pending visualVerified=0",s.profile->component,ClothLongPanelColumns,ClothLongPanelRows,ClothLongPanelColumns,ClothLongPanelParticles-ClothLongPanelColumns,recipe.bodySphereCount,recipe.upperAnchorSkinVertices,recipe.fittedContactRadius);
   if(recipe.sourcePanelFit){int released=0,waist=0;for(int n=0;n<s.profile->boneCount;++n){released+=eiem_cloth_asset::SourcePanelRelease(*s.profile,n);waist+=l.assets[n].attribute==1&&l.assets[n].depth==0;}
     Log("[CLOTH-AUTO] stage=source-panel-prepared component=%s internalFixedToMove=%d sourceFixedWaistRoots=%d verifiedSourceWaists=%d commonLayerSkin=1 originalBodyCollidersRetained=1 selectionRestore=original-snapshot nativeReadback=pending visualVerified=0",s.profile->component,released,waist,eiem_cloth_asset::SourcePanelPromotedCount(*s.profile));}
   if(recipe.CoatWaistSkinOnly())Log("[CLOTH-AUTO] stage=coat-waist-prepared component=%s meshes=%d addedBones=0 fixedToSourceTrunkField=1 MoveWeightsUnchanged=1 sourceBodyCapsulesUnchanged=1 nativeReadback=pending visualVerified=0",s.profile->component,recipe.meshCount);
@@ -319,7 +319,6 @@ static bool ClothBoneLocalReady() {
     il2cpp_gchandle_free(l.registryScan);l.registryScan=0;l.registryReady=true;
     for(const auto &layer:l.layers)if(layer.namePresent)return false;
     Log("[CLOTH-BONE-RESOURCE] stage=registry-ready sharedLayers=%zu inspected=%zu perFrameSoftBudgetMs=3",l.layers.size(),l.registryCount);
-    return true;
   }
   LARGE_INTEGER start{},clock{},frequency{};QueryPerformanceFrequency(&frequency);QueryPerformanceCounter(&start);
   for(size_t k=0;k<l.layers.size();++k) {

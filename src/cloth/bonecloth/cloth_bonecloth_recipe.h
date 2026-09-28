@@ -51,6 +51,12 @@ struct ClothBoneResponseFrame {
 };
 struct ClothBoneResponsePoint {const char *name=nullptr,*parent=nullptr;int attribute=0;};
 struct ClothBoneResponseFace {std::array<int,3> ids{};int outside=0;};
+constexpr float ClothLongPanelDistanceStiffness=.3f,ClothLongPanelTetherStretch=1.f;
+constexpr int ClothLongPanelColumns=20,ClothLongPanelRows=11;
+constexpr int ClothLongPanelParticles=ClothLongPanelColumns*ClothLongPanelRows;
+constexpr int ClothLongPanelIdentities=40+ClothLongPanelParticles;
+constexpr int ClothLongPanelFaces=2*ClothLongPanelColumns*(ClothLongPanelRows-1);
+static_assert(ClothLongPanelParticles<=ClothBoneMaxParticles&&ClothLongPanelIdentities<=ClothBoneMaxIdentities);
 struct ClothBoneLocalRecipe {
   const char *signature=nullptr,*baseSignature=nullptr,*prefabSha=nullptr;
   bool loop=true,bodyCoverage=false,multipleLod=false,rootSkinTransition=false;

@@ -2,6 +2,7 @@
 #include "cloth/core/cloth_state.h"
 #include "cloth/core/cloth_writer_state.h"
 #include <cmath>
+static void ClothPlaybackService(bool completedBoundary);
 
 static std::atomic<float> s_skirtHipRadiusDelta{0.124f};
 static std::atomic<bool> s_skirtDirty{true};
@@ -264,6 +265,7 @@ struct ClothAnchor {
   char name[128]{}, parentName[128]{};
   bool bindKnown = false, changed = false, skipped = false;
   bool sent = false, confirmed = false;
+  bool enhancementLeased = false;
   unsigned stableReads = 0, confirmReads = 0;
   int lastFrame = -1;
 };
@@ -428,7 +430,8 @@ static bool ClothWriteWeight(ClothInstance &i) {
   float actual = NAN, property = NAN;
   const bool read = ClothField(sd, "clothSimulateWeight", "System.Single", actual) &&
       ClothField(obj, "clothSimulateWeightProperty", "System.Single", property);
-  i.weightWriter.ownWriteConfirmed = pushed && read && eiem_cloth::WeightAtTarget(actual);
+  i.weightWriter.ownWriteConfirmed = pushed && read && eiem_cloth::WeightAtTarget(actual) &&
+      eiem_cloth::WeightAtTarget(property);
   Log("[CLOTH-WRITER-OWN] session=%llu instance=%d frame=%d command=%d read=%d serialized=%g property=%g targetConfirmed=%d",
       (unsigned long long)work.session, i.ref.id.instance, ClothFrame(), pushed, read, actual,
       property, i.weightWriter.ownWriteConfirmed);
@@ -973,13 +976,13 @@ static void ClothBeginImpl(MotionBackend backend, bool explicitPlay) {
   s_cloth.invalidation = s_clothInvalidation.load(std::memory_order_acquire);
   s_cloth.active = true;
   s_clothBeginAttempts = 0;
-  ClothLog("BEGIN", nullptr, "snapshot-only-no-startup-clock-delay");
+  ClothLog("BEGIN", nullptr, "snapshot-before-owner-pose-cloth-preparation-gates-body-and-timeline");
   if (!ClothDiscover(GetTickCount64())) ClothFail("discovery-incomplete");
 }
 static bool ClothSameFloat(float a, float b) {
   return a == b || (std::isnan(a) && std::isnan(b));
 }
-static void ClothTickImpl(const char *stage, bool poseSubmitted, ClothBoneGuard boneGuard) {
+static void ClothTickImpl(const char *stage, bool poseSubmitted, ClothBoneGuard boneGuard, bool preparationOnly=false) {
   if (!ClothOnMainThread()) return;
   ClothShoulderDriverMaintenance();
   ClothCollisionServiceUi();
@@ -1075,15 +1078,34 @@ static void ClothTickImpl(const char *stage, bool poseSubmitted, ClothBoneGuard 
     ClothCaptureRatio(i);
     if (!i.poseSubmissionLogged) {
       i.poseSubmissionLogged = true;
-      ClothLogPoseProbes(i, "first-owner-pose-before-cloth-commands");
+      ClothLogPoseProbes(i, preparationOnly ? "held-native-pose-before-first-motion-write" : "first-owner-pose-before-cloth-commands");
     }
     if (!ClothUpdateAnchors(i, n, frame, boneGuard)) {
       ClothFail("anchor-command-readback-or-ownership-failed"); return;
     }
     if (r.state.readable && !i.capturedEnabled) { i.originalEnabled = r.state.enabled; i.capturedEnabled = true; }
     if (r.state.readable && r.process && !i.capturedSkip) { i.originalSkip = r.state.skip; i.capturedSkip = true; }
+    if (r.state.readable && !r.state.weightAtTarget && !i.startup.commandFailed &&
+        i.startup.phase != eiem_cloth::Phase::Failed && i.startup.elapsed < eiem_cloth::StartupBudgetMs &&
+        ClothWriterFind(ClothTarget(i.ref)) == n &&
+        i.weightWriter.RecoverPersistent(frame, r.weight, r.propertyWeight)) {
+      const bool repaired = ClothWriteWeight(i);
+      Log("[CLOTH-WRITER-RECOVERY] session=%llu instance=%d frame=%d observedFrame=%d caller=%p "
+          "observations=%u overwritten=%g command=%d targetReadback=%d budget=1 laterReadback=pending",
+          (unsigned long long)work.session, i.ref.id.instance, frame, i.weightWriter.lastFrame,
+          reinterpret_cast<void *>(i.weightWriter.caller), i.weightWriter.observations, r.weight,
+          repaired, i.weightWriter.ownWriteConfirmed);
+      i.startup.CommandResult(repaired);
+      if (!repaired) { ClothFail("observed-weight-recovery-command-failed"); return; }
+      i.startup.readyReads = 0;
+      i.startup.phase = eiem_cloth::Phase::Verifying;
+      i.startup.reason = "observed-native-weight-repair-awaiting-later-readback";
+      i.nextPoll = now + eiem_cloth::PollMs;
+      continue;
+    }
     const auto action = i.startup.Step(r.state, now, frame);
-    i.nextPoll = now + (i.startup.phase == eiem_cloth::Phase::Ready && !i.anchorsPolling ? eiem_cloth::AuditMs : eiem_cloth::PollMs);
+    i.nextPoll = now + (i.startup.phase == eiem_cloth::Phase::Ready && !i.anchorsPolling ? eiem_cloth::AuditMs :
+        g_clothPlaybackGate.Holding(work.backend,work.generation) ? 0 : eiem_cloth::PollMs);
     if (oldPhase != i.startup.phase || oldReason != i.startup.reason || numericChange)
       ClothLog("STATE", &i, i.startup.reason);
     if (action == eiem_cloth::Action::ReadbackReady &&
@@ -1150,22 +1172,99 @@ static void ClothDrainCancellation() {
 }
 static void ClothBegin(MotionBackend backend, bool explicitPlay = false) {
   if (!ClothOnMainThread() || s_clothBusy) return;
+  const auto generation=g_motionBackend.Generation();
+  const auto character=reinterpret_cast<uintptr_t>(g_mainCharEntity);
+  if (s_clothAutoEnabled.load(std::memory_order_acquire) && backend!=MotionBackend::Native &&
+      g_motionBackend.Is(backend) && (!s_cloth.active || s_cloth.owner.generation!=generation ||
+      s_cloth.owner.character!=character || s_cloth.invalidation!=s_clothInvalidation.load())) {
+    const auto phase=g_clothPlaybackGate.State();
+    if(phase==eiem_playback::Preparation::Ready||phase==eiem_playback::Preparation::Prepared)g_clothPlaybackGate.Cancel();
+    const auto previous=g_clothPlaybackGate.Ticket();
+    const auto ticket=g_clothPlaybackGate.Arm(uint32_t(backend),generation,character,GetTickCount64());
+    if(ticket!=previous)Log("[CLOTH-PLAYBACK-START] stage=waiting backend=%s generation=%llu owner=%p ticket=%llu bodyPoseHeld=pre-play-native firstMotionWritten=0 timelineHeld=1 audioHeld=1 fixedDelay=0",
+        MotionBackendName(backend),generation,g_mainCharEntity,ticket);
+  }
   s_clothBusy = true;
   __try { ClothBeginImpl(backend, explicitPlay); ClothDrainCancellation(); }
   __except (EXCEPTION_EXECUTE_HANDLER) { ClothRuntimeFault(); }
   s_clothBusy = false;
 }
 static void ClothTick(const char *stage, bool poseSubmitted = false, ClothBoneGuard boneGuard = nullptr,
-                      double sourceFrame = NAN) {
+                      double sourceFrame = NAN, bool preparationOnly = false) {
   if (!ClothOnMainThread() || s_clothBusy) return;
   s_clothBusy = true;
   __try {
-    ClothTickImpl(stage, poseSubmitted, boneGuard);
-    if (poseSubmitted) ClothInputSubmit(stage, sourceFrame);
+    ClothTickImpl(stage, poseSubmitted, boneGuard, preparationOnly);
+    if (poseSubmitted) ClothInputSubmit(stage, preparationOnly ? NAN : sourceFrame);
     ClothDrainCancellation();
+    ClothPlaybackService(false);
+    if(poseSubmitted&&!preparationOnly&&ClothOwns(s_cloth.owner)) {
+      auto &gate=g_clothPlaybackGate;const auto &owner=s_cloth.owner;const auto ticket=gate.Ticket();
+      const int frame=ClothFrame(),prepared=gate.PreparedFrame();
+      if(gate.PoseSubmitted(ticket,owner.backend,owner.generation,owner.character,frame))
+        Log("[CLOTH-PLAYBACK-START] stage=ready backend=%s generation=%llu session=%llu ticket=%llu elapsedMs=%llu preparedUnityFrame=%d firstMotionUnityFrame=%d firstMotionSourceFrame=%.6f source=%s bodySubmittedAfterClothReady=1 bodyAndAudioMayAdvance=1 visualVerified=0",
+            MotionBackendName(g_motionBackend.Current()),owner.generation,owner.session,ticket,gate.Elapsed(GetTickCount64()),prepared,frame,sourceFrame,stage);
+    }
   }
   __except (EXCEPTION_EXECUTE_HANDLER) { ClothRuntimeFault(); }
   s_clothBusy = false;
+}
+static bool ClothBlockFirstBodyPose(const char *stage,ClothBoneGuard guard) {
+  const auto backend=uint32_t(g_motionBackend.Current());const auto generation=g_motionBackend.Generation();
+  if(g_clothPlaybackGate.StateFor(backend,generation)==eiem_playback::Preparation::Prepared)
+    ClothPlaybackService(false);
+  if(!g_clothPlaybackGate.BlocksPose(backend,generation))return false;
+  if(ClothOnMainThread()&&g_clothPlaybackGate.Matches(backend,generation,uintptr_t(g_mainCharEntity))&&
+      g_clothPlaybackGate.State()==eiem_playback::Preparation::Waiting)
+    ClothTick(stage,true,guard,NAN,true);
+  return true;
+}
+static void ClothPlaybackService(bool completedBoundary) {
+  using eiem_playback::Preparation;
+  if(!ClothOnMainThread())return;
+  const uint32_t backend=uint32_t(g_motionBackend.Current());
+  const uint64_t generation=g_motionBackend.Generation();
+  const auto character=reinterpret_cast<uintptr_t>(g_mainCharEntity);
+  auto &gate=g_clothPlaybackGate;
+  if(!gate.Matches(backend,generation,character)||
+      (gate.State()!=Preparation::Waiting&&gate.State()!=Preparation::Prepared))return;
+  const auto ticket=gate.Ticket();const auto elapsed=gate.Elapsed(GetTickCount64());
+  const bool enabled=s_clothAutoEnabled.load(std::memory_order_acquire);
+  bool ready=false,failed=false;const char *reason="waiting-for-owner-startup";
+  if(s_cloth.owner.generation==generation && s_cloth.owner.character==character && s_cloth.failed) {
+    failed=true;reason=s_cloth.failureReason;
+  } else if(ClothOwns(s_cloth.owner) && s_cloth.discovery.complete) {
+    if(!enabled) {
+      ready=!ClothBonePending()&&!ClothBoneLeased();reason="enhancement-disabled-original-restored";
+    } else if(s_clothAutoTriedSession==s_cloth.owner.session && s_clothAutoTriedGeneration==generation) {
+      if(s_clothBoneNoMatch && !ClothBonePending()) {ready=true;reason="no-supported-garment-original-retained";}
+      else if(s_clothAutoDeferred || s_clothAutoWaiting)reason="waiting-for-source-generation";
+      else if(s_clothBoneResolved) {
+        ready=true;reason="native-Teams-renderers-and-completed-output-confirmed";
+        for(int n=0;n<s_clothBoneCount;++n) {
+          const auto &s=s_clothBoneSlots[n];
+          if(s.failed||s.stopRequested||s.tx.cancelled) {failed=true;reason=s.failure[0]?s.failure:s.issue;break;}
+          if(!ClothBoneAppliedKind(s,s_cloth.owner)||!s.teamModeConfirmed||
+              (s.local.requested&&!s.local.solverConfirmed)) {ready=false;reason="waiting-for-native-registration-and-output";}
+        }
+      } else if(!s_clothBone.pending) {failed=true;reason=s_clothBone.failure[0]?s_clothBone.failure:"enhancement-preparation-failed";}
+    }
+    if(ready)for(int n=0;n<s_cloth.count;++n) {
+      const auto &i=s_cloth.instances[n];if(ClothBoneLeasedInstance(i))continue;
+      if(i.startup.phase==eiem_cloth::Phase::Waiting||i.startup.phase==eiem_cloth::Phase::Verifying)ready=false;
+    }
+  }
+  if(elapsed>=120000) {failed=true;reason="preparation-timeout-stop-or-retry";}
+  if(failed) {
+    gate.Observe(ticket,false,true,-1);
+    Log("[CLOTH-PLAYBACK-START] stage=failed backend=%s generation=%llu ticket=%llu elapsedMs=%llu reason=%s timelineHeld=1 automaticFallbackPlay=0",
+        MotionBackendName(g_motionBackend.Current()),generation,ticket,elapsed,reason);
+  } else if(completedBoundary || (!enabled&&!ClothBonePending()) || s_clothBoneNoMatch ||
+      (gate.State()==Preparation::Prepared&&!ready)) {
+    if(gate.Observe(ticket,ready,false,ClothFrame()))
+      Log("[CLOTH-PLAYBACK-START] stage=prepared backend=%s generation=%llu session=%llu ticket=%llu elapsedMs=%llu targetMs=1000 withinTarget=%d reason=%s preparedUnityFrame=%d firstMotionWritten=0 firstMotionMayWrite=1 timelineHeld=1 audioHeld=1 visualVerified=0",
+          MotionBackendName(g_motionBackend.Current()),generation,s_cloth.owner.session,ticket,elapsed,int(elapsed<=1000),reason,gate.PreparedFrame());
+  }
 }
 static void ClothRelease(const char *reason) {
   if (!ClothOnMainThread()) { ClothRequestInvalidation(); return; }

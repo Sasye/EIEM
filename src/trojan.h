@@ -370,7 +370,8 @@ static void __cdecl Hooked_GetInternalAvatarPose(void *nativePtr, void *array,
   if (ClothShoulderReadOnlyPoseActive()) return;
 
   if (!g_motionBackend.Is(MotionBackend::Muscle) ||
-      !g_trojanActive || !g_mmdHasMuscles)
+      !g_trojanActive || !g_mmdHasMuscles ||
+      g_clothPlaybackGate.Holding(uint32_t(MotionBackend::Muscle),g_motionBackend.Generation()))
     return;
   if (g_trojanReentrant)
     return;
@@ -650,6 +651,7 @@ static void InitMmdPoseOnMainThread() {
 }
 
 static void ApplyMmdPoseDirect() {
+  if(g_clothPlaybackGate.Holding(uint32_t(MotionBackend::Muscle),g_motionBackend.Generation()))return;
   if (!s_poseReady || !s_directSetHP || !g_cachedMPtr)
     return;
 
@@ -1164,7 +1166,8 @@ static void __fastcall Hooked_OnUpdate(void *self, void *methodInfo) {
   typedef void (__fastcall *fn)(void *, void *);
 
   __try {
-    if (g_motionBackend.Is(MotionBackend::Muscle) && g_mmdIKActive) {
+    if (g_motionBackend.Is(MotionBackend::Muscle) && g_mmdIKActive &&
+        !g_clothPlaybackGate.BlocksPose(uint32_t(MotionBackend::Muscle),g_motionBackend.Generation())) {
       if (self == g_activeLfSolver && g_activeLfSolver) {
         *(float *)((char *)self + OFF_IKSOLVER_IKPOS_X) = s_curFootTargetL[0];
         *(float *)((char *)self + OFF_IKSOLVER_IKPOS_Y) = s_curFootTargetL[1];
@@ -1337,6 +1340,7 @@ static void ConfigureIKComponents(bool footIKEnabled) {
 }
 
 static void ApplyMmdPoseOnMainThread() {
+  if(g_clothPlaybackGate.BlocksPose(uint32_t(MotionBackend::Muscle),g_motionBackend.Generation()))return;
   if (!s_poseReady || !s_musclePtr)
     return;
   if (!g_poseHandleGC || !g_slotAddr || !g_slotOrigGet)
@@ -2630,6 +2634,13 @@ static void AudioStartFresh() {
   bool normalSpeed = !g_musclePlayer || fabsf(g_musclePlayer->speed - 1.0f) < 0.001f;
   if (!normalSpeed) { g_audioIsClock = false; return; }
 
+  if (g_clothPlaybackGate.Holding(static_cast<uint32_t>(MotionBackend::Muscle),g_motionBackend.Generation())) {
+    g_audioPendingStart = true;
+    g_audioIsClock = false;
+    Log("[AUDIO] Start deferred until cloth preparation completes");
+    return;
+  }
+
   if (g_audioOffset < 0.0f) {
     g_audioPendingStart = true;
     g_audioIsClock = false;
@@ -3067,6 +3078,9 @@ static void MotionBackend_EnterNativeMainThread(
     bool releaseMuscle = true) {
   if (!MotionBackend_RequireCommandThread("MotionBackend.EnterNative"))
     return;
+  g_clothPlaybackGate.Cancel();
+  if(cleanupReason==GhostRigCleanupReason::PluginDisabled||cleanupReason==GhostRigCleanupReason::PluginUnload||
+      cleanupReason==GhostRigCleanupReason::WindowClosing)ClothPrefetchCancel();
   const MotionBackend previous = g_motionBackend.Current();
   if (!MotionBackend_PublishMainThread(MotionBackend::Native, reason))
     return;
@@ -3098,6 +3112,8 @@ static bool MotionBackend_EnterMuscleMainThread(const char *reason) {
   if (!g_pluginActive ||
       !MotionBackend_RequireCommandThread("MotionBackend.EnterMuscle"))
     return false;
+  if(g_clothPlaybackGate.State()==eiem_playback::Preparation::Failed)
+    MotionBackend_EnterNativeMainThread(GhostRigCleanupReason::Stop,"cloth-start-retry");
   const MotionBackend previous = g_motionBackend.Current();
   if (!MotionBackend_PublishMainThread(MotionBackend::Muscle, reason))
     return false;
@@ -3121,6 +3137,8 @@ static bool MotionBackend_EnterDirectMainThread(bool play,
   }
   if (!MotionBackend_RequireCommandThread("MotionBackend.EnterDirect"))
     return false;
+  if(play && g_clothPlaybackGate.State()==eiem_playback::Preparation::Failed)
+    MotionBackend_EnterNativeMainThread(GhostRigCleanupReason::Stop,"cloth-start-retry");
 
   if (g_motionBackend.Is(MotionBackend::DirectVmd)) {
     if (!GhostRig_IsRequestedEnabled()) {
@@ -3225,6 +3243,12 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
       (s_cloth.invalidation != s_clothInvalidation.load(std::memory_order_acquire) ||
        s_cloth.owner.generation != g_motionBackend.Generation())))
     ClothTick("WndProc.lifecycle");
+  if(msg==WM_USER+126) {
+    s_clothPrefetchPosted.store(false,std::memory_order_release);
+    if(!ClothOnMainThread())return 0;
+    if(g_pluginActive&&g_motionBackend.Is(MotionBackend::Native))RefreshEntityAnimator();
+    ClothPrefetchPulse();return 0;
+  }
   if (msg == WM_CLOSE || msg == WM_DESTROY) {
     Log("[WNDPROC] Game window closing (msg=0x%X), signaling threads to exit",
         msg);
@@ -3254,6 +3278,10 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
       s_firstLog = true;
     }
     ClothBegin(MotionBackend::Muscle);
+    SafeSetAnimatorEnabled(false);
+    if(ClothBlockFirstBodyPose("Muscle.held-native-before-first-body",Muscle_ClothMayOwnAnchor)) {
+      g_mmdPendingApply=false;return 0;
+    }
     if (!s_poseReady) {
       InitMmdPoseOnMainThread();
     }
@@ -3401,7 +3429,8 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
       Log("[GUI-CMD] Seek audio: motion=%d ms, audio=%d ms (offset=%.2f)",
           motionMs, audioMs, g_audioOffset);
       if (g_audioPlayer && g_audioPlayer->loaded && g_audioEnabled) {
-        bool motionPlaying = g_musclePlayer && g_musclePlayer->playing;
+        bool motionPlaying = g_musclePlayer && g_musclePlayer->playing &&
+            !g_clothPlaybackGate.Holding(static_cast<uint32_t>(MotionBackend::Muscle),g_motionBackend.Generation());
         g_audioPlayer->Stop();
         if (motionPlaying) {
           g_audioPlayer->PlayFrom(audioMs);
@@ -3762,25 +3791,31 @@ static LRESULT CALLBACK MmdWndProc(HWND hwnd, UINT msg, WPARAM wParam,
 static void MuscleAnimationTick() {
   if (!g_motionBackend.Is(MotionBackend::Muscle) ||
       !g_musclePlayer ||
-      (!g_musclePlayer->playing &&
-       g_musclePlayer->currentTime <= 0.0f && !g_musclePlayer->ended) ||
       !g_trojanActive)
     return;
   if (!g_muscleAnim || !g_muscleAnim->loaded)
     return;
+
+  const bool clothHold = g_clothPlaybackGate.Holding(
+      static_cast<uint32_t>(MotionBackend::Muscle),g_motionBackend.Generation());
+  static eiem_playback::TimelineAdmission clothTimeline;
+  if(clothHold!=clothTimeline.wasHeld)
+    Log("[CLOTH-PLAYBACK-CLOCK] backend=Muscle held=%d frame=%.6f generation=%llu playing=%d elapsedCatchup=0",
+        int(clothHold),g_musclePlayer->currentTime*30.,g_motionBackend.Generation(),int(g_musclePlayer->playing));
+  if (clothTimeline.HoldElapsed(clothHold)) QueryPerformanceCounter(&g_musclePlayer->lastTick);
 
   if (g_mmdPendingApply)
     return;
 
   float prevTime = g_musclePlayer->currentTime;
   float frameNum = 0.0f;
-  if (g_musclePlayer->playing) {
+  if (g_musclePlayer->playing && !clothHold) {
     frameNum = g_musclePlayer->Tick();
   } else {
     frameNum = g_musclePlayer->currentTime * 30.0f;
   }
 
-  if (g_audioPendingStart && g_audioPlayer && g_audioPlayer->loaded) {
+  if (!clothHold && g_musclePlayer->playing && g_audioPendingStart && g_audioPlayer && g_audioPlayer->loaded) {
     float expectedAudio = g_musclePlayer->currentTime + g_audioOffset;
     if (expectedAudio >= 0.0f) {
       g_audioPendingStart = false;
@@ -3792,7 +3827,7 @@ static void MuscleAnimationTick() {
     }
   }
 
-  if (g_audioIsClock && g_audioPlayer && g_audioPlayer->loaded) {
+  if (!clothHold && g_audioIsClock && g_audioPlayer && g_audioPlayer->loaded) {
     if (fabsf(g_musclePlayer->speed - 1.0f) > 0.001f) {
       g_audioPlayer->Pause();
       g_audioIsClock = false;

@@ -4,6 +4,31 @@
 #include <cstdint>
 #include <cstring>
 #include <windows.h>
+#include "direct_vmd_source_sample.h"
+
+static SRWLOCK s_directVmdSourceLock = SRWLOCK_INIT;
+static std::atomic<uint64_t> s_directVmdSourceRevision{1};
+static bool s_directVmdSourceLease = false;
+static eiem_source::Reference s_directVmdSourceReference;
+static eiem_source::Prepared s_directVmdSourcePrepared =
+    eiem_source::Prepare(eiem_source::Config());
+static eiem_source::ClipBinding s_directVmdSourceClip;
+static bool s_directVmdSourceClipReady = false;
+static bool DirectVmdSource_BindClipWorker(const VmdFile &clip);
+
+static uint64_t DirectVmdSource_AcquireReference(eiem_source::Reference *out) {
+  AcquireSRWLockExclusive(&s_directVmdSourceLock);
+  s_directVmdSourceLease = true;
+  *out = s_directVmdSourceReference;
+  const uint64_t revision = s_directVmdSourceRevision.load(std::memory_order_acquire);
+  ReleaseSRWLockExclusive(&s_directVmdSourceLock);
+  return revision;
+}
+static void DirectVmdSource_ReleaseReference() {
+  AcquireSRWLockExclusive(&s_directVmdSourceLock);
+  s_directVmdSourceLease = false;
+  ReleaseSRWLockExclusive(&s_directVmdSourceLock);
+}
 
 enum class DirectVmdRuntimeCommand : uint32_t {
   Stopped = 0,
@@ -58,6 +83,7 @@ struct DirectVmdWorkerState {
   uint64_t sequence = 0;
   bool previousActive = false;
   bool pausedForInactive = false;
+  eiem_playback::TimelineAdmission clothTimeline;
   bool qpcReady = false;
   LARGE_INTEGER frequency = {};
   LARGE_INTEGER previousTick = {};
@@ -113,7 +139,12 @@ static bool DirectVmdRuntime_CopyLatestFrame(
   AcquireSRWLockShared(&s_directVmdFrameLock);
   *output = s_directVmdLatestFrame;
   ReleaseSRWLockShared(&s_directVmdFrameLock);
-  return output->valid != 0;
+  return output->valid != 0 &&
+      output->sourceRevision == s_directVmdSourceRevision.load(std::memory_order_acquire) &&
+      output->backendGeneration == g_motionBackend.Generation() &&
+      output->clipGeneration == s_directVmdClipGenerationPublic.load(std::memory_order_acquire) &&
+      output->rigGeneration == s_directVmdTargetGeneration.load(std::memory_order_acquire) &&
+      output->ownerCharacter == s_directVmdTargetOwner.load(std::memory_order_acquire);
 }
 
 static void DirectVmdRuntime_SetTarget(uint64_t generation,
@@ -124,7 +155,9 @@ static void DirectVmdRuntime_SetTarget(uint64_t generation,
 }
 
 static void DirectVmdRuntime_SetActive(bool active) {
+  AcquireSRWLockExclusive(&s_directVmdSourceLock);
   s_directVmdRuntimeActive.store(active, std::memory_order_release);
+  ReleaseSRWLockExclusive(&s_directVmdSourceLock);
 }
 
 static void DirectVmdRuntime_BeginLifecycleMutation() {
@@ -191,10 +224,12 @@ static void DirectVmdRuntime_RequestMorphOverride(const char *path) {
 
 static void DirectVmdRuntime_RequestPlayback(
     DirectVmdRuntimeCommand command) {
+  AcquireSRWLockExclusive(&s_directVmdSourceLock);
   s_directVmdPlaybackRequest.store(static_cast<uint32_t>(command),
                                     std::memory_order_release);
   s_directVmdPlaybackRequestRevision.fetch_add(1,
                                                 std::memory_order_acq_rel);
+  ReleaseSRWLockExclusive(&s_directVmdSourceLock);
 }
 
 static void DirectVmdRuntime_RequestPlay() {
@@ -321,6 +356,7 @@ static void DirectVmdRuntime_HandleClipCommandWorker() {
   path[sizeof(path) - 1] = '\0';
 
   s_directVmdWorker.resource.Reset();
+  s_directVmdSourceClipReady = false;
   s_directVmdWorker.clock.Reset(0.0);
   s_directVmdLoadedPublic.store(false, std::memory_order_release);
   s_directVmdDurationPublic.store(0.0, std::memory_order_release);
@@ -350,6 +386,10 @@ static void DirectVmdRuntime_HandleClipCommandWorker() {
     return;
   }
 
+  if (!DirectVmdSource_BindClipWorker(*clip)) {
+    DirectVmdRuntime_PublishInvalidWorkerFrame();
+    return;
+  }
   s_directVmdWorker.clock.Reset(static_cast<double>(clip->totalFrames));
   s_directVmdLoadedPublic.store(true, std::memory_order_release);
   s_directVmdDurationPublic.store(static_cast<double>(clip->totalFrames),
@@ -365,6 +405,8 @@ static void DirectVmdRuntime_HandleClipCommandWorker() {
           : 0,
       (unsigned long long)s_directVmdWorker.resource.generation,
       GetCurrentThreadId());
+  if (!s_directVmdSourceClip.legacy)
+    return;
   const DirectVmdBoneCoverage coverage = DirectVmdAnalyzeBoneCoverage(*clip);
   Log("[P2-VMD-BONE-COVERAGE] tracks=%zu standard=%zu semiStandard=%zu "
       "semiStandardMoving=%zu semiStandardTranslationIgnored=%zu "
@@ -499,7 +541,7 @@ static void DirectVmdRuntime_HandlePlaybackCommandWorker() {
   switch (command) {
   case DirectVmdRuntimeCommand::Playing:
     if (s_directVmdRuntimeActive.load(std::memory_order_acquire) &&
-        s_directVmdWorker.resource.IsLoaded()) {
+        s_directVmdWorker.resource.IsLoaded() && s_directVmdSourceClipReady) {
       s_directVmdWorker.clock.Play();
       s_directVmdWorker.pausedForInactive = false;
     }
@@ -544,7 +586,10 @@ static void DirectVmdRuntime_HandleSeekWorker() {
       GetCurrentThreadId());
 }
 
+#include "direct_vmd_source_runtime.h"
+
 static void DirectVmdRuntime_WorkerTick() {
+  DirectVmdSource_HandleCommandWorker();
   AcquireSRWLockShared(&s_directVmdLifecycleLock);
   DirectVmdRuntime_HandleClipCommandWorker();
   DirectVmdRuntime_HandleCameraOverrideCommandWorker();
@@ -580,6 +625,12 @@ static void DirectVmdRuntime_WorkerTick() {
   DirectVmdAudioWorkerTick audioTick;
   audioTick.frameBeforeAdvance = s_directVmdWorker.clock.frame;
   audioTick.cycleBeforeAdvance = s_directVmdWorker.clock.loopCycle;
+  const bool clothHold = g_clothPlaybackGate.Holding(
+      static_cast<uint32_t>(MotionBackend::DirectVmd), g_motionBackend.Generation());
+  if(clothHold!=s_directVmdWorker.clothTimeline.wasHeld)
+    Log("[CLOTH-PLAYBACK-CLOCK] backend=DirectVmd held=%d frame=%.6f generation=%llu state=%u elapsedCatchup=0",
+        int(clothHold),s_directVmdWorker.clock.frame,g_motionBackend.Generation(),unsigned(s_directVmdWorker.clock.state));
+  const bool suppressElapsed = s_directVmdWorker.clothTimeline.HoldElapsed(clothHold);
   LARGE_INTEGER now = {};
   QueryPerformanceCounter(&now);
   if (!s_directVmdWorker.qpcReady) {
@@ -590,7 +641,7 @@ static void DirectVmdRuntime_WorkerTick() {
                      static_cast<double>(s_directVmdWorker.frequency.QuadPart);
     s_directVmdWorker.previousTick = now;
     elapsed = (std::max)(0.0, (std::min)(elapsed, 0.25));
-    if (active) {
+    if (active && !suppressElapsed) {
       s_directVmdWorker.clock.AdvanceSeconds(elapsed);
       audioTick.elapsedSeconds = elapsed;
     }
@@ -598,10 +649,16 @@ static void DirectVmdRuntime_WorkerTick() {
   audioTick.clipGeneration = s_directVmdWorker.resource.generation;
   audioTick.seekRevision = s_directVmdWorker.handledSeekRevision;
   audioTick.clipLoaded = s_directVmdWorker.resource.IsLoaded();
-  DirectVmdAudio_WorkerSync(&s_directVmdWorker.clock, audioTick);
+  if (clothHold) {
+    auto heldClock = s_directVmdWorker.clock;
+    heldClock.Pause();
+    DirectVmdAudio_WorkerSync(&heldClock, audioTick);
+  } else {
+    DirectVmdAudio_WorkerSync(&s_directVmdWorker.clock, audioTick);
+  }
 
   const VmdFile *clip = s_directVmdWorker.resource.Get();
-  if (!clip || !clip->loaded) {
+  if (!clip || !clip->loaded || !s_directVmdSourceClipReady) {
     s_directVmdPlaybackPublic.store(
         static_cast<uint32_t>(s_directVmdWorker.clock.state),
         std::memory_order_release);
@@ -615,7 +672,21 @@ static void DirectVmdRuntime_WorkerTick() {
       s_directVmdTargetGeneration.load(std::memory_order_acquire),
       s_directVmdWorker.resource.generation,
       s_directVmdTargetOwner.load(std::memory_order_acquire),
-      s_directVmdWorker.clock.state, &frame);
+      s_directVmdWorker.clock.state, &frame, false);
+  frame.backendGeneration = g_motionBackend.Generation();
+  try {
+    eiem_source::Sample(s_directVmdSourcePrepared, s_directVmdSourceClip,
+                        *clip, s_directVmdWorker.clock.frame, &frame);
+  } catch (const std::exception &e) {
+    Log("[SOURCE-EVALUATE] rejected: %s", e.what());
+    s_directVmdSourceClipReady = false;
+    s_directVmdLoadedPublic.store(false, std::memory_order_release);
+    s_directVmdWorker.clock.Stop();
+    DirectVmdRuntime_PublishInvalidWorkerFrame();
+    if (g_gameHwnd) PostMessageW(g_gameHwnd, WM_USER + 102, 0, 0);
+    ReleaseSRWLockShared(&s_directVmdLifecycleLock);
+    return;
+  }
   const VmdFile *cameraOverride =
       s_directVmdWorker.cameraOverrideResource.Get();
   if (cameraOverride && cameraOverride->loaded &&

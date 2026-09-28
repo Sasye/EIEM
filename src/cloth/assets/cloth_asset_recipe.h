@@ -21,6 +21,8 @@ struct Generated {
   std::vector<std::shared_ptr<eiem_cloth_cache::Profile>> profiles;
   std::vector<std::shared_ptr<DenseRecipe>> dense;
   std::vector<Report> reports;
+  bool rendererScopeKnown=false;
+  std::vector<size_t> liveRenderers;
   std::string source,sourceHash,key;
   std::string relevantHash;
   std::map<std::string,std::string> sources;
@@ -70,6 +72,29 @@ inline std::vector<int64_t> Refs(const Value &v){std::vector<int64_t> out;for(co
 inline bool RootMatch(Scene &s,int64_t id,const LiveCloth &c){const auto &v=s.file.Get(id);if(s.Name(id)!=c.name||!v.At("serializeData").Has("rootBones"))return false;const auto roots=Refs(v.At("serializeData").At("rootBones"));if(roots.size()!=c.roots.size())return false;for(size_t k=0;k<roots.size();++k)if(!(Key(s,roots[k])==c.roots[k]))return false;return true;}
 inline bool RendererMatch(Scene &s,const MeshView &m,const LiveRenderer &r){if(m.name!=r.name||m.parent!=r.parent||m.mesh!=r.mesh||m.root!=r.root||m.vertices!=r.vertices||m.submeshes!=r.submeshes||m.bones.size()!=r.bones.size())return false;
   for(size_t n=0;n<m.bones.size();++n){if(!(Key(s,m.bones[n])==r.bones[n].bone))return false;for(int k=0;k<16;++k)if(std::abs(m.binds[n][k]-r.bones[n].bind[k])>.0001)return false;}return true;}
+inline bool MatchSourceRenderers(Package &package,Scene &scene,const Query &captured,
+    const std::vector<int64_t> &cloths,Query &query,std::vector<size_t> &selected,std::string *issue=nullptr) {
+  auto reject=[&](const std::string &reason){if(issue)*issue=reason;return false;};
+  std::set<std::pair<std::string,std::string>> declared;
+  for(const auto &o:scene.file.objects)if(scene.file.Class(o.first)==137)
+    declared.insert({scene.Name(o.first),scene.Name(scene.Parent(scene.TransformId(o.first)))});
+  query=captured;query.renderers.clear();selected.clear();std::set<std::pair<std::string,std::string>> seen;
+  for(size_t k=0;k<captured.renderers.size();++k){const auto &r=captured.renderers[k];
+    if(declared.count({r.name,r.parent})){if(!seen.insert({r.name,r.parent}).second)return reject("auto-source-renderer-identity-ambiguous:"+r.name);query.renderers.push_back(r);selected.push_back(k);}}
+  if(query.renderers.empty())return reject("auto-source-renderer-scope-empty");
+  std::set<int64_t> referenced;
+  for(auto id:cloths){auto branch=scene.Branch(Refs(scene.file.Get(id).At("serializeData").At("rootBones")));referenced.insert(branch.begin(),branch.end());}
+  for(const auto &o:scene.file.objects)if(scene.file.Class(o.first)==137){const auto &r=scene.file.Get(o.first);bool related=false;
+    for(auto id:Refs(r.At("m_Bones")))related|=referenced.count(id)!=0;if(!related)continue;
+    const auto mesh=DescribeMesh(package,scene,o.first);size_t matches=0;
+    for(const auto &live:query.renderers)matches+=RendererMatch(scene,mesh,live);
+    if(matches!=1)return reject("auto-source-required-renderer-matches-"+std::to_string(matches)+":"+mesh.name);}
+  for(const auto &live:query.renderers){size_t matches=0;
+    for(const auto &o:scene.file.objects)if(scene.file.Class(o.first)==137&&scene.Name(o.first)==live.name)
+      matches+=RendererMatch(scene,DescribeMesh(package,scene,o.first),live);
+    if(matches!=1)return reject("auto-source-live-renderer-matches-"+std::to_string(matches)+":"+live.name);}
+  return true;
+}
 inline bool Above(Scene &s,int64_t descendant,int64_t ancestor){for(int steps=0;descendant&&steps<128;++steps){if(descendant==ancestor)return true;descendant=s.Parent(descendant);}return false;}
 inline std::string RelevantSource(Package &package,Scene &s,const std::vector<int64_t> &cloths){std::map<std::string,std::string> parts;std::set<int64_t> transforms,clothBones;
   auto hashValue=[&](SerializedFile &f,int64_t id,const Value &v){const auto &o=f.objects.at(id);Need(v.start<=o.size&&v.length<=o.size-v.start,"auto-evidence-byte-range");return Digest(Bytes(f.bytes.begin()+o.offset+v.start,f.bytes.begin()+o.offset+v.start+v.length));};
@@ -365,28 +390,31 @@ inline std::shared_ptr<eiem_cloth_cache::Profile> GenerateConnections(Package &p
 #include "cloth_asset_body_contact.h"
 #include "cloth_asset_unowned.h"
 namespace eiem_cloth_asset {
-inline Generated Generate(const Vfs &vfs,const Manifest &manifest,const Query &query){Need(!query.renderers.empty(),"auto-owner-input-empty");
+inline Generated Generate(const Vfs &vfs,const Manifest &manifest,const Query &captured){Need(!captured.renderers.empty(),"auto-owner-input-empty");
   std::set<int> shortlist;size_t best=SIZE_MAX;
-  if(!query.modelPath.empty()){
-    const auto path=Lower(query.modelPath);Need(ResourcePath(path)&&path.find('/')!=std::string::npos,"auto-model-resource-path-invalid");
+  if(!captured.modelPath.empty()){
+    const auto path=Lower(captured.modelPath);Need(ResourcePath(path)&&path.find('/')!=std::string::npos,"auto-model-resource-path-invalid");
     for(const auto &a:manifest.assets){auto name=Lower(a.name);if(name.size()<7||name.compare(name.size()-7,7,".prefab"))continue;
       for(int extension=0;extension<2;++extension){if(name==path||(name.size()>path.size()&&name.compare(name.size()-path.size(),path.size(),path)==0&&name[name.size()-path.size()-1]=='/'))shortlist.insert(a.bundleId);if(!extension)name.resize(name.size()-7);}}
     Need(shortlist.size()==1,"auto-model-resource-path-not-unique-in-manifest");
   }
-  if(query.modelPath.empty())for(const auto &renderer:query.renderers){std::set<int> modelBundles;const auto name=Lower(renderer.mesh);for(const auto &a:manifest.assets){const auto leaf=Lower(Leaf(a.name));if(leaf==name+".asset"||leaf==name+".fbx")modelBundles.insert(a.bundleId);}if(modelBundles.empty())continue;
+  if(captured.modelPath.empty())for(const auto &renderer:captured.renderers){std::set<int> modelBundles;const auto name=Lower(renderer.mesh);for(const auto &a:manifest.assets){const auto leaf=Lower(Leaf(a.name));if(leaf==name+".asset"||leaf==name+".fbx")modelBundles.insert(a.bundleId);}if(modelBundles.empty())continue;
     std::set<int> candidates;for(const auto &a:manifest.assets)if(a.name.size()>=7&&a.name.compare(a.name.size()-7,7,".prefab")==0){const auto &deps=manifest.bundles[a.bundleId].dependencies;bool match=modelBundles.count(a.bundleId)!=0;for(int dep:deps)match|=modelBundles.count(dep)!=0;if(match)candidates.insert(a.bundleId);}if(!candidates.empty()&&candidates.size()<best){best=candidates.size();shortlist=std::move(candidates);}}
-  Need(!shortlist.empty()&&shortlist.size()<=32,"auto-prefab-source-unavailable-or-ambiguous");Generated result;bool matched=false;
+  Need(!shortlist.empty()&&shortlist.size()<=32,"auto-prefab-source-unavailable-or-ambiguous");Generated result;bool matched=false;std::string bindingIssue;
   for(int bundle:shortlist){CheckCancel(vfs.cancel);Package package(vfs,manifest);package.Load(bundle);std::vector<std::shared_ptr<SerializedFile>> prefabs;for(auto &entry:package.files)prefabs.push_back(entry.second);
-    for(auto &file:prefabs){Scene scene(*file);std::vector<int64_t> cloths;bool rootsMatch=true;for(const auto &live:query.cloths){int64_t found=0;for(const auto &o:file->objects)if(file->Class(o.first)==114&&RootMatch(scene,o.first,live)){Need(!found,"auto-prefab-duplicate-cloth");found=o.first;}if(!found){rootsMatch=false;break;}cloths.push_back(found);}if(!rootsMatch)continue;
-      package.Models(bundle);std::set<int64_t> referenced;for(auto id:cloths){auto branch=scene.Branch(Refs(file->Get(id).At("serializeData").At("rootBones")));referenced.insert(branch.begin(),branch.end());}
-      bool allBindings=true;size_t bindingMatches=0;for(const auto &o:file->objects)if(file->Class(o.first)==137){const auto &r=file->Get(o.first);bool related=false;for(auto id:Refs(r.At("m_Bones")))related|=referenced.count(id)!=0;if(!related)continue;auto mesh=DescribeMesh(package,scene,o.first);int matches=0;for(const auto &live:query.renderers)matches+=RendererMatch(scene,mesh,live);allBindings&=matches==1;++bindingMatches;}
-      for(const auto &live:query.renderers){int matches=0;for(const auto &o:file->objects)if(file->Class(o.first)==137&&scene.Name(o.first)==live.name)
-          matches+=RendererMatch(scene,DescribeMesh(package,scene,o.first),live);allBindings&=matches==1;}
-      if(!allBindings)continue;
+    for(auto &file:prefabs){Scene scene(*file);std::vector<int64_t> cloths;bool rootsMatch=true;for(const auto &live:captured.cloths){int64_t found=0;for(const auto &o:file->objects)if(file->Class(o.first)==114&&RootMatch(scene,o.first,live)){Need(!found,"auto-prefab-duplicate-cloth");found=o.first;}if(!found){rootsMatch=false;break;}cloths.push_back(found);}if(!rootsMatch)continue;
+      package.Models(bundle);Query query;std::vector<size_t> selected;
+      if(!MatchSourceRenderers(package,scene,captured,cloths,query,selected,&bindingIssue))continue;
       const auto evidence=RelevantSource(package,scene,cloths)+file->sha;
       const auto relevant=Digest(Bytes(evidence.begin(),evidence.end()));
       if(matched){Need(result.relevantHash==relevant,"auto-source-full-binding-ambiguous-nonidentical-cloth-input");++result.equivalentSources;continue;}
       matched=true;result.source=manifest.bundles[bundle].name;result.sourceHash=file->sha;result.relevantHash=relevant;result.sources=package.sources;result.sources[manifest.sourceName]=manifest.sourceHash;
+      result.rendererScopeKnown=true;result.liveRenderers=std::move(selected);
+      result.reports.push_back({"renderer-scope","captured="+std::to_string(captured.renderers.size())+
+          " sourceMatched="+std::to_string(query.renderers.size())+" extraPreserved="+std::to_string(captured.renderers.size()-query.renderers.size())+" fullBindingVerified=1"});
+      std::set<size_t> retained(result.liveRenderers.begin(),result.liveRenderers.end());size_t extraReported=0;
+      for(size_t k=0;k<captured.renderers.size()&&extraReported<8;++k)if(!retained.count(k)){
+        const auto &r=captured.renderers[k];result.reports.push_back({r.name,"not-in-matched-source-renderer-scope-preserved parent="+r.parent});++extraReported;}
       SelectBodyScope(scene,query);
       if(scene.bodyRoot){int count=0;for(const auto &t:scene.goTransform)count+=Key(scene,t.second)==query.hips;
         result.reports.push_back({"body-reference","auto-Animator-relative-path-confirmed hipsCandidates="+std::to_string(count)+" selectedSkeletons=1"});}
@@ -415,7 +443,7 @@ inline Generated Generate(const Vfs &vfs,const Manifest &manifest,const Query &q
       result.sources=package.sources;result.sources[manifest.sourceName]=manifest.sourceHash;
       std::string key="runtime-effective-graph-v3-dense-regions-v2-selection-v2-ownership-v1-waist-v2-bind-domain-v1-panel-fit-v3-long-skin-envelope-calf-surface-v5-ribbon-width-v1-separated-panels-lines-v2-short-native-v1-layer-calf-short-sides-v2-fixed-apron-v1-bundle-v2-cell-aspect-v1-leg-coverage-native-lines-v1-isolated-strip-width-v1-fixed-fork-coat-v7-waist-field-prebuild-closure-v2-body-contact-v1-unowned-waist-v1-Animator-body-scope-v1-separated-panels-six-v1-collider-Animator-parent-v1-separated-coat-inputs-point-flexible-v1\n"+manifest.sourceHash;for(const auto &p:package.sources)key+="\n"+p.first+"="+p.second;result.key=Digest(Bytes(key.begin(),key.end()));
     }
-  }Need(matched,"auto-source-full-binding-not-confirmed");
+  }Need(matched,bindingIssue.empty()?"auto-source-full-binding-not-confirmed":bindingIssue.c_str());
   ResolveGeneratedRenderers(result);
   Need(vfs.StillCurrent()&&Digest(vfs.Read(manifest.sourceName))==manifest.sourceHash,"auto-source-updated-during-generation");return result;
 }

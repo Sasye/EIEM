@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include "playback_start.h"
 
 enum class MotionBackend : uint32_t {
   Native = 0,

@@ -393,6 +393,8 @@ struct GhostRigRuntime {
   int lastHipsCorrectionLogFrame;
   GhostBindCaptureState bindState;
   uint64_t bindGeneration;
+  uint64_t bindSourceRevision;
+  eiem_source::Reference sourceReference;
   uintptr_t bindOwnerCharacter;
   int bindAttemptFrame;
   float leftLegLength;
@@ -534,7 +536,8 @@ static bool GhostRig_GetDirectChannelIdentity(
     uint64_t *generation, uintptr_t *ownerCharacter) {
   if (!generation || !ownerCharacter ||
       s_ghostRig.state != GhostRigState::Alive ||
-      !s_ghostRig.lastSampleAccepted)
+      !s_ghostRig.lastSampleAccepted ||
+      s_ghostRig.bindSourceRevision != s_directVmdSourceRevision.load(std::memory_order_acquire))
     return false;
   if (s_ghostRequestedGeneration.load(std::memory_order_acquire) !=
           s_ghostRig.generation ||
@@ -2247,6 +2250,7 @@ static void GhostRig_DestroyMainThread(GhostRigCleanupReason reason) {
       std::memory_order_release);
   s_ghostMotionScalePublic.store(0.0f, std::memory_order_release);
   s_ghostAlivePublic.store(false, std::memory_order_release);
+  DirectVmdSource_ReleaseReference();
 
   if (reason == GhostRigCleanupReason::CreateFailed) {
     g_motionBackend.TransitionTo(MotionBackend::Native);
@@ -2418,6 +2422,8 @@ static bool GhostRig_IsFiniteVector(VmdVec3 value) {
 }
 
 static void GhostRig_ClearBindCapture() {
+  DirectVmdSource_ReleaseReference();
+  s_ghostRig.bindSourceRevision = 0;
   for (int i = 0; i < GHOST_NODE_COUNT; ++i)
     s_ghostRig.nodes[i].bind = DirectVmdBindNodePod();
   memset(s_ghostRig.targetNaturalBindAvailable, 0,
@@ -2886,6 +2892,19 @@ static bool GhostRig_ResolveTwistTransformNames(
   return true;
 }
 
+static bool GhostRig_SourceDirection(DirectVmdBoneId id, VmdVec3 *out) {
+  *out = s_ghostRig.sourceReference.direction[DirectVmdBoneIndex(id)];
+  return DirectVmdLength(*out) > 1e-8f;
+}
+
+static bool GhostRig_SourceWrist(DirectVmdBoneId id, VmdVec3 *forward,
+                                  VmdVec3 *lateral) {
+  const int side = id == DirectVmdBoneId::LeftWrist ? 0 : 1;
+  *forward = s_ghostRig.sourceReference.wristForward[side];
+  *lateral = s_ghostRig.sourceReference.wristLateral[side];
+  return true;
+}
+
 static void GhostRig_CaptureWristBindFrame(
     DirectVmdBoneId wristId, const GhostTargetBindPose &wrist,
     const GhostTargetBindPose &middle, bool hasMiddle,
@@ -2901,14 +2920,14 @@ static void GhostRig_CaptureWristBindFrame(
   VmdVec3 sourceForward = {};
   VmdVec3 sourceLateral = {};
   if (!wrist.valid ||
-      !DirectVmdGetCanonicalSourceWristFrameHints(
+      !GhostRig_SourceWrist(
           wristId, &sourceForward, &sourceLateral) ||
       !DirectVmdBuildOrthonormalFrame(
           SourceToGameBasis::ConvertPosition(sourceForward),
           SourceToGameBasis::ConvertPosition(sourceLateral),
           &output->sourceFrameGame)) {
     Log("[P3-WRIST-BIND] semantic='%s' mode=none "
-        "reason=invalid-canonical-source-frame source=TdaMiku1.10 "
+        "reason=invalid-source-frame source=active-preset "
         "target=Avatar.humanDescription.skeleton readsLivePose=0 "
         "firstFrameCalibration=0 generation=%llu owner=%p tid=%lu",
         kDirectVmdBoneSpecs[semantic].name,
@@ -2957,7 +2976,7 @@ static void GhostRig_CaptureWristBindFrame(
       hasIndex ? 1 : 0, hasLittle ? 1 : 0,
       (unsigned long long)generation,
       reinterpret_cast<void *>(ownerCharacter), GetCurrentThreadId());
-  Log("[P3-WRIST-BIND] semantic='%s' mode=%s source=TdaMiku1.10 "
+  Log("[P3-WRIST-BIND] semantic='%s' mode=%s source=active-preset "
       "sourceForward=(%.6f,%.6f,%.6f) "
       "sourceLateral=(%.6f,%.6f,%.6f) "
       "sourcePalmNormal=(%.6f,%.6f,%.6f) "
@@ -3000,6 +3019,12 @@ static bool GhostRig_CaptureNaturalBindPose(
     int frame) {
   if (!GhostRig_RequireMainThread("GhostRig.CaptureNaturalBind", false))
     return false;
+  s_ghostRig.bindSourceRevision =
+      DirectVmdSource_AcquireReference(&s_ghostRig.sourceReference);
+  Log("[SOURCE-BIND] revision=%llu generation=%llu owner=%p referenceLeg=%.8f",
+      (unsigned long long)s_ghostRig.bindSourceRevision,
+      (unsigned long long)generation, reinterpret_cast<void *>(ownerCharacter),
+      s_ghostRig.sourceReference.legLength);
   GhostRig_SetBindStatus(GhostBindCaptureState::ReadingAvatarMetadata,
                          "Reading Avatar natural-bind metadata");
   s_ghostRig.bindGeneration = generation;
@@ -3474,13 +3499,9 @@ static bool GhostRig_CaptureNaturalBindPose(
       s_ghostRig.terrainConfig.grounderContactEdgeReleaseDistance,
       GetCurrentThreadId());
 
-  static constexpr float kReferenceMmdLegLength = 10.62420198f;
-  static constexpr VmdVec3 kReferenceLowerFromCenter =
-      {0.0f, 4.74919f, -0.51217f};
-  static constexpr VmdVec3 kReferenceGrooveFromCenter =
-      {0.0f, 0.2f, 0.0f};
-  static constexpr VmdVec3 kReferenceFootIkFromParent =
-      {0.0f, 0.79506f, 0.0f};
+  const float kReferenceMmdLegLength = s_ghostRig.sourceReference.legLength;
+  const VmdVec3 kReferenceLowerFromCenter = s_ghostRig.sourceReference.lowerFromCenter;
+  const VmdVec3 kReferenceGrooveFromCenter = s_ghostRig.sourceReference.grooveFromCenter;
   s_ghostRig.baseMotionScale =
       s_ghostRig.targetLegLength / kReferenceMmdLegLength;
 
@@ -3505,32 +3526,44 @@ static bool GhostRig_CaptureNaturalBindPose(
   target[DirectVmdBoneIndex(DirectVmdBoneId::LowerBody)] = hips;
   Log("[P2-BIND-SYNTHETIC] center=(%.6f,%.6f,%.6f) "
       "groove=(%.6f,%.6f,%.6f) lowerBody=(%.6f,%.6f,%.6f) "
-      "baseMotionScale=%.8f source=TdaMiku1.10",
+      "baseMotionScale=%.8f source=active-preset",
       center.position.x, center.position.y, center.position.z,
       groove.position.x, groove.position.y, groove.position.z,
       hips.position.x, hips.position.y, hips.position.z,
       s_ghostRig.baseMotionScale);
 
-  const auto leftToe =
+  auto leftToe =
       target[DirectVmdBoneIndex(DirectVmdBoneId::LeftToe)];
-  const auto rightToe =
+  auto rightToe =
       target[DirectVmdBoneIndex(DirectVmdBoneId::RightToe)];
+  auto leftFoot = leftAnkle;
+  auto rightFoot = rightAnkle;
+  const auto addSourceOffset = [&](GhostTargetBindPose &pose, VmdVec3 offset) {
+    pose.position = DirectVmdAdd(pose.position, DirectVmdScale(
+        SourceToGameBasis::ConvertPosition(offset), s_ghostRig.baseMotionScale));
+  };
+  addSourceOffset(leftFoot, s_ghostRig.sourceReference.footFromAnkle[0]);
+  addSourceOffset(rightFoot, s_ghostRig.sourceReference.footFromAnkle[1]);
+  addSourceOffset(leftToe, s_ghostRig.sourceReference.toeFromToe[0]);
+  addSourceOffset(rightToe, s_ghostRig.sourceReference.toeFromToe[1]);
   GhostTargetBindPose leftIkParent = identity;
   const VmdVec3 footIkParentOffset = DirectVmdScale(
-      SourceToGameBasis::ConvertPosition(kReferenceFootIkFromParent),
+      SourceToGameBasis::ConvertPosition(s_ghostRig.sourceReference.footFromParent[0]),
       s_ghostRig.baseMotionScale);
   leftIkParent.position =
-      DirectVmdSub(leftAnkle.position, footIkParentOffset);
+      DirectVmdSub(leftFoot.position, footIkParentOffset);
   GhostTargetBindPose rightIkParent = identity;
   rightIkParent.position =
-      DirectVmdSub(rightAnkle.position, footIkParentOffset);
+      DirectVmdSub(rightFoot.position, DirectVmdScale(
+          SourceToGameBasis::ConvertPosition(s_ghostRig.sourceReference.footFromParent[1]),
+          s_ghostRig.baseMotionScale));
   target[DirectVmdBoneIndex(DirectVmdBoneId::LeftFootIkParent)] =
       leftIkParent;
-  target[DirectVmdBoneIndex(DirectVmdBoneId::LeftFootIk)] = leftAnkle;
+  target[DirectVmdBoneIndex(DirectVmdBoneId::LeftFootIk)] = leftFoot;
   target[DirectVmdBoneIndex(DirectVmdBoneId::LeftToeIk)] = leftToe;
   target[DirectVmdBoneIndex(DirectVmdBoneId::RightFootIkParent)] =
       rightIkParent;
-  target[DirectVmdBoneIndex(DirectVmdBoneId::RightFootIk)] = rightAnkle;
+  target[DirectVmdBoneIndex(DirectVmdBoneId::RightFootIk)] = rightFoot;
   target[DirectVmdBoneIndex(DirectVmdBoneId::RightToeIk)] = rightToe;
 
   s_ghostRig.nodes[0].bind = DirectVmdBindNodePod();
@@ -3571,7 +3604,7 @@ static bool GhostRig_CaptureNaturalBindPose(
   s_ghostRig.bindOwnerCharacter = ownerCharacter;
   GhostRig_SetBindStatus(GhostBindCaptureState::Ready,
                          "Avatar natural bind captured");
-  Log("[P2-MOTION-SCALE] generation=%llu owner=%p source=TdaMiku1.10 "
+  Log("[P2-MOTION-SCALE] generation=%llu owner=%p source=active-preset "
       "referenceLeg=%.8f targetLeft=%.6f targetRight=%.6f "
       "targetAverage=%.6f userMultiplier=%.6f motionScale=%.8f",
       (unsigned long long)generation,
@@ -3600,6 +3633,7 @@ static bool GhostRig_ApplyDirectPose(void *ownerRoot) {
   const bool accepted =
       copied && frame.valid &&
       frame.rigGeneration == s_ghostRig.generation &&
+      frame.sourceRevision == s_ghostRig.bindSourceRevision &&
       frame.ownerCharacter == s_ghostRig.ownerCharacter;
   s_ghostRig.motionScale = s_ghostRig.baseMotionScale *
       DirectVmdRuntime_GetMotionMultiplier();
@@ -4302,6 +4336,14 @@ static bool GhostRig_ApplyPhase4TargetRoot(int frame, void *ownerRoot) {
     return false;
   }
 
+  if (!s_ghostRig.sourceReference.controlled[DirectVmdBoneIndex(DirectVmdBoneId::AllParent)] &&
+      !s_ghostRig.sourceReference.controlled[DirectVmdBoneIndex(DirectVmdBoneId::Center)] &&
+      !s_ghostRig.sourceReference.controlled[DirectVmdBoneIndex(DirectVmdBoneId::Groove)]) {
+    s_ghostRig.lastDesiredRootPosition = s_ghostRig.anchorPosition;
+    s_ghostRig.lastDesiredRootRotation = s_ghostRig.anchorRotation;
+    s_ghostRig.lastDesiredRootValid = true;
+    return true;
+  }
   const bool rotationWritten = GhostRig_WriteWorldRotation(
       ownerRoot, {desired.rotation.x, desired.rotation.y,
                   desired.rotation.z, desired.rotation.w});
@@ -4452,8 +4494,8 @@ static bool GhostRig_BuildPhase3StanceAlignment(
 
   VmdVec3 sourceDirection = {};
   DirectVmdBoneId child = DirectVmdBoneId::Count;
-  if (!DirectVmdGetCanonicalSourceChildDirection(id, &sourceDirection) ||
-      !DirectVmdGetSemanticDirectionChild(id, &child))
+  if (!GhostRig_SourceDirection(id, &sourceDirection) ||
+      !eiem_source::DirectionChild(id, &child))
     return false;
 
   const DirectVmdBindNodePod &boneBind =
@@ -4560,7 +4602,7 @@ static void GhostRig_ResolvePhase3Targets(void *ownerRoot) {
             ? "full-frame"
             : (target.hasStanceAlignment ? "direction-only" : "none");
     Log("[P3-STANCE-MAP] semantic='%s' enabled=%d mode=%s "
-        "source=TdaMiku1.10 sourceGameDir=(%.6f,%.6f,%.6f) "
+        "source=active-preset sourceGameDir=(%.6f,%.6f,%.6f) "
         "targetBindDir=(%.6f,%.6f,%.6f) "
         "alignmentOwner=(%.7f,%.7f,%.7f,%.7f) "
         "readsLivePose=0 firstFrameCalibration=0 generation=%llu "
@@ -4630,6 +4672,10 @@ static void GhostRig_ResolvePhase3Targets(void *ownerRoot) {
       target.hasFullFrameAlignment = false;
       target.lastDesiredValid = false;
       target.resolved = true;
+      VmdVec3 sourceDirection = {}, targetDirection = {};
+      target.hasStanceAlignment = GhostRig_BuildPhase3StanceAlignment(
+          id, &target.sourceToTargetOwnerAlignment, &sourceDirection,
+          &targetDirection);
       char transformName[256] = {};
       SafeGetBoneName(transform, transformName, sizeof(transformName));
       Log("[P5-LEG-MAP] side=%s semantic='%s' humanBone=%d "
@@ -4880,6 +4926,7 @@ static bool GhostRig_ApplyPhase3TargetFk(int frame) {
     const uint32_t semantic = DirectVmdBoneIndex(id);
     GhostRigTargetBone &target = s_ghostRig.targets[semantic];
     void *targetTransform = GhostRig_GetTargetTransform(id);
+    if (!s_ghostRig.sourceReference.controlled[semantic]) continue;
     void *ghostTransform = GhostRig_GetTransform(GhostRig_NodeIndex(id));
     if (!target.resolved || !targetTransform || !ghostTransform ||
         !GhostRig_IsUnityObjectAlive(targetTransform) ||
@@ -5053,6 +5100,7 @@ static bool GhostRig_ApplyPhase6FingerFk(int frame) {
     const uint32_t semantic = DirectVmdBoneIndex(id);
     GhostRigTargetBone &target = s_ghostRig.targets[semantic];
     void *targetTransform = GhostRig_GetTargetTransform(id);
+    if (!s_ghostRig.sourceReference.controlled[semantic]) continue;
     void *ghostTransform = GhostRig_GetTransform(GhostRig_NodeIndex(id));
     if (!target.resolved || !targetTransform || !ghostTransform ||
         !GhostRig_IsUnityObjectAlive(targetTransform) ||
@@ -5155,6 +5203,8 @@ static bool GhostRig_ApplyPhase6Eyes(int frame, void *ownerRoot) {
     return false;
 
   const bool eyeLookAtOwned =
+      (s_ghostRig.sourceReference.controlled[DirectVmdBoneIndex(DirectVmdBoneId::LeftEye)] ||
+       s_ghostRig.sourceReference.controlled[DirectVmdBoneIndex(DirectVmdBoneId::RightEye)]) &&
       GhostRig_AcquireEyeLookAtOwnership(ownerRoot);
   bool periodicLog = s_ghostRig.lastEyeLogFrame == INT_MIN;
   if (frame >= 0 && s_ghostRig.lastEyeLogFrame != INT_MIN)
@@ -5169,6 +5219,7 @@ static bool GhostRig_ApplyPhase6Eyes(int frame, void *ownerRoot) {
     const uint32_t semantic = DirectVmdBoneIndex(id);
     GhostRigTargetBone &target = s_ghostRig.targets[semantic];
     void *targetTransform = GhostRig_GetTargetTransform(id);
+    if (!s_ghostRig.sourceReference.controlled[semantic]) continue;
     void *ghostTransform = GhostRig_GetTransform(GhostRig_NodeIndex(id));
     if (!target.resolved || !targetTransform || !ghostTransform ||
         !GhostRig_IsUnityObjectAlive(targetTransform) ||
@@ -5266,6 +5317,7 @@ static bool GhostRig_ApplyPhase6Twist(int frame) {
     const DirectVmdTwistChannelSpec &spec =
         kDirectVmdPhase6TwistChannels[channel];
     const uint32_t semantic = DirectVmdBoneIndex(spec.control);
+    if (!s_ghostRig.sourceReference.controlled[semantic]) continue;
     GhostRigTwistChannelRuntime &runtime =
         s_ghostRig.twistChannels[channel];
     bool channelReady = true;
@@ -5320,7 +5372,7 @@ static bool GhostRig_ApplyPhase6Twist(int frame) {
     VmdVec3 sourceAxis = {};
     VmdVec3 sourceAxisGame = {};
     float twistAngle = 0.0f;
-    if (!DirectVmdGetCanonicalSourceChildDirection(spec.sourceLimb,
+    if (!GhostRig_SourceDirection(spec.sourceLimb,
                                                    &sourceAxis) ||
         !DirectVmdTryNormalizeVector(
             SourceToGameBasis::ConvertPosition(sourceAxis),
@@ -5445,9 +5497,14 @@ static bool GhostRig_EvaluateLegTargetWorldRotation(
   const VmdQuaternion targetBindWorldRotation =
       DirectVmdQuaternionMultiply(anchorRotation,
                                   target.bindOwnerRotation);
-  *desired = DirectVmdRetargetWorldRotation(
-      ghostWorldRotation, ghostBindWorldRotation,
-      targetBindWorldRotation);
+  *desired = target.hasStanceAlignment
+      ? DirectVmdRetargetWorldRotationFromSourceStance(
+          ghostWorldRotation, ghostBindWorldRotation, targetBindWorldRotation,
+          DirectVmdQuaternionMultiply(
+              DirectVmdQuaternionMultiply(anchorRotation, target.sourceToTargetOwnerAlignment),
+              DirectVmdQuaternionInverse(anchorRotation)))
+      : DirectVmdRetargetWorldRotation(
+          ghostWorldRotation, ghostBindWorldRotation, targetBindWorldRotation);
   if (ghostWorldResult)
     *ghostWorldResult = ghostWorldRotation;
   return true;
@@ -5490,6 +5547,8 @@ static bool GhostRig_EvaluateControlToTargetWorldRotation(
 static bool GhostRig_WritePhase5LegFkBone(
     DirectVmdLegSide side, DirectVmdBoneId id, int frame,
     const char *ownershipRole) {
+  if (!s_ghostRig.sourceReference.controlled[DirectVmdBoneIndex(id)])
+    return true;
   if (s_ghostRequestedGeneration.load(std::memory_order_acquire) !=
           s_ghostRig.generation ||
       s_ghostRequestedOwnerId.load(std::memory_order_acquire) !=
@@ -6075,6 +6134,8 @@ static bool GhostRig_EvaluateExpectedLowerBodyWorldPosition(
 
 static bool GhostRig_StabilizeTargetHipsBindPosition(
     int frame, const char *stage) {
+  if (!s_ghostRig.sourceReference.controlled[DirectVmdBoneIndex(DirectVmdBoneId::LowerBody)])
+    return true;
   if (!s_ghostRig.anchorValid ||
       s_ghostRequestedGeneration.load(std::memory_order_acquire) !=
           s_ghostRig.generation ||
@@ -7379,7 +7440,8 @@ static bool GhostRig_BeforeLegSolverUpdate(void *solver,
                      "IKSolverTrigonometric.OnUpdate.DirectVmd", false) ||
       !GhostRig_IsRequestedEnabled() ||
       !g_motionBackend.Is(MotionBackend::DirectVmd) ||
-      s_ghostRig.state != GhostRigState::Alive)
+      s_ghostRig.state != GhostRigState::Alive ||
+      g_clothPlaybackGate.BlocksPose(uint32_t(MotionBackend::DirectVmd),g_motionBackend.Generation()))
     return false;
   const bool generationCurrent =
       s_ghostRequestedGeneration.load(std::memory_order_acquire) ==
@@ -8146,6 +8208,7 @@ static void GhostRig_BeforeFinalIK(void *bipedIK) {
     const bool bindMatches =
         s_ghostRig.bindState == GhostBindCaptureState::Ready &&
         s_ghostRig.bindGeneration == generation &&
+        s_ghostRig.bindSourceRevision == s_directVmdSourceRevision.load(std::memory_order_acquire) &&
         s_ghostRig.bindOwnerCharacter == owner;
     if (!bindMatches) {
       const bool retryDue =
@@ -8165,6 +8228,9 @@ static void GhostRig_BeforeFinalIK(void *bipedIK) {
   if (s_ghostRig.state != GhostRigState::Alive ||
       s_ghostRig.generation != generation ||
       s_ghostRig.ownerCharacter != owner)
+    return;
+
+  if(ClothBlockFirstBodyPose("DirectVmd.held-native-before-first-body",GhostRig_ClothMayOwnAnchor))
     return;
 
   if (frame < 0 || frame != s_ghostRig.lastAppliedFrame) {
@@ -8326,7 +8392,8 @@ static bool GhostRig_ShouldSuppressFinalIKPhase5Safety(void *bipedIK) {
 
   if (s_ghostRig.state != GhostRigState::Alive ||
       s_ghostRig.generation != requestedGeneration ||
-      s_ghostRig.ownerCharacter != requestedOwner)
+      s_ghostRig.ownerCharacter != requestedOwner ||
+      g_clothPlaybackGate.BlocksPose(uint32_t(MotionBackend::DirectVmd),g_motionBackend.Generation()))
     return true;
 
   const int frame = GhostRig_GetFrameCount();
@@ -8615,7 +8682,8 @@ static void GhostRig_AfterFinalIK(void *bipedIK) {
   if (!GhostRig_IsRequestedEnabled() ||
       !g_motionBackend.Is(MotionBackend::DirectVmd) ||
       !GhostRig_RequireMainThread("BipedIK.UpdateSolver.post", false) ||
-      s_ghostRig.state != GhostRigState::Alive)
+      s_ghostRig.state != GhostRigState::Alive ||
+      g_clothPlaybackGate.BlocksPose(uint32_t(MotionBackend::DirectVmd),g_motionBackend.Generation()))
     return;
 
   const uintptr_t owner = s_ghostRig.ownerCharacter;

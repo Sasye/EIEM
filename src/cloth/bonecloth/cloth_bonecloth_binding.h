@@ -1,6 +1,7 @@
 #pragma once
 #include "cloth_bonecloth_partner.h"
-static bool ClothBoneRootNames(ClothInstance &i,const ClothBoneProfile &p) {
+static bool ClothBoneRootNames(ClothInstance &i,const ClothBoneProfile &p,void *animator=nullptr) {
+  if(!animator)animator=ClothTarget(s_cloth.animator);
   void *data=nullptr,*list=nullptr,*bbc=ClothTarget(i.ref);
   if(strcmp(i.name,p.component) || !bbc || !ClothInvoke(i.api.serialize,bbc,nullptr,data) ||
       !CollisionField(data,"rootBones","System.Collections.Generic.List<UnityEngine.Transform>",list) ||
@@ -9,7 +10,7 @@ static bool ClothBoneRootNames(ClothInstance &i,const ClothBoneProfile &p) {
     auto t=CollisionItem(list,n,"UnityEngine.Transform"); char name[128]{},parent[128]{};
     CollisionName(t,name,sizeof(name)); CollisionName(CollisionParent(t),parent,sizeof(parent));
     const auto &b=p.bones[p.originalRoots[n]];
-    if(!t || strcmp(name,b.name) || strcmp(parent,b.parentName) || !ClothAnchorUnderOwner(t)) return false;
+    if(!t || strcmp(name,b.name) || strcmp(parent,b.parentName) || !ClothUnderAnimator(t,animator)) return false;
   }
   return true;
 }
@@ -387,7 +388,7 @@ static bool ClothBoneColliderTeamsAbsent(int team) {
 static bool ClothBoneDependencyCollider(const ClothBoneRuntime &consumer,const ClothBoneRuntime &producer,int collider,void *transform) {
   if(!producer.profile || !transform)return false;
   const auto &active=ClothBoneCandidate(producer);
-  if(active.boneCount<1||active.boneCount>128||producer.bones.size()!=size_t(active.boneCount))return false;
+  if(!ClothBoneIdentityBudget(active.boneCount,active.EffectiveCount())||producer.bones.size()!=size_t(active.boneCount))return false;
   bool originalVolume=false;
   if(producer.supportCreated && ClothBonePair(producer,consumer) && consumer.local.recipe) {
     const auto &r=*consumer.local.recipe;

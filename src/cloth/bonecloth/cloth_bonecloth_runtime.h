@@ -10,6 +10,18 @@
 #include "cloth_bonecloth_short_policy.h"
 #include "cloth_bonecloth_priority.h"
 #include "../collision/cloth_layer_order_hook.h"
+#include "../collision/cloth_display_state.h"
+#include "../collision/cloth_contact_finish_state.h"
+static eiem_cloth_display::View s_clothDisplayView;
+static eiem_cloth_finish::View s_clothFinishView;
+static eiem_cloth_finish::Chain s_clothFinishChain;
+using ClothDisplaySetCountFn=void(__fastcall*)(eiem_cloth_display::Job*,int,void*);
+static ClothDisplaySetCountFn s_clothDisplaySetCount=nullptr;
+static bool (*s_clothDisplayInstaller)()=nullptr;
+static void *s_clothDisplayCallsite=nullptr;
+static char s_clothDisplayIssue[128]{};
+static uint64_t s_clothDisplaySubmissions=0;
+static int s_clothDisplayReportFrame=-1000;
 static eiem_cloth_cache::Catalog s_clothBoneCache;
 static const char *s_clothBoneCatalogSource="built-in";
 static std::vector<const ClothBoneProfile*> s_clothBoneCatalog(std::begin(ClothBoneProfiles),std::end(ClothBoneProfiles));
@@ -83,9 +95,9 @@ struct ClothBoneRuntime {
   bool supportPointCollision=false;
   uint32_t supportMotion=0;
   ClothBoneMotionParameters supportOriginalMotion{};
-  uint32_t forkCoatSourceBending=0,forkCoatBending=0;
-  float forkCoatOriginalStiffness=0;
-  int forkCoatOriginalMethod=0,forkCoatNoneMethod=0;
+  uint32_t surfaceSourceBending=0,surfaceBending=0;
+  float surfaceOriginalStiffness=0;
+  int surfaceOriginalMethod=0,surfaceNoneMethod=0;
   uint32_t supportTether=0;
   unsigned supportElasticConversions=0;
   float supportCompression=0,supportBending=0,supportDistanceAttenuation=0;
@@ -150,6 +162,7 @@ static ClothBoneRuntime &s_clothBone=s_clothBoneSlots[0];
 static int s_clothBoneContext=0,s_clothBoneCount=1;
 static bool s_clothBoneDispatching=false;
 static bool s_clothBoneResolved=false;
+static bool s_clothBoneNoMatch=false;
 static bool s_clothAutoDeferred=false;
 static std::vector<const ClothBoneProfile*> s_clothAutoFallbacks;
 static int s_clothBoneMutating=-1;
@@ -186,6 +199,18 @@ static bool ClothBoneOwnsPrivateBBC(const ClothRef &bbc) {
 static bool ClothBoneLeasedInstance(const ClothInstance &i) {
   for(auto &s:s_clothBoneSlots) if(s.lease && i.ref.id==s.bbc.id &&
       s.tx.phase!=eiem_cloth_rebuild::Phase::Active) return true;
+  return false;
+}
+static bool ClothBoneOwnsAnchor(const ClothAnchor &anchor) {
+  for (const auto &s : s_clothBoneSlots) {
+    if (!s.pending || !s.lease || !s.tx.lease || !(s.owner == s_cloth.owner) ||
+        s.index < 0 || s.index >= s_cloth.count || s.index >= ClothCapacity ||
+        !(anchor.members & (uint64_t(1) << s.index)) ||
+        !(s_cloth.instances[s.index].ref.id == s.bbc.id)) continue;
+    for (const auto &b : s.bones)
+      if (b.bone.handle && b.parent.handle && b.bone.id == anchor.ref.id &&
+          b.parent.id == anchor.parent.id) return true;
+  }
   return false;
 }
 static void ClothBoneNote(const char *reason) {
@@ -229,7 +254,8 @@ static bool ClothBoneNativeArray(void *owner,const char *field,const char *eleme
       ClothValueOffset(cls,"m_Buffer","System.Void*",sizeof(copy),8)!=0 ||
       ClothValueOffset(cls,"m_Length","System.Int32",sizeof(copy),4)!=8 ||
       ClothValueOffset(cls,"m_AllocatorLabel","Unity.Collections.Allocator",sizeof(copy),4)!=12 ||
-      !CollisionField(owner,field,type,copy) || !copy.buffer || copy.length<1 || copy.length>256) return false;
+      !CollisionField(owner,field,type,copy) || !copy.buffer || copy.length<1 ||
+      copy.length>(!strcmp(field,"edges")?ClothBoneMaxEdges:ClothBoneMaxParticles+1)) return false;
   void *array=nullptr;
   if(!ClothInvoke(SurfaceMethod(cls,"ToArray",arrayType),&copy,nullptr,array) || !array) return false;
   const auto h=il2cpp_gchandle_new(array,false); if(!h) return false;
@@ -276,7 +302,7 @@ static bool ClothBoneReadReference(void *process,bool capture) {
   auto &s=ClothBoneState(); void *setup=nullptr,*list=nullptr;
   if(!CollisionField(process,"boneClothSetupData","BeyondDynamicBone.RenderSetupData",setup) || !setup ||
       !CollisionField(setup,"transformList","System.Collections.Generic.List<UnityEngine.Transform>",list)) return false;
-  const int count=CollisionCount(list); if(!s.profile || count<3 || count>129) return false;
+  const int count=CollisionCount(list); if(!s.profile || count<3 || count>ClothBoneMaxParticles+1) return false;
   Log("[CLOTH-BONE-REFERENCE] captureOriginal=%d Process=%p setup=%p transformCount=%d",capture,process,setup,count);
   std::vector<unsigned char> positions,rotations,local,localQ,scales;
   if(!ClothBoneNativeArray(setup,"transformPositions","Unity.Mathematics.float3",12,positions) ||
@@ -362,7 +388,7 @@ static bool ClothBoneGraph(void *process,bool original,bool capture=false) {
   if(!SurfaceReadArray(vm,"attributes","BeyondDynamicBone.VertexAttribute",1,attrs) ||
       !SurfaceReadArray(vm,"referenceIndices","System.Int32",4,refs) ||
       !SurfaceReadArray(vm,"skinBoneTransformIndices","System.Int32",4,skin) ||
-      !SurfaceReadArray(vm,"triangles","Unity.Mathematics.int3",12,triangles) ||
+      !SurfaceReadArray(vm,"triangles","Unity.Mathematics.int3",12,triangles,ClothBoneMaxFaces) ||
       !SurfaceReadArray(vm,"lines","Unity.Mathematics.int2",8,lines)) return false;
   Log("[CLOTH-BONE-GRAPH] component=%s original=%d Process=%p vertices=%zu references=%zu skinTransforms=%zu triangles=%zu lines=%zu",
       s.profile?profile->component:"pending",original,process,attrs.size(),refs.size()/4,skin.size()/4,triangles.size()/12,lines.size()/8);
@@ -376,7 +402,7 @@ static bool ClothBoneGraph(void *process,bool original,bool capture=false) {
   for(size_t n=0;n<attrs.size();++n) {
     int ref=-1,ix=-1; memcpy(&ref,refs.data()+4*n,4);
     if(ref<0 || size_t(ref)*4+4>skin.size()) return false;
-    memcpy(&ix,skin.data()+4*ref,4); if(ix<0 || ix>128) return false;
+    memcpy(&ix,skin.data()+4*ref,4); if(ix<0 || ix>ClothBoneMaxParticles) return false;
     void *t=nullptr,*args[]{&ix}; if(!ClothInvoke(get,container,args,t)) return false;
     int b=ClothBoneIndex(t); if(b<0 || b>=profile->boneCount || size_t(b)>=seen.size() || seen[b] || (original&&profile->OutsideOriginal(b))) return false; seen[b]=true; bones.push_back(b);
     const auto &asset=profile->bones[b]; int attr=asset.attribute;
@@ -419,7 +445,7 @@ static bool ClothBoneGraph(void *process,bool original,bool capture=false) {
     for(auto label:labels) detail << label[0] << ':' << label[1] << ',';
     detail << " profileBones=";for(int b:bones)detail << b << ',';
     detail << " faces=";
-    for(size_t n=0;n<faces.size() && n<256;++n) detail << faces[n][0] << ':' << faces[n][1] << ':' << faces[n][2] << ',';
+    for(size_t n=0;n<faces.size() && n<ClothBoneMaxFaces;++n) detail << faces[n][0] << ':' << faces[n][1] << ':' << faces[n][2] << ',';
     detail << " lineLabels=";
     for(auto e:edges)detail << profile->bones[e[0]].column << ':' << profile->bones[e[0]].depth << '-' << profile->bones[e[1]].column << ':' << profile->bones[e[1]].depth << ',';
     Log("%s",detail.str().c_str());return false;
@@ -493,6 +519,8 @@ static void ClothBoneDropReferences() {
   auto &s=ClothBoneState();
   if(s.owned.gameObject.handle){s.stopRequested=true;s.pending=true;return;}
   s_clothLayerGate.Clear();
+  s_clothDisplayView.Revoke();
+  s_clothFinishView.Revoke();s_clothFinishChain.Clear();
   if(s.local.requested && s.local.HasResources()) {
     s.local.cleanup=true;s.pending=true;
     if(!s_clothSurfaceAtBoundary || s_clothInputUpdateDepth!=1 || !ClothBoneLocalCleanup()) {
@@ -572,8 +600,8 @@ static bool ClothBoneAttributes(void *data2,bool candidate=false) {
 }
 static bool ClothBoneLocalDistanceConfigure(void *data,void *original,float stiffness);
 static bool ClothBoneLocalDistanceParameters(void *box,float (&curve)[16],float &attenuation);
-#include "cloth_bonecloth_elastic.h"
 #include "cloth_bonecloth_coat_policy.h"
+#include "cloth_bonecloth_elastic.h"
 #include "cloth_bonecloth_support_policy.h"
 #include "cloth_bonecloth_attachment.h"
 static bool ClothBoneLocalDistanceConfigure(void *data,void *original,float stiffness=ClothLocalDistanceStiffness) {
@@ -637,19 +665,20 @@ static bool ClothBoneConfigure() {
       !ClothBoneAttributes(data2,true) || (!s.prebuild.captured&&!ClothBoneAttributes(restore)) ||
       (s.prebuild.captured&&!ClothBonePrebuildPrivate(data2)) || !SurfaceCopyConfiguration(data,CollisionGc(s.data))) return false;
   if(s.local.requested && !s.local.recipe->RetainsSourceReference() && (!SurfaceScalar(data,"animationPoseRatio","System.Single",0.0f) ||
-      (!s.local.recipe->distanceCurve && !ClothBoneLocalDistanceConfigure(data,CollisionGc(s.data),s.local.recipe->distanceStiffness)))) return false;
+      ((!s.local.recipe->distanceCurve || ClothBoneLongPanelBending(s)) &&
+      !ClothBoneLocalDistanceConfigure(data,CollisionGc(s.data),s.local.recipe->distanceStiffness)))) return false;
   if(!ClothBoneLongPanelRadiusConfigure(data,CollisionGc(s.data)))return ClothBoneReject("long-panel-contact-envelope-unconfirmed-original-unchanged");
   if(s.contactConsumer>=0 && !SurfaceScalar(data,"animationPoseRatio","System.Single",0.0f))return false;
+  if(!ClothBoneSurfaceBendingConfigure(data,CollisionGc(s.data)))
+    return ClothBoneReject("native-surface-bending-policy-unconfirmed-original-unchanged");
   if(!ClothBoneElasticConfigure(data,CollisionGc(s.data)))
-    return ClothBoneReject("tight-elastic-native-parameters-unconfirmed-original-unchanged");
+    return ClothBoneReject("cloth-elastic-native-parameters-unconfirmed-original-unchanged");
   if(!ClothBoneSupportPolicyConfigure(data,CollisionGc(s.data)))
     return ClothBoneReject("paired-surface-response-policy-unconfirmed-original-unchanged");
   if(!ClothBoneSupportElasticConfigure(data,CollisionGc(s.data)))
     return ClothBoneReject("paired-surface-elastic-parameters-unconfirmed-original-unchanged");
   if(!ClothBoneAttachmentConfigure(data,CollisionGc(s.data)))
     return ClothBoneReject("paired-waist-output-parameters-unconfirmed-original-unchanged");
-  if(!ClothBoneForkCoatConfigure(data,CollisionGc(s.data)))
-    return ClothBoneReject("fork-coat-shape-policy-unconfirmed-original-unchanged");
   if(s.local.requested && !ClothBoneNativeContactConfigure(data,CollisionGc(s.data)))
     return ClothBoneReject("native-cloth-contact-preflight-unavailable-original-unchanged");
   if(!ClothBoneContactColliderPolicy()) return ClothBoneReject("native-contact-collider-source-unconfirmed-original-unchanged");
@@ -689,6 +718,8 @@ static bool ClothBoneConfigure() {
 #include "cloth_bonecloth_binding.h"
 #include "cloth_bonecloth_auto.h"
 #include "cloth_bonecloth_contact.h"
+#include "cloth_bonecloth_display.h"
+#include "cloth_bonecloth_contact_finish.h"
 #include "../collision/cloth_layer_order_runtime.h"
 #include "cloth_bonecloth_body.h"
 #include "cloth_bonecloth_side.h"
@@ -1122,7 +1153,7 @@ static bool ClothBoneMode(int slot,bool teamReadback) {
   auto box=ClothInputArrayBox(parameters,s.team[slot]);
   return CollisionParameterMode(box,actual) && actual==processMode &&
       (slot!=1 || (ClothBoneSupportPolicyMatches(s,box) && ClothBoneSupportElasticMatches(s,box))) &&
-      ClothBoneAttachmentMatches(s,slot,box)&&ClothBoneContactEnvelopeMatches(s,slot,box)&&ClothBoneForkCoatMatches(s,slot,box);
+      ClothBoneAttachmentMatches(s,slot,box)&&ClothBoneContactEnvelopeMatches(s,slot,box)&&ClothBoneSurfaceBendingMatches(s,slot,box)&&ClothBoneLongPanelMaterialMatches(s,slot,box);
 }
 static bool ClothBoneAdopt(int slot) {
   auto &s=ClothBoneState();
@@ -1400,8 +1431,11 @@ static void ClothBoneBoundaryImpl() {
       if(eiem_cloth_asset::SourceSeparatedCoat(*s.profile))Log("[CLOTH-BONE-COAT-INPUT] stage=Team-confirmed component=%s frame=%d generation=%llu command=%u Process=%p team=%d releasedInternalFixed=%d retainedOriginalRoots=%d points=%d sourceSelectionUnchanged=1 hierarchyAndSkinWrites=0 depthCurveSampling=native-recomputed visualVerified=0",
           s.profile->component,frame,s.owner.generation,s.command,CollisionGc(s.process[1]),s.team[1],s.profile->releasedFixedCount,s.profile->rootCount,ClothBoneCandidate(s).EffectiveCount());
       if(ClothBoneForkCoat(s))Log("[CLOTH-BONE-COAT-POLICY] stage=Team-confirmed component=%s frame=%d generation=%llu command=%u Process=%p team=%d bodyCollision=Point triangleBending=0 originalStiffness=%g originalRadiusCurve=1 originalSkin=%d waistSkinTransition=%d longitudinalShapeConstraints=retained visualVerified=0",
-          s.profile->component,frame,s.owner.generation,s.command,CollisionGc(s.process[1]),s.team[1],s.forkCoatOriginalStiffness,
+          s.profile->component,frame,s.owner.generation,s.command,CollisionGc(s.process[1]),s.team[1],s.surfaceOriginalStiffness,
           !s.local.requested||(s.local.recipe&&s.local.recipe->NativeSkinRetained()),s.local.recipe&&s.local.recipe->CoatWaistSkinOnly());
+      if(ClothBoneLongPanelBending(s))Log("[CLOTH-BONE-LONG-PANEL-POLICY] stage=Team-confirmed component=%s frame=%d generation=%llu command=%u Process=%p team=%d bodyCollision=Edge triangleBending=0 originalStiffness=%g points=%d faces=%d contourDistance=%g contourTetherStretch=%g sourceAngleRetained=1 colliderGeometryUnchanged=1 visualVerified=0",
+          s.profile->component,frame,s.owner.generation,s.command,CollisionGc(s.process[1]),s.team[1],s.surfaceOriginalStiffness,ClothBoneCandidate(s).EffectiveCount(),ClothBoneCandidate(s).FaceCount(),
+          s.local.recipe->distanceStiffness,s.local.recipe->tetherStretch);
       if(s.contactConsumer>=0)Log("[CLOTH-BONE-PARTNER] stage=native-graph-and-body-mode-confirmed component=%s points=%d faces=%d bodyCollision=%s effectiveAnimationPoseRatio=0 originalSkinRetained=1 mutualContactPending=1",
           s.profile->component,ClothBoneCandidate(s).EffectiveCount(),ClothBoneCandidate(s).FaceCount(),ClothBoneBodyMode(s));
       if(s.supportPointCollision)Log("[CLOTH-BONE-SUPPORT-POLICY] stage=Team-confirmed component=%s team=%d generation=%llu bodyCollision=Point maxDistance=0 candidateAttachmentsPreserved=1 mutualContact=FullMesh visualVerified=0",
@@ -1509,6 +1543,8 @@ static void ClothBoneRelease(const char *reason) {
   if(!ClothOnMainThread()) return;
   ClothAutoCancel();
   s_clothLayerGate.Clear();
+  s_clothDisplayView.Revoke();
+  s_clothFinishView.Revoke();s_clothFinishChain.Clear();
   for(int n=0;n<s_clothBoneCount;++n) {
     auto &s=s_clothBoneSlots[n]; if(!s.pending && !s.lease) continue;
     s.stopRequested=true;
@@ -1550,7 +1586,7 @@ static void ClothBoneService(bool pose,int frame) {
       } else ClothBoneInSlot(0,[] { ClothBoneNote("stale-command-or-no-active-owner"); });
     } else {
       ClothAutoCancel();s_clothAutoLease.reset();s_clothAutoSkipped=false;
-      s_clothBoneSlots={};s_clothBoneCount=1;s_clothBoneResolved=false;s_clothBoneMutating=-1;
+      s_clothBoneSlots={};s_clothBoneCount=1;s_clothBoneResolved=false;s_clothBoneNoMatch=false;s_clothBoneMutating=-1;
       auto &s=s_clothBone;s.command=request;s.owner=s_cloth.owner;s.pending=true;s.deadline=GetTickCount64()+8000;s.local.requested=false;
       s.autoSelect=true;
       s.requestedAt=s_clothBoneRequestedAt.load(std::memory_order_acquire);
@@ -1606,14 +1642,21 @@ static bool ClothBoneResolveBatch() {
       const auto partner=ClothContactPartnerProfiles[0];authored.push_back(partner);
       for(int n=0;n<s_cloth.count;++n)if(ClothBoneRootNames(s_cloth.instances[n],*partner))reserved.insert(n);
     }
+    bool startupReady=true,captureReady=true;
     if(!s_clothAutoSkipped)for(int n=0;n<s_cloth.count;++n) {
       if(!found.empty() && !reserved.count(n))continue;
       const auto phase=s_cloth.instances[n].startup.phase;
       if(phase==eiem_cloth::Phase::Waiting || phase==eiem_cloth::Phase::Verifying) {
-        s_clothAutoWaiting=true;ClothBoneNote("waiting-for-original-cloth-startup-without-delaying-body");return false;
+        startupReady=false;
+        const auto &native=s_cloth.instances[n].last.state;
+        captureReady&=native.readable&&native.process&&native.valid&&native.running&&native.processEnabled;
       }
     }
     try {
+      if(!startupReady) {
+        if(captureReady&&found.empty())ClothAutoPrepare(reserved,authored,false);
+        s_clothAutoWaiting=true;ClothBoneNote("waiting-for-original-cloth-startup-source-preparation-overlapped");return false;
+      }
       if(!ClothAutoPrepare(reserved,authored)) {
         if(found.empty())return false;
         s_clothAutoDeferred=true;
@@ -1631,6 +1674,9 @@ static bool ClothBoneResolveBatch() {
     deadline=GetTickCount64()+30000;
   }
   if(found.empty()) {
+    s_clothBoneNoMatch=s_clothAutoNoRenderableSources || (s_clothAutoJob &&
+        s_clothAutoJob->done.load(std::memory_order_acquire) &&
+        s_clothAutoJob->error.empty() && s_clothAutoLease && !s_clothAutoDeferred);
     Log("[CLOTH-CATALOG] action=no-match session=%llu generation=%llu prepared=%zu ownerBBCs=%d original-components-unchanged=1",
         (unsigned long long)owner.session,(unsigned long long)owner.generation,s_clothBoneCatalog.size(),s_cloth.count);
     for(int n=0;n<s_cloth.count;++n) Log("[CLOTH-CATALOG] unmatched-component=%s",s_cloth.instances[n].name);
@@ -1804,11 +1850,14 @@ static void ClothBoneBatchBoundaryImpl() {
 }
 static void ClothBoneBoundary() {
   if(!ClothOnMainThread() || !s_clothSurfaceAtBoundary || s_clothInputUpdateDepth!=1 ||
-      s_clothBoneDispatching || !ClothBonePending()) return;
+      s_clothBoneDispatching) return;
+  if(!ClothBonePending()){ClothPlaybackService(true);return;}
   s_clothBoneDispatching=true;
   s_clothLayerGate.Clear();
+  s_clothDisplayView.CompletedBoundary();
+  s_clothFinishView.CompletedBoundary();s_clothFinishChain.Clear();
   __try {
-    __try { ClothBoneBatchBoundaryImpl(); ClothBoneLayerRefresh(); }
+    __try { ClothBoneBatchBoundaryImpl(); ClothBoneLayerRefresh(); ClothBoneDisplayRefresh(); ClothBoneFinishRefresh(); ClothPlaybackService(true); }
     __except(EXCEPTION_EXECUTE_HANDLER) { ClothBoneRelease("batch-boundary-exception-restoring"); }
   } __finally { s_clothBoneDispatching=false; }
 }

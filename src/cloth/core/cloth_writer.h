@@ -102,7 +102,7 @@ static void ClothWriterReadback(int index, eiem_cloth::Owner owner, void *obj, u
     const int frame = ClothFrame();
     auto &e = i.weightWriter;
     if (forwarded != requested) {
-      if (!read || !eiem_cloth::WeightAtTarget(actual)) {
+      if (!read || !eiem_cloth::WeightAtTarget(actual) || !eiem_cloth::WeightAtTarget(property)) {
         e.armed = false;
         e.ownWriteConfirmed = false;
         Log("[CLOTH-WRITER-FAILED] session=%llu instance=%d frame=%d caller=%p requested=%g "
@@ -118,7 +118,7 @@ static void ClothWriterReadback(int index, eiem_cloth::Owner owner, void *obj, u
             i.ref.id.instance, frame, reinterpret_cast<void *>(caller), requested, forwarded,
             actual, property, e.intercepted);
       }
-    } else if (read && !e.armed) {
+    } else if (read && std::isfinite(property) && fabsf(property - actual) <= .000001f && !e.armed) {
       const unsigned previous = e.observations;
       const bool armed = e.Observe(frame, caller, requested, actual);
       if (e.observations != previous || armed) {
