@@ -1,5 +1,6 @@
 #pragma once
 #include "direct_vmd_source.h"
+#include "direct_vmd_knee.h"
 
 namespace eiem_source {
 struct Evaluated {
@@ -181,6 +182,7 @@ inline VmdQuaternion Power(VmdQuaternion q, float weight) {
 inline void Sample(const Prepared &p, const ClipBinding &binding,
                    const VmdFile &clip, double time,
                    DirectVmdSampleFrame *out) {
+  out->knees[0] = out->knees[1] = {};
   DirectVmdSampleFrame sampled;
   if (!p.pmx) {
     const VmdFile &source = binding.legacy ? clip : binding.canonical;
@@ -219,6 +221,36 @@ inline void Sample(const Prepared &p, const ClipBinding &binding,
     }
     out->leftFootIkEnabled = sampled.leftFootIkEnabled;
     out->rightFootIkEnabled = sampled.rightFootIkEnabled;
+    VmdQuaternion sourceWorld[DIRECT_VMD_BONE_COUNT];
+    for (uint32_t i = 0; i < DIRECT_VMD_BONE_COUNT; ++i) {
+      const int parent = kDirectVmdBoneSpecs[i].parent;
+      const auto local = sampled.bones[i].hasTrack ? sampled.bones[i].rotation
+                                                  : VmdQuaternion{0,0,0,1};
+      sourceWorld[i] = parent < 0 ? local
+          : DirectVmdQuaternionMultiply(sourceWorld[parent], local);
+    }
+    for (int side = 0; side < 2; ++side) {
+      const int thigh = p.semantic[int(kDirectVmdPhase5LegFkBones[side][0])];
+      const int knee = p.semantic[int(kDirectVmdPhase5LegFkBones[side][1])];
+      const int ankle = p.semantic[int(kDirectVmdPhase5LegFkBones[side][2])];
+      if (thigh < 0 || knee < 0 || ankle < 0 ||
+          kDirectVmdBoneSpecs[knee].parent != thigh ||
+          kDirectVmdBoneSpecs[ankle].parent != knee) continue;
+      VmdVec3 upperAxis{}, lowerAxis{};
+      if (!DirectVmdTryNormalizeVector(
+              p.reference.direction[int(kDirectVmdPhase5LegFkBones[side][0])], &upperAxis))
+        upperAxis = {0,-1,0};
+      if (!DirectVmdTryNormalizeVector(
+              p.reference.direction[int(kDirectVmdPhase5LegFkBones[side][1])], &lowerAxis))
+        lowerAxis = {0,-1,0};
+      const auto kneeRotation = sampled.bones[knee].rotation;
+      out->knees[side] = DirectVmdSourceKneeReference(
+          DirectVmdRotateVector(sourceWorld[thigh], upperAxis),
+          DirectVmdRotateVector(sourceWorld[knee], lowerAxis),
+          sampled.bones[knee].hasTrack != 0 &&
+          kneeRotation.x*kneeRotation.x + kneeRotation.y*kneeRotation.y +
+              kneeRotation.z*kneeRotation.z > 1e-8f);
+    }
   } else {
     const auto &s = p.skeleton;
     auto &world = binding.world;
@@ -259,6 +291,19 @@ inline void Sample(const Prepared &p, const ClipBinding &binding,
       Require(Finite(world[i].position) &&
                   DirectVmdLength(world[i].position) < 1e8f,
               "Source evaluation exceeded finite/position budget");
+    }
+    for (int side = 0; side < 2; ++side) {
+      const int thigh = p.semantic[int(kDirectVmdPhase5LegFkBones[side][0])];
+      const int knee = p.semantic[int(kDirectVmdPhase5LegFkBones[side][1])];
+      const int ankle = p.semantic[int(kDirectVmdPhase5LegFkBones[side][2])];
+      if (thigh < 0 || knee < 0 || ankle < 0) continue;
+      const auto q = DirectVmdQuaternionMultiply(local[knee].rotation, append[knee].rotation);
+      const bool effective = s.bones[knee].parent == thigh &&
+          s.bones[ankle].parent == knee &&
+          q.x*q.x + q.y*q.y + q.z*q.z > 1e-8f;
+      out->knees[side] = DirectVmdSourceKneeReference(
+          DirectVmdSub(world[knee].position, world[thigh].position),
+          DirectVmdSub(world[ankle].position, world[knee].position), effective);
     }
     Evaluated semantic[DIRECT_VMD_BONE_COUNT];
     VmdVec3 bind[DIRECT_VMD_BONE_COUNT]{};
@@ -304,6 +349,8 @@ inline void Sample(const Prepared &p, const ClipBinding &binding,
                                         : DirectVmdBoneId::LeftFootIk)];
     if (!controlled)
       (side ? out->rightFootIkEnabled : out->leftFootIkEnabled) = 0;
+    if (!(side ? out->rightFootIkEnabled : out->leftFootIkEnabled))
+      out->knees[side] = {};
   }
   out->sourceRevision = p.revision;
 }

@@ -404,8 +404,13 @@ static inline bool DirectVmdStartsFreshPlayback(
           previous == DirectVmdPlaybackState::Ended);
 }
 
+struct DirectVmdKneeReferencePod {
+  VmdVec3 direction{};
+  float confidence = 0.0f;
+};
+
 struct DirectVmdSampleFrame {
-  uint32_t version = 6;
+  uint32_t version = 7;
   uint32_t boneCount = DIRECT_VMD_BONE_COUNT;
   uint32_t morphCount = 0;
   uint32_t morphDroppedCount = 0;
@@ -426,6 +431,7 @@ struct DirectVmdSampleFrame {
   uint8_t rightFootIkEnabled = 1;
   uint8_t reserved[3] = {};
   DirectVmdBoneSamplePod bones[DIRECT_VMD_BONE_COUNT] = {};
+  DirectVmdKneeReferencePod knees[2] = {};
   DirectVmdMorphSamplePod morphs[DIRECT_VMD_MAX_MORPH_CHANNELS] = {};
   DirectVmdCameraSamplePod camera;
 };

@@ -1304,6 +1304,17 @@ static void DrawMainPanel() {
       ImGui::SameLine();
       if (ImGui::SmallButton(u8"\u91cd\u7f6e##directscale"))
         DirectVmdRuntime_SetMotionMultiplier(1.0f);
+      bool kneeMix = s_directVmdKneeMixEnabled.load(std::memory_order_acquire);
+      if (ImGui::Checkbox(u8"膝盖弯曲方向混合##directknee", &kneeMix))
+        s_directVmdKneeMixEnabled.store(kneeMix, std::memory_order_release);
+      float kneeWeight = s_directVmdKneeMixWeight.load(std::memory_order_acquire);
+      ImGui::SetNextItemWidth(-60);
+      if (ImGui::SliderFloat(u8"混合强度##directknee", &kneeWeight, 0.0f, 1.0f, "%.2f"))
+        s_directVmdKneeMixWeight.store(kneeWeight, std::memory_order_release);
+      ImGui::SameLine();
+      if (ImGui::SmallButton(u8"重置##directknee"))
+        s_directVmdKneeMixWeight.store(DIRECT_VMD_KNEE_DEFAULT_WEIGHT, std::memory_order_release);
+      ImGui::TextDisabled(u8"缺少有效膝盖 FK 时沿用原参考；不改变脚目标");
       ImGui::TextDisabled(
           u8"\u4e0e Root\u3001Center\u3001Groove \u548c\u8db3 IK \u5171\u7528\u540c\u4e00\u500d\u7387");
     } else {

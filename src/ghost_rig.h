@@ -130,6 +130,14 @@ struct GhostRigLegRuntime {
   bool externalOwnershipIsolated;
   int savedBendModifier;
   float savedBendWeight;
+  int kneeNormalOffset;
+  int kneeBackupOffset;
+  bool kneeReferenceReady;
+  VmdVec3 kneeDefaultLocalNormal;
+  DirectVmdKneeReferencePod sourceKnee;
+  float kneeMixWeight;
+  DirectVmdKneeMix kneeMix;
+  DirectVmdKneeSolverOverride kneeOverride;
   DirectVmdReachProjection reach;
   DirectVmdToeAimResult toeAim;
   VmdQuaternion footWorldRotation;
@@ -1620,6 +1628,23 @@ static void GhostRig_ResetPhase7TerrainState() {
   s_ghostRig.grounder.footRaycastFirstSampleLogged = false;
 }
 
+static void GhostRig_RestoreKneeOverride(GhostRigLegRuntime &leg, void *solver) {
+  if (!solver || !leg.kneeOverride.active) return;
+  __try {
+    leg.kneeOverride.Restore(
+        reinterpret_cast<VmdVec3 *>((char *)solver + leg.kneeNormalOffset),
+        reinterpret_cast<VmdVec3 *>((char *)solver + leg.kneeBackupOffset),
+        reinterpret_cast<float *>((char *)solver + OFF_IKLIMB_BEND_WEIGHT));
+  } __except (EXCEPTION_EXECUTE_HANDLER) {}
+}
+
+static void GhostRig_AfterLegSolverUpdate(void *solver) {
+  if (!solver || !GhostRig_RequireMainThread("KneeMix.Restore", false)) return;
+  for (auto &leg : s_ghostRig.legs)
+    if (leg.kneeOverride.active && GhostRig_GetHandleTarget(leg.solverHandle) == solver)
+      GhostRig_RestoreKneeOverride(leg, solver);
+}
+
 static void GhostRig_ClearPhase5FinalIkOwnership(
     GhostRigCleanupReason reason) {
   GhostRig_RestoreGrounderOwnership(reason);
@@ -1634,6 +1659,7 @@ static void GhostRig_ClearPhase5FinalIkOwnership(
   for (uint32_t index = 0; index < DIRECT_VMD_LEG_SIDE_COUNT; ++index) {
     GhostRigLegRuntime &leg = s_ghostRig.legs[index];
     void *solver = GhostRig_GetHandleTarget(leg.solverHandle);
+    GhostRig_RestoreKneeOverride(leg, solver);
     solverWrites += leg.solverWriteCount;
     fkWrites += leg.fkRotationWriteCount;
     toeWrites += leg.toeAimWriteCount;
@@ -3600,6 +3626,7 @@ static bool GhostRig_CaptureNaturalBindPose(
       DirectVmdRuntime_GetMotionMultiplier();
   s_ghostMotionScalePublic.store(s_ghostRig.motionScale,
                                  std::memory_order_release);
+
   s_ghostRig.bindGeneration = generation;
   s_ghostRig.bindOwnerCharacter = ownerCharacter;
   GhostRig_SetBindStatus(GhostBindCaptureState::Ready,
@@ -3635,6 +3662,9 @@ static bool GhostRig_ApplyDirectPose(void *ownerRoot) {
       frame.rigGeneration == s_ghostRig.generation &&
       frame.sourceRevision == s_ghostRig.bindSourceRevision &&
       frame.ownerCharacter == s_ghostRig.ownerCharacter;
+  for (int side = 0; side < 2; ++side)
+    s_ghostRig.legs[side].sourceKnee = accepted
+        ? frame.knees[side] : DirectVmdKneeReferencePod{};
   s_ghostRig.motionScale = s_ghostRig.baseMotionScale *
       DirectVmdRuntime_GetMotionMultiplier();
   s_ghostMotionScalePublic.store(s_ghostRig.motionScale,
@@ -6023,6 +6053,30 @@ static bool GhostRig_ResolvePhase5FinalIkSolvers(void *bipedIK) {
     leg.solverHandle = il2cpp_gchandle_new(solver, false);
     if (!leg.solverHandle)
       continue;
+    leg.kneeReferenceReady = false;
+    if (il2cpp_object_get_class) {
+      __try {
+        static const char *normalName[] = {"bendNormal"};
+        static const char *backupName[] = {"_bendNormal"};
+        static const char *localName[] = {"defaultLocalBendNormal"};
+        const char *matched = nullptr;
+        void *klass = il2cpp_object_get_class(solver);
+        leg.kneeNormalOffset = FindFieldInHierarchy(klass, normalName, 1, &matched);
+        leg.kneeBackupOffset = FindFieldInHierarchy(klass, backupName, 1, &matched);
+        void *bone = *reinterpret_cast<void **>((char *)solver + OFF_IKTRIG_BONE1);
+        const int localOffset = bone ? FindFieldInHierarchy(
+            il2cpp_object_get_class(bone), localName, 1, &matched) : -1;
+        if (leg.kneeNormalOffset > 0 && leg.kneeBackupOffset > 0 && localOffset > 0) {
+          VmdVec3 normal = *reinterpret_cast<VmdVec3 *>((char *)bone + localOffset);
+          leg.kneeReferenceReady = DirectVmdTryNormalizeVector(normal, &leg.kneeDefaultLocalNormal);
+        }
+      } __except (EXCEPTION_EXECUTE_HANDLER) {
+        leg.kneeReferenceReady = false;
+      }
+    }
+    Log("[P5-KNEE-BIND] side=%s ready=%d input=Animation-local-normal offsets=%d/%d",
+        GhostRig_LegSideName(side), leg.kneeReferenceReady ? 1 : 0,
+        leg.kneeNormalOffset, leg.kneeBackupOffset);
     __try {
       leg.savedBendModifier = *reinterpret_cast<int *>(
           (char *)solver + OFF_IKLIMB_BEND_MODIFIER);
@@ -6305,6 +6359,15 @@ static bool GhostRig_PreparePhase5Leg(
   leg.footIkParentWorldPosition = {0.0f, 0.0f, 0.0f};
   leg.toeIkWorldPosition = {0.0f, 0.0f, 0.0f};
   leg.bendDirection = {0.0f, 0.0f, 0.0f};
+  leg.kneeMix = {};
+  leg.kneeMixWeight = s_directVmdKneeMixEnabled.load(std::memory_order_acquire)
+      ? s_directVmdKneeMixWeight.load(std::memory_order_acquire) : 0.0f;
+  if (periodicLog)
+    Log("[P5-KNEE-REFERENCE] side=%s frame=%d requestedWeight=%.4f sourceConfidence=%.4f "
+        "solverReferenceReady=%d effectiveIk=%d sourceRevision=%llu",
+        GhostRig_LegSideName(side), frame, leg.kneeMixWeight, leg.sourceKnee.confidence,
+        leg.kneeReferenceReady ? 1 : 0, effectiveIk ? 1 : 0,
+        (unsigned long long)s_ghostRig.bindSourceRevision);
 
   const uint32_t sideIndex = static_cast<uint32_t>(side);
   if (!effectiveIk) {
@@ -7434,6 +7497,47 @@ static bool GhostRig_PreparePhase5Legs(int frame, void *bipedIK) {
   return true;
 }
 
+static void GhostRig_ApplyKneeSolverInput(DirectVmdLegSide side, void *solver, int frame) {
+  GhostRigLegRuntime &leg = GhostRig_LegRuntime(side);
+  if (!solver || !GhostRig_RequireMainThread("KneeMix.Apply", false) ||
+      !g_motionBackend.Is(MotionBackend::DirectVmd) ||
+      s_ghostRequestedGeneration.load(std::memory_order_acquire) != s_ghostRig.generation ||
+      s_ghostRequestedOwnerId.load(std::memory_order_acquire) != s_ghostRig.ownerCharacter ||
+      !s_ghostRig.lastSampleAccepted || !leg.effectiveIkEnabled ||
+      leg.preparedFrame != frame || !leg.kneeReferenceReady ||
+      !leg.reach.valid || leg.kneeMixWeight <= 0 || leg.sourceKnee.confidence <= 0)
+    return;
+  const auto thigh = kDirectVmdPhase5LegFkBones[static_cast<uint32_t>(side)][0];
+  const auto &target = s_ghostRig.targets[DirectVmdBoneIndex(thigh)];
+  VmdVec3 hip{}, knee{};
+  if (!target.lastDesiredValid || target.lastDesiredFrame != frame ||
+      !GhostRig_EvaluateExpectedLegSeedPositions(side, frame, &hip, &knee)) return;
+  auto source = leg.sourceKnee;
+  source.direction = DirectVmdRotateVector(s_ghostRig.anchorRotation,
+      SourceToGameBasis::ConvertPosition(source.direction));
+  const auto animationNormal = DirectVmdRotateVector(
+      target.lastDesiredWorldRotation, leg.kneeDefaultLocalNormal);
+  leg.kneeMix = DirectVmdMixKneeDirection(DirectVmdSub(leg.reach.solverTarget, hip),
+      animationNormal, source, GhostRig_LegMaximumReach(side), leg.kneeMixWeight);
+  if (!leg.kneeMix.applied) return;
+  __try {
+    leg.kneeOverride.Apply(
+        reinterpret_cast<VmdVec3 *>((char *)solver + leg.kneeNormalOffset),
+        reinterpret_cast<VmdVec3 *>((char *)solver + leg.kneeBackupOffset),
+        reinterpret_cast<float *>((char *)solver + OFF_IKLIMB_BEND_WEIGHT),
+        leg.kneeMix.normal);
+  } __except (EXCEPTION_EXECUTE_HANDLER) {
+    GhostRig_RestoreKneeOverride(leg, solver);
+    leg.kneeMix.applied = false;
+  }
+  if (frame == s_ghostRig.lastLegLogFrame)
+    Log("[P5-KNEE-MIX] side=%s frame=%d sourceConfidence=%.4f weight=%.4f effective=%.4f "
+        "injected=%d consumer=bendNormal modifierWeight=0 footTargetUnchanged=1 sourceRevision=%llu",
+        GhostRig_LegSideName(side), frame, source.confidence, leg.kneeMixWeight,
+        leg.kneeMix.effectiveWeight, leg.kneeOverride.active ? 1 : 0,
+        (unsigned long long)s_ghostRig.bindSourceRevision);
+}
+
 static bool GhostRig_BeforeLegSolverUpdate(void *solver,
                                             void *methodInfo) {
   if (!solver || !GhostRig_RequireMainThread(
@@ -7518,6 +7622,7 @@ static bool GhostRig_BeforeLegSolverUpdate(void *solver,
       if (written) {
         leg.innerWriteFrame = frame;
         ++leg.solverWriteCount;
+        GhostRig_ApplyKneeSolverInput(side, solver, frame);
       }
       GhostRig_LogOrder(
           leg.effectiveIkEnabled
@@ -7553,6 +7658,7 @@ static bool GhostRig_BeforeLegSolverUpdate(void *solver,
     if (written) {
       leg.innerWriteFrame = frame;
       ++leg.solverWriteCount;
+      GhostRig_ApplyKneeSolverInput(side, solver, frame);
     }
     GhostRig_LogOrder(
         leg.effectiveIkEnabled
@@ -7604,12 +7710,14 @@ static bool GhostRig_ResolvePhase7LegsAfterHipsCorrection(int frame) {
                 solver, 1.0f, leg.reach.solverTarget, 0.0f,
                 leg.footWorldRotation)) {
           ++leg.solverWriteCount;
+          GhostRig_ApplyKneeSolverInput(static_cast<DirectVmdLegSide>(index), solver, frame);
           onUpdate(solver, leg.onUpdateMethodInfo);
           completed = true;
         }
       } __except (EXCEPTION_EXECUTE_HANDLER) {
         completed = false;
       }
+      GhostRig_RestoreKneeOverride(leg, solver);
     }
     if (completed) {
       leg.postTerrainResolveFrame = frame;

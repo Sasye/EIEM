@@ -54,6 +54,8 @@ static std::atomic<bool> s_directVmdRuntimeActive{false};
 static std::atomic<bool> s_directVmdLoop{false};
 static std::atomic<float> s_directVmdSpeed{1.0f};
 static std::atomic<float> s_directVmdMotionMultiplier{1.0f};
+static std::atomic<bool> s_directVmdKneeMixEnabled{true};
+static std::atomic<float> s_directVmdKneeMixWeight{DIRECT_VMD_KNEE_DEFAULT_WEIGHT};
 static std::atomic<uint64_t> s_directVmdTargetGeneration{0};
 static std::atomic<uintptr_t> s_directVmdTargetOwner{0};
 

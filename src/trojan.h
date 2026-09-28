@@ -1200,6 +1200,7 @@ static void __fastcall Hooked_OnUpdate(void *self, void *methodInfo) {
       ((fn)g_origIkTrigOnUpdate)(self, methodInfo);
     }
   } __except (EXCEPTION_EXECUTE_HANDLER) {}
+  GhostRig_AfterLegSolverUpdate(self);
 }
 
 static void __fastcall Hooked_IK_UpdateSolver(void *self, void *methodInfo) {
